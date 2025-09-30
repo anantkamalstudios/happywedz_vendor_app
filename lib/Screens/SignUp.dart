@@ -1,45 +1,27 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:happy_weds_vendors/Screens/home.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'Login.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'home.dart';
 
-// Future<void> registerVendor({
-//   required String businessName,
-//   required String city,
-//   required String email,
-//   required String phone,
-//   required String password,
-//   required int vendorTypeId,
-// }) async {
-//   final url = Uri.parse("https://happywedz.com/api/vendor/register");
-//
-//   final response = await http.post(
-//     url,
-//     headers: {
-//       "Content-Type": "application/json",
-//     },
-//     body: jsonEncode({
-//       "businessName": businessName,
-//       "city": city,
-//       "phone": phone,
-//       "email": email,
-//       "password": password,
-//       "vendor_type_id": vendorTypeId,
-//     }),
-//   );
-//
-//   if (response.statusCode == 200 || response.statusCode == 201) {
-//     print("Vendor registered successfully!");
-//     print(response.body);
-//   } else {
-//     print("Failed to register vendor: ${response.body}");
-//   }
-// }
+class VendorType {
+  final int id;
+  final String name;
+
+  VendorType({required this.id, required this.name});
+
+  factory VendorType.fromJson(Map<String, dynamic> json) {
+    return VendorType(
+      id: json['id'],
+      name: json['name'],
+    );
+  }
+}
 
 class SignUp extends StatefulWidget {
-  const SignUp({Key? key}) : super(key: key);
+  const SignUp({super.key});
 
   @override
   State<SignUp> createState() => _SignUpState();
@@ -49,66 +31,186 @@ class _SignUpState extends State<SignUp> {
   final _formKey = GlobalKey<FormState>();
 
   final _businessNameC = TextEditingController();
-  final _ownerNameC = TextEditingController();
   final _emailC = TextEditingController();
   final _phoneC = TextEditingController();
   final _passwordC = TextEditingController();
-  final _gstC = TextEditingController();
-  final _websiteC = TextEditingController();
 
-  String? _businessCategory;
-  String? _city;
-  String? _referral;
   bool _agreeTerms = false;
+
   List<VendorType> _vendorTypes = [];
   VendorType? _selectedVendorType;
-  bool _isLoading = true;
+  bool _isLoadingVendorTypes = true;
+  bool _isSubmitting = false;
+
+  String? _selectedCountry;
+  String? _selectedCity;
+
+  List<String> _countries = [];
+  Map<String, List<String>> _countryCities = {};
+
+  bool _isLoadingCountries = true;
+
   @override
   void initState() {
     super.initState();
-    _loadVendorTypes();
+    _fetchVendorTypes();
+    _fetchCountries();
   }
 
-  void _loadVendorTypes() async {
+  // ---------------- Vendor Types ----------------
+  Future<void> _fetchVendorTypes() async {
     try {
-      _vendorTypes = await fetchVendorTypes();
-      setState(() {
-        _isLoading = false;
-      });
+      final response =
+      await http.get(Uri.parse('https://happywedz.com/api/vendor-types'));
+      if (response.statusCode == 200) {
+        final List data = json.decode(response.body);
+        setState(() {
+          _vendorTypes = data.map((e) => VendorType.fromJson(e)).toList();
+          _isLoadingVendorTypes = false;
+        });
+      } else {
+        throw Exception('Failed to load vendor types');
+      }
     } catch (e) {
-      print(e);
+      setState(() => _isLoadingVendorTypes = false);
+      print("Error loading vendor types: $e");
+    }
+  }
+
+  // ---------------- Fetch Countries ----------------
+  Future<void> _fetchCountries() async {
+    setState(() => _isLoadingCountries = true);
+    try {
+      final response =
+      await http.get(Uri.parse('https://countriesnow.space/api/v0.1/countries'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List countriesData = data['data'];
+        Map<String, List<String>> countryCitiesMap = {};
+        List<String> countryList = [];
+        for (var country in countriesData) {
+          countryList.add(country['country']);
+          countryCitiesMap[country['country']] =
+          List<String>.from(country['cities']);
+        }
+        setState(() {
+          _countries = countryList;
+          _countryCities = countryCitiesMap;
+          _isLoadingCountries = false;
+        });
+      } else {
+        throw Exception('Failed to fetch countries');
+      }
+    } catch (e) {
+      print("Error fetching countries: $e");
+      setState(() => _isLoadingCountries = false);
+    }
+  }
+
+  // ---------------- Country/City Selection ----------------
+  Future<void> _selectCountry() async {
+    if (_isLoadingCountries) return;
+    final selected = await showSearch<String>(
+      context: context,
+      delegate: _SearchDelegate(_countries, title: "Select Country"),
+    );
+    if (selected != null) {
       setState(() {
-        _isLoading = false;
+        _selectedCountry = selected;
+        _selectedCity = null;
       });
     }
   }
 
-  final List<String> _categories = [
-    "Photographer",
-    "Makeup Artist",
-    "Decorator",
-    "Caterer",
-    "Venue",
-    "Other",
-  ];
+  Future<void> _selectCity() async {
+    if (_selectedCountry == null) return;
+    final cities = _countryCities[_selectedCountry!] ?? [];
+    final selected = await showSearch<String>(
+      context: context,
+      delegate: _SearchDelegate(cities, title: "Select City"),
+    );
+    if (selected != null) {
+      setState(() {
+        _selectedCity = selected;
+      });
+    }
+  }
 
-  final List<String> _cities = [
-    "Mumbai",
-    "Delhi",
-    "Bangalore",
-    "Chennai",
-    "Kolkata",
-    "Hyderabad",
-  ];
+  // ---------------- Registration ----------------
+  Future<void> _registerVendor() async {
+    setState(() => _isSubmitting = true);
 
-  final List<String> _referrals = [
-    "Google Search",
-    "Instagram",
-    "Facebook",
-    "Friend / Family",
-    "Other",
-  ];
+    final url = Uri.parse('https://happywedz.com/api/vendor/register');
 
+    final body = {
+      "businessName": _businessNameC.text.trim(),
+      "country": _selectedCountry ?? "",
+      "city": _selectedCity ?? "",
+      "phone": _phoneC.text.trim(),
+      "email": _emailC.text.trim(),
+      "password": _passwordC.text.trim(),
+      "vendor_type_id": _selectedVendorType?.id.toString() ?? "",
+    };
+
+    print("📤 Sending registration data: $body");
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(body),
+      );
+
+      print("📥 Status Code: ${response.statusCode}");
+      print("📥 Raw Response: ${response.body}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+
+        if (data["success"] == true ||
+            data["status"] == "success" ||
+            data["message"] == "Vendor registered successfully") {
+
+          // Save login state
+          SharedPreferences prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isLoggedIn', true);
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        } else {
+          _showSnack(data["message"] ?? "Registration successful");
+
+          SharedPreferences prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isLoggedIn', true);
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        }
+      } else if (response.statusCode == 422) {
+        final data = json.decode(response.body);
+        _showSnack("Validation Error: ${data['message'] ?? data.toString()}");
+      } else {
+        _showSnack("Registration failed. Code: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("❌ Register error: $e");
+      _showSnack("An error occurred. Please try again.");
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,7 +228,6 @@ class _SignUpState extends State<SignUp> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -143,31 +244,11 @@ class _SignUpState extends State<SignUp> {
                           "Business Name",
                           Icons.store,
                         ),
-                        // const SizedBox(height: 12),
-                        // _buildTextField(
-                        //   _ownerNameC,
-                        //   "Owner's Name",
-                        //   Icons.person,
-                        // ),
                         const SizedBox(height: 12),
-
-                        _buildDropdown(
-                          hint: "Select Business Category",
-                          value: _businessCategory,
-                          items: _categories,
-                          onChanged: (val) =>
-                              setState(() => _businessCategory = val),
-                        ),
+                        _buildVendorTypeDropdown(),
                         const SizedBox(height: 12),
-
-                        _buildDropdown(
-                          hint: "Select City",
-                          value: _city,
-                          items: _cities,
-                          onChanged: (val) => setState(() => _city = val),
-                        ),
+                        _buildCountryCityFields(),
                         const SizedBox(height: 12),
-
                         _buildTextField(
                           _emailC,
                           "Email",
@@ -189,8 +270,6 @@ class _SignUpState extends State<SignUp> {
                           obscureText: true,
                         ),
                         const SizedBox(height: 12),
-
-
                         Row(
                           children: [
                             Checkbox(
@@ -207,40 +286,29 @@ class _SignUpState extends State<SignUp> {
                           ],
                         ),
                         const SizedBox(height: 20),
-
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFE91E63),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding:
+                              const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () async {
-                              if (_formKey.currentState!.validate() && _agreeTerms) {
-                                // int vendorTypeId = _categories.indexOf(_businessCategory!) + 1; // map category to ID
-                                //
-                                // await registerVendor(
-                                //   businessName: _businessNameC.text,
-                                //   city: _city!,
-                                //   email: _emailC.text,
-                                //   phone: _phoneC.text,
-                                //   password: _passwordC.text,
-                                //   vendorTypeId: vendorTypeId,
-                                // );
-
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const HomeScreen(),
-                                  ),
-                                );
+                            onPressed: _isSubmitting
+                                ? null
+                                : () {
+                              if (_formKey.currentState!.validate() &&
+                                  _agreeTerms) {
+                                _registerVendor();
                               }
                             },
-
-                            child: const Text(
+                            child: _isSubmitting
+                                ? const CircularProgressIndicator(
+                                color: Colors.white)
+                                : const Text(
                               "Sign Up",
                               style: TextStyle(
                                 fontSize: 16,
@@ -254,7 +322,6 @@ class _SignUpState extends State<SignUp> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
               GestureDetector(
                 onTap: () {
@@ -278,13 +345,11 @@ class _SignUpState extends State<SignUp> {
     );
   }
 
+  // ---------------- Helpers ----------------
   Widget _buildTextField(
-    TextEditingController controller,
-    String hint,
-    IconData icon, {
-    TextInputType keyboardType = TextInputType.text,
-    bool obscureText = false,
-  }) {
+      TextEditingController controller, String hint, IconData icon,
+      {TextInputType keyboardType = TextInputType.text,
+        bool obscureText = false}) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
@@ -306,53 +371,130 @@ class _SignUpState extends State<SignUp> {
     );
   }
 
-  Widget _buildDropdown({
-    required String hint,
-    required String? value,
-    required List<String> items,
-    required Function(String?) onChanged,
-  }) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: Colors.grey[100],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      hint: Text(hint),
-      items: items
-          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+  Widget _buildVendorTypeDropdown() {
+    if (_isLoadingVendorTypes) return const CircularProgressIndicator();
+
+    return DropdownButtonFormField<VendorType>(
+      isExpanded: true,
+      value: _selectedVendorType,
+      decoration: _dropdownDecoration(),
+      hint: const Text("Select Business Category"),
+      items: _vendorTypes
+          .map((vendor) =>
+          DropdownMenuItem(value: vendor, child: Text(vendor.name)))
           .toList(),
-      onChanged: onChanged,
-      validator: (val) => val == null ? "Please select $hint" : null,
+      onChanged: (val) => setState(() => _selectedVendorType = val),
+      validator: (val) =>
+      val == null ? "Please select Business Category" : null,
+    );
+  }
+
+  InputDecoration _dropdownDecoration() {
+    return InputDecoration(
+      filled: true,
+      fillColor: Colors.grey[100],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
+
+  Widget _buildCountryCityFields() {
+    return Column(
+      children: [
+        TextFormField(
+          readOnly: true,
+          controller: TextEditingController(text: _selectedCountry),
+          decoration: InputDecoration(
+            hintText: "Select Country",
+            filled: true,
+            fillColor: Colors.grey[100],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            prefixIcon: const Icon(Icons.public),
+          ),
+          onTap: _selectCountry,
+          validator: (val) =>
+          val == null || val.isEmpty ? "Please select country" : null,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          readOnly: true,
+          controller: TextEditingController(text: _selectedCity),
+          decoration: InputDecoration(
+            hintText: "Select City",
+            filled: true,
+            fillColor: Colors.grey[100],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            prefixIcon: const Icon(Icons.location_city),
+          ),
+          onTap: _selectCity,
+          validator: (val) =>
+          val == null || val.isEmpty ? "Please select city" : null,
+        ),
+      ],
     );
   }
 }
-class VendorType {
-  final int id;
-  final String name;
 
-  VendorType({required this.id, required this.name});
+// ---------------- Search Delegate ----------------
+class _SearchDelegate extends SearchDelegate<String> {
+  final List<String> items;
+  final String title;
 
-  factory VendorType.fromJson(Map<String, dynamic> json) {
-    return VendorType(
-      id: json['id'],
-      name: json['name'],
+  _SearchDelegate(this.items, {required this.title})
+      : super(searchFieldLabel: title);
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.clear),
+          onPressed: () => query = '',
+        ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, ''),
     );
   }
-}
 
-Future<List<VendorType>> fetchVendorTypes() async {
-  final url = Uri.parse("https://happywedz.com/api/vendor-types");
-  final response = await http.get(url);
+  @override
+  Widget buildResults(BuildContext context) {
+    final results = items
+        .where((e) => e.toLowerCase().contains(query.toLowerCase()))
+        .toList();
+    return ListView.builder(
+      itemCount: results.length,
+      itemBuilder: (_, i) => ListTile(
+        title: Text(results[i]),
+        onTap: () => close(context, results[i]),
+      ),
+    );
+  }
 
-  if (response.statusCode == 200) {
-    final List data = jsonDecode(response.body);
-    return data.map((e) => VendorType.fromJson(e)).toList();
-  } else {
-    throw Exception("Failed to load vendor types");
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    final suggestions = items
+        .where((e) => e.toLowerCase().contains(query.toLowerCase()))
+        .toList();
+    return ListView.builder(
+      itemCount: suggestions.length,
+      itemBuilder: (_, i) => ListTile(
+        title: Text(suggestions[i]),
+        onTap: () => close(context, suggestions[i]),
+      ),
+    );
   }
 }

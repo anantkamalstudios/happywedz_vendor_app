@@ -1,216 +1,9 @@
-// // import 'dart:io';
-// // import 'package:flutter/material.dart';
-// // import 'package:connectivity_plus/connectivity_plus.dart';
-// // import 'Screens/SignUp.dart';
-// //
-// // void main() {
-// //   runApp(const MyApp());
-// // }
-// //
-// // class MyApp extends StatelessWidget {
-// //   const MyApp({super.key});
-// //
-// //   @override
-// //   Widget build(BuildContext context) {
-// //     return MaterialApp(
-// //       debugShowCheckedModeBanner: false,
-// //       theme: ThemeData(
-// //         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-// //       ),
-// //       home: const InternetCheckWrapper(child: SignUp()),
-// //     );
-// //   }
-// // }
-// //
-// // class InternetCheckWrapper extends StatefulWidget {
-// //   final Widget child;
-// //   const InternetCheckWrapper({super.key, required this.child});
-// //
-// //   @override
-// //   State<InternetCheckWrapper> createState() => _InternetCheckWrapperState();
-// // }
-// //
-// // class _InternetCheckWrapperState extends State<InternetCheckWrapper> {
-// //   @override
-// //   void initState() {
-// //     super.initState();
-// //     WidgetsBinding.instance.addPostFrameCallback((_) {
-// //       _checkInternet();
-// //     });
-// //   }
-// //
-// //   Future<void> _checkInternet() async {
-// //     bool hasInternet = await _hasInternet();
-// //     if (!hasInternet) {
-// //       _showNoInternetDialog();
-// //     }
-// //   }
-// //
-// //   Future<bool> _hasInternet() async {
-// //     try {
-// //       final result = await InternetAddress.lookup('example.com');
-// //       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-// //     } on SocketException catch (_) {
-// //       return false;
-// //     }
-// //   }
-// //
-// //   void _showNoInternetDialog() {
-// //     showDialog(
-// //       context: context,
-// //       barrierDismissible: false,
-// //       builder: (context) => AlertDialog(
-// //         title: const Text("No Internet"),
-// //         content: const Text("Please check your internet connection."),
-// //         actions: [
-// //           TextButton(
-// //             onPressed: () {
-// //               Navigator.pop(context);
-// //               _checkInternet(); // retry
-// //             },
-// //             child: const Text("Retry"),
-// //           ),
-// //           // TextButton(
-// //           //   onPressed: () => Navigator.pop(context),
-// //           //   child: const Text("Close"),
-// //           // ),
-// //         ],
-// //       ),
-// //     );
-// //   }
-// //
-// //   @override
-// //   Widget build(BuildContext context) {
-// //     return widget.child;
-// //   }
-// // }
-//
-//
-//
-//
-//
-// import 'dart:async';
-// import 'dart:io';
-// import 'package:flutter/material.dart';
-// import 'package:connectivity_plus/connectivity_plus.dart';
-// import 'Screens/SignUp.dart';
-//
-// void main() {
-//   runApp(const MyApp());
-// }
-//
-// class MyApp extends StatelessWidget {
-//   const MyApp({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       debugShowCheckedModeBanner: false,
-//       theme: ThemeData(
-//         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-//       ),
-//       home: const InternetCheckWrapper(child: SignUp()),
-//     );
-//   }
-// }
-//
-// class InternetCheckWrapper extends StatefulWidget {
-//   final Widget child;
-//   const InternetCheckWrapper({super.key, required this.child});
-//
-//   @override
-//   State<InternetCheckWrapper> createState() => _InternetCheckWrapperState();
-// }
-//
-// class _InternetCheckWrapperState extends State<InternetCheckWrapper> {
-//   late final _subscription; // let Dart infer the type
-//   bool _dialogIsOpen = false;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     WidgetsBinding.instance.addPostFrameCallback((_) {
-//       _checkInternet();
-//     });
-//
-//     // Listen to connectivity changes
-//     _subscription = Connectivity().onConnectivityChanged.listen((event) {
-//       _checkInternet();
-//     });
-//   }
-//
-//   Future<void> _checkInternet() async {
-//     bool hasInternet = await _hasInternet();
-//     if (!hasInternet && !_dialogIsOpen) {
-//       _showNoInternetDialog();
-//     }
-//   }
-//
-//   Future<bool> _hasInternet() async {
-//     try {
-//       final result = await InternetAddress.lookup('example.com');
-//       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-//     } on SocketException catch (_) {
-//       return false;
-//     }
-//   }
-//
-//   void _showNoInternetDialog() {
-//     _dialogIsOpen = true;
-//     showDialog(
-//       context: context,
-//       barrierDismissible: false,
-//       builder: (context) => AlertDialog(
-//         title: const Text("No Internet"),
-//         content: const Text("Please check your internet connection."),
-//         actions: [
-//           TextButton(
-//             onPressed: () {
-//               Navigator.pop(context);
-//               _dialogIsOpen = false;
-//               _checkInternet();
-//             },
-//             child: const Text("Retry"),
-//           ),
-//         ],
-//       ),
-//     ).then((_) {
-//       _dialogIsOpen = false;
-//     });
-//   }
-//
-//   @override
-//   void dispose() {
-//     _subscription.cancel();
-//     super.dispose();
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return widget.child;
-//   }
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'Screens/SignUp.dart';
+import 'Screens/Login.dart';
 import 'Screens/home.dart';
 
 void main() {
@@ -227,43 +20,63 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home:  InternetCheckWrapper(child: SignUp()),
+      home: const SplashScreen(),
     );
   }
 }
 
-class InternetCheckWrapper extends StatefulWidget {
-  final Widget child;
-  const InternetCheckWrapper({super.key, required this.child});
+/// Splash screen to check login status and internet
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
 
   @override
-  State<InternetCheckWrapper> createState() => _InternetCheckWrapperState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _InternetCheckWrapperState extends State<InternetCheckWrapper> {
-  late final _subscription;
+class _SplashScreenState extends State<SplashScreen> {
   bool _dialogIsOpen = false;
   BuildContext? _dialogContext;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkInternet();
-    });
-
-    _subscription = Connectivity().onConnectivityChanged.listen((_) {
-      _checkInternet();
-    });
+    _initializeApp();
   }
 
+  Future<void> _initializeApp() async {
+    await _checkLoginStatus();
+    await _checkInternet();
+  }
+
+  // ---------------- Login Status ----------------
+  Future<void> _checkLoginStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+    // Small delay for smooth splash transition
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (isLoggedIn) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const Login()), // or SignUp()
+      );
+    }
+  }
+
+  // ---------------- Internet Check ----------------
   Future<void> _checkInternet() async {
     bool hasInternet = await _hasInternet();
 
     if (!hasInternet && !_dialogIsOpen) {
       _showNoInternetDialog();
     } else if (hasInternet && _dialogIsOpen && _dialogContext != null) {
-      Navigator.pop(_dialogContext!); // close dialog automatically
+      Navigator.pop(_dialogContext!);
       _dialogIsOpen = false;
       _dialogContext = null;
     }
@@ -298,13 +111,9 @@ class _InternetCheckWrapperState extends State<InternetCheckWrapper> {
   }
 
   @override
-  void dispose() {
-    _subscription.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return widget.child;
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    );
   }
 }
