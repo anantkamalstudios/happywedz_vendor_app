@@ -475,11 +475,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/Screens/profile_screen.dart';
+import 'package:happy_weds_vendors/Screens/project_page.dart';
+import 'package:happy_weds_vendors/Screens/reviews.dart';
+import 'package:happy_weds_vendors/Screens/stats.dart';
 import 'package:happy_weds_vendors/Screens/view_plan_screen.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'answer_faq.dart';
 import 'booking_screen.dart';
+import 'drawer.dart';
 import 'lead_screen.dart';
 import 'link_screen.dart';
 
@@ -495,9 +499,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _pages = [
     const HomeTab(),
-    const LeadsScreen(),
-    const BookingsScreen(),
-    const ProfileScreen(),
+    const LeadsPage(),
+    PortfolioPage(),
+    const ReviewsPage(),
+    const StatsPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -518,8 +523,9 @@ class _HomeScreenState extends State<HomeScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: "Leads"),
-          BottomNavigationBarItem(icon: Icon(Icons.event), label: "Bookings"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+          BottomNavigationBarItem(icon: Icon(Icons.pool_rounded), label: "Project"),
+          BottomNavigationBarItem(icon: Icon(Icons.reviews_outlined), label: "Reviews"),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_graph), label: "Profile"),
         ],
       ),
     );
@@ -566,68 +572,7 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ],
       ),
-        drawer: Drawer(
-          child: Column(
-            children: [
-              UserAccountsDrawerHeader(
-                decoration: BoxDecoration(
-                  color: Colors.pinkAccent,
-                ),
-                currentAccountPicture: CircleAvatar(
-                  backgroundImage: NetworkImage('https://example.com/profile.jpg'),
-                ),
-                accountName: Text('ABC', style: TextStyle(fontWeight: FontWeight.bold)),
-                accountEmail: Text('abc@example.com'),
-              ),
-
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    ListTile(
-                      leading: Icon(Icons.dashboard, color: Colors.pinkAccent),
-                      title: Text('Dashboard'),
-                      onTap: () {
-                        // Navigate to dashboard screen
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.calendar_today, color: Colors.pinkAccent),
-                      title: Text('Bookings'),
-                      onTap: () {
-                        // Navigate to bookings screen
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.people, color: Colors.pinkAccent),
-                      title: Text('Customers'),
-                      onTap: () {
-                        // Navigate to customers screen
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.settings, color: Colors.pinkAccent),
-                      title: Text('Settings'),
-                      onTap: () {
-                        // Navigate to settings screen
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              Divider(),
-
-              ListTile(
-                leading: Icon(Icons.logout, color: Colors.pinkAccent),
-                title: Text('Logout'),
-                onTap: () {
-                  // Handle logout
-                },
-              ),
-            ],
-          ),
-        ),
+        drawer: BusinessDrawer(),
 
         body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

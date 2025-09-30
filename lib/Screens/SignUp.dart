@@ -2,6 +2,41 @@ import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/Screens/home.dart';
 
 import 'Login.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+// Future<void> registerVendor({
+//   required String businessName,
+//   required String city,
+//   required String email,
+//   required String phone,
+//   required String password,
+//   required int vendorTypeId,
+// }) async {
+//   final url = Uri.parse("https://happywedz.com/api/vendor/register");
+//
+//   final response = await http.post(
+//     url,
+//     headers: {
+//       "Content-Type": "application/json",
+//     },
+//     body: jsonEncode({
+//       "businessName": businessName,
+//       "city": city,
+//       "phone": phone,
+//       "email": email,
+//       "password": password,
+//       "vendor_type_id": vendorTypeId,
+//     }),
+//   );
+//
+//   if (response.statusCode == 200 || response.statusCode == 201) {
+//     print("Vendor registered successfully!");
+//     print(response.body);
+//   } else {
+//     print("Failed to register vendor: ${response.body}");
+//   }
+// }
 
 class SignUp extends StatefulWidget {
   const SignUp({Key? key}) : super(key: key);
@@ -25,6 +60,28 @@ class _SignUpState extends State<SignUp> {
   String? _city;
   String? _referral;
   bool _agreeTerms = false;
+  List<VendorType> _vendorTypes = [];
+  VendorType? _selectedVendorType;
+  bool _isLoading = true;
+  @override
+  void initState() {
+    super.initState();
+    _loadVendorTypes();
+  }
+
+  void _loadVendorTypes() async {
+    try {
+      _vendorTypes = await fetchVendorTypes();
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print(e);
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   final List<String> _categories = [
     "Photographer",
@@ -86,12 +143,12 @@ class _SignUpState extends State<SignUp> {
                           "Business Name",
                           Icons.store,
                         ),
-                        const SizedBox(height: 12),
-                        _buildTextField(
-                          _ownerNameC,
-                          "Owner's Name",
-                          Icons.person,
-                        ),
+                        // const SizedBox(height: 12),
+                        // _buildTextField(
+                        //   _ownerNameC,
+                        //   "Owner's Name",
+                        //   Icons.person,
+                        // ),
                         const SizedBox(height: 12),
 
                         _buildDropdown(
@@ -133,26 +190,6 @@ class _SignUpState extends State<SignUp> {
                         ),
                         const SizedBox(height: 12),
 
-                        _buildTextField(
-                          _gstC,
-                          "GST Number (Optional)",
-                          Icons.confirmation_number,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildTextField(
-                          _websiteC,
-                          "Website (Optional)",
-                          Icons.language,
-                        ),
-                        const SizedBox(height: 12),
-
-                        _buildDropdown(
-                          hint: "How did you hear about us?",
-                          value: _referral,
-                          items: _referrals,
-                          onChanged: (val) => setState(() => _referral = val),
-                        ),
-                        const SizedBox(height: 12),
 
                         Row(
                           children: [
@@ -181,17 +218,28 @@ class _SignUpState extends State<SignUp> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () {
-                              // if (_formKey.currentState!.validate() && _agreeTerms) {
-                              //   // Handle Sign Up
-                              // }
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HomeScreen(),
-                                ),
-                              );
+                            onPressed: () async {
+                              if (_formKey.currentState!.validate() && _agreeTerms) {
+                                // int vendorTypeId = _categories.indexOf(_businessCategory!) + 1; // map category to ID
+                                //
+                                // await registerVendor(
+                                //   businessName: _businessNameC.text,
+                                //   city: _city!,
+                                //   email: _emailC.text,
+                                //   phone: _phoneC.text,
+                                //   password: _passwordC.text,
+                                //   vendorTypeId: vendorTypeId,
+                                // );
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const HomeScreen(),
+                                  ),
+                                );
+                              }
                             },
+
                             child: const Text(
                               "Sign Up",
                               style: TextStyle(
@@ -281,5 +329,30 @@ class _SignUpState extends State<SignUp> {
       onChanged: onChanged,
       validator: (val) => val == null ? "Please select $hint" : null,
     );
+  }
+}
+class VendorType {
+  final int id;
+  final String name;
+
+  VendorType({required this.id, required this.name});
+
+  factory VendorType.fromJson(Map<String, dynamic> json) {
+    return VendorType(
+      id: json['id'],
+      name: json['name'],
+    );
+  }
+}
+
+Future<List<VendorType>> fetchVendorTypes() async {
+  final url = Uri.parse("https://happywedz.com/api/vendor-types");
+  final response = await http.get(url);
+
+  if (response.statusCode == 200) {
+    final List data = jsonDecode(response.body);
+    return data.map((e) => VendorType.fromJson(e)).toList();
+  } else {
+    throw Exception("Failed to load vendor types");
   }
 }
