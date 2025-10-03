@@ -181,7 +181,13 @@ class _SignUpState extends State<SignUp> {
           await prefs.setString('email', _emailC.text.trim());
           await prefs.setString('profileImage', data['profile_image'] ?? "");
 
+          if (_selectedVendorType != null) {
+            await prefs.setString('vendorTypeName', _selectedVendorType!.name.trim());
+          }
+
           _showSnack("Registration successful!");
+
+
 
           // ✅ Navigate to HomeScreen after short delay
           Future.delayed(const Duration(seconds: 1), () {

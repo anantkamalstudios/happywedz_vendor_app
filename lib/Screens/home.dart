@@ -1,486 +1,23 @@
-// import 'package:flutter/material.dart';
-//
-// class HomeScreen extends StatelessWidget {
-//   const HomeScreen({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: Colors.grey[100],
-//       appBar: AppBar(
-//         backgroundColor: Colors.pinkAccent,
-//         elevation: 0,
-//         title: const Text(
-//           "WedMeGood Business",
-//           style: TextStyle(color: Colors.white),
-//         ),
-//         actions: [
-//           IconButton(
-//             icon: const Icon(Icons.notifications, color: Colors.white),
-//             onPressed: () {},
-//           ),
-//           Padding(
-//             padding: const EdgeInsets.only(right: 12),
-//             child: CircleAvatar(
-//               backgroundImage: AssetImage("assets/profile.jpg"),
-//             ),
-//           ),
-//         ],
-//       ),
-//       body: SingleChildScrollView(
-//         padding: const EdgeInsets.all(16),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             // Summary cards
-//             Row(
-//               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//               children: [
-//                 _buildSummaryCard("Leads", "12", Icons.people, Colors.orange),
-//                 _buildSummaryCard("Bookings", "5", Icons.event, Colors.green),
-//                 _buildSummaryCard("Reviews", "20", Icons.star, Colors.blue),
-//               ],
-//             ),
-//             const SizedBox(height: 20),
-//
-//             // New Leads section
-//             const Text(
-//               "New Leads",
-//               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-//             ),
-//             const SizedBox(height: 12),
-//             _buildLeadCard("Riya Sharma", "Wedding Photography", "2 hrs ago"),
-//             _buildLeadCard("Amit Patel", "Venue Booking", "5 hrs ago"),
-//             const SizedBox(height: 20),
-//
-//             // Analytics section
-//             const Text(
-//               "Analytics",
-//               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-//             ),
-//             const SizedBox(height: 12),
-//             Container(
-//               padding: const EdgeInsets.all(16),
-//               decoration: BoxDecoration(
-//                 color: Colors.white,
-//                 borderRadius: BorderRadius.circular(12),
-//               ),
-//               child: Row(
-//                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                 children: const [
-//                   _AnalyticsItem(label: "Profile Views", value: "1.2k"),
-//                   _AnalyticsItem(label: "Enquiries", value: "350"),
-//                   _AnalyticsItem(label: "Bookings", value: "75"),
-//                 ],
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//       bottomNavigationBar: BottomNavigationBar(
-//         selectedItemColor: Colors.pinkAccent,
-//         unselectedItemColor: Colors.grey,
-//         items: const [
-//           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-//           BottomNavigationBarItem(icon: Icon(Icons.people), label: "Leads"),
-//           BottomNavigationBarItem(icon: Icon(Icons.event), label: "Bookings"),
-//           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildSummaryCard(
-//       String title, String value, IconData icon, Color color) {
-//     return Expanded(
-//       child: Container(
-//         margin: const EdgeInsets.symmetric(horizontal: 4),
-//         padding: const EdgeInsets.all(12),
-//         decoration: BoxDecoration(
-//           color: Colors.white,
-//           borderRadius: BorderRadius.circular(12),
-//         ),
-//         child: Column(
-//           children: [
-//             Icon(icon, color: color, size: 30),
-//             const SizedBox(height: 8),
-//             Text(value,
-//                 style:
-//                 const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-//             const SizedBox(height: 4),
-//             Text(title, style: TextStyle(color: Colors.grey[600])),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _buildLeadCard(String name, String service, String time) {
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 12),
-//       padding: const EdgeInsets.all(12),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(12),
-//       ),
-//       child: Row(
-//         children: [
-//           CircleAvatar(
-//             backgroundColor: Colors.pinkAccent,
-//             child: Text(name[0], style: const TextStyle(color: Colors.white)),
-//           ),
-//           const SizedBox(width: 12),
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-//                 Text(service, style: TextStyle(color: Colors.grey[600])),
-//               ],
-//             ),
-//           ),
-//           Text(time, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-//         ],
-//       ),
-//     );
-//   }
-// }
-//
-// class _AnalyticsItem extends StatelessWidget {
-//   final String label;
-//   final String value;
-//   const _AnalyticsItem({required this.label, required this.value});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       children: [
-//         Text(value,
-//             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-//         const SizedBox(height: 4),
-//         Text(label, style: TextStyle(color: Colors.grey[600])),
-//       ],
-//     );
-//   }
-// }
-
-//
-//
-// import 'package:flutter/material.dart';
-// import 'package:happy_weds_vendors/Screens/view_plan_screen.dart';
-//
-// import 'lead_screen.dart';
-//
-// class HomeFullScreen extends StatefulWidget {
-//   const HomeFullScreen({super.key});
-//
-//   @override
-//   State<HomeFullScreen> createState() => _HomeFullScreenState();
-// }
-//
-// class _HomeFullScreenState extends State<HomeFullScreen> {
-//   int _selectedIndex = 0;
-//
-//   final List<Widget> _pages = [
-//     // const HomeTab(),
-//     const LeadsScreen(),
-//     // const BookingsScreen(),
-//     // const ProfileScreen(),
-//   ];
-//
-//   void _onItemTapped(int index) {
-//     setState(() {
-//       _selectedIndex = index;
-//     });
-//   }
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: Colors.grey[100],
-//       appBar: AppBar(
-//         backgroundColor: Colors.pinkAccent[200],
-//         title: const Text("WedMeGood Business"),
-//         actions: [
-//           IconButton(
-//               icon: const Icon(Icons.notifications, color: Colors.white),
-//               onPressed: () {}),
-//           Padding(
-//             padding: const EdgeInsets.only(right: 12),
-//             child: CircleAvatar(
-//               backgroundImage: AssetImage("assets/profile.jpg"),
-//             ),
-//           ),
-//         ],
-//       ),
-//       body: SingleChildScrollView(
-//         padding: const EdgeInsets.all(16),
-//         child: Column(
-//           children: [
-//             _profileCompletionCard(context),
-//             _uploadAlbumCard(),
-//             _getReviewsCard(),
-//             _phoneUpdateCard(),
-//             _queriesCard(),
-//             _requestCallbackCard(),
-//             _membershipPlansCard(context),
-//           ],
-//         ),
-//       ),
-//
-//       bottomNavigationBar: BottomNavigationBar(
-//         currentIndex: _selectedIndex,
-//         onTap: _onItemTapped,
-//         selectedItemColor: Colors.pinkAccent,
-//         unselectedItemColor: Colors.grey,
-//         items: const [
-//           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-//           BottomNavigationBarItem(icon: Icon(Icons.people), label: "Leads"),
-//           BottomNavigationBarItem(icon: Icon(Icons.event), label: "Bookings"),
-//           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _profileCompletionCard(BuildContext context) {
-//     return _buildCard(
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           const Text(
-//             "Complete your profile",
-//             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-//           ),
-//           const SizedBox(height: 8),
-//           LinearProgressIndicator(
-//             value: 0.6, // Example progress (60%)
-//             backgroundColor: Colors.grey[300],
-//             color: Colors.pinkAccent,
-//             minHeight: 6,
-//           ),
-//           const SizedBox(height: 12),
-//
-//           // List of actions
-//           _buildProfileTask(
-//             icon: Icons.question_answer_outlined,
-//             text: "Answer FAQs",
-//             onTap: () {
-//               // TODO: Navigate to FAQs screen
-//             },
-//           ),
-//           _buildProfileTask(
-//             icon: Icons.link,
-//             text: "Link Facebook Page / Website",
-//             onTap: () {
-//               // TODO: Navigate to link page screen
-//             },
-//           ),
-//           _buildProfileTask(
-//             icon: Icons.photo_library_outlined,
-//             text: "Add Images to Portfolio",
-//             onTap: () {
-//               // TODO: Navigate to portfolio upload screen
-//             },
-//           ),
-//           _buildProfileTask(
-//             icon: Icons.reviews_outlined,
-//             text: "Get Clients to Review You",
-//             onTap: () {
-//               // TODO: Navigate to reviews request screen
-//             },
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildProfileTask({
-//     required IconData icon,
-//     required String text,
-//     required VoidCallback onTap,
-//   }) {
-//     return InkWell(
-//       onTap: onTap,
-//       child: Padding(
-//         padding: const EdgeInsets.symmetric(vertical: 6),
-//         child: Row(
-//           children: [
-//             Icon(icon, color: Colors.pinkAccent, size: 22),
-//             const SizedBox(width: 10),
-//             Expanded(
-//               child: Text(
-//                 text,
-//                 style: const TextStyle(fontSize: 14),
-//               ),
-//             ),
-//             const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _uploadAlbumCard() {
-//     return _buildCard(
-//       child: Row(
-//         children: [
-//           const Icon(Icons.photo_album, color: Colors.pinkAccent, size: 40),
-//           const SizedBox(width: 12),
-//           Expanded(
-//             child: const Text("Upload your work album to attract more clients",
-//                 style: TextStyle(fontSize: 14)),
-//           ),
-//           TextButton(
-//             onPressed: () {},
-//             child: const Text("Upload"),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _getReviewsCard() {
-//     return _buildCard(
-//       child: Row(
-//         children: [
-//           const Icon(Icons.star, color: Colors.orange, size: 40),
-//           const SizedBox(width: 12),
-//           Expanded(
-//             child: const Text("Get more reviews to boost your profile ranking",
-//                 style: TextStyle(fontSize: 14)),
-//           ),
-//           TextButton(
-//             onPressed: () {},
-//             child: const Text("Get Now"),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _phoneUpdateCard() {
-//     final controller = TextEditingController();
-//     return _buildCard(
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           const Text("Enter Number to Get Updates",
-//               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-//           const SizedBox(height: 8),
-//           TextField(
-//             controller: controller,
-//             keyboardType: TextInputType.phone,
-//             decoration: InputDecoration(
-//               hintText: "Enter phone number",
-//               border: OutlineInputBorder(
-//                 borderRadius: BorderRadius.circular(8),
-//               ),
-//               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-//             ),
-//           ),
-//           const SizedBox(height: 8),
-//           ElevatedButton(
-//             style: ElevatedButton.styleFrom(
-//                 backgroundColor: Colors.pinkAccent, minimumSize: Size.fromHeight(40)),
-//             onPressed: () {},
-//             child: const Text("Submit"),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _queriesCard() {
-//     return _buildCard(
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           const Text("Queries",
-//               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-//           const Divider(),
-//           ListTile(
-//             leading: const CircleAvatar(child: Text("R")),
-//             title: const Text("Riya Sharma"),
-//             subtitle: const Text("Interested in Wedding Photography"),
-//             trailing: const Text("2h ago"),
-//           ),
-//           ListTile(
-//             leading: const CircleAvatar(child: Text("A")),
-//             title: const Text("Amit Patel"),
-//             subtitle: const Text("Venue Booking Enquiry"),
-//             trailing: const Text("5h ago"),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _requestCallbackCard() {
-//     return _buildCard(
-//       color: Colors.pinkAccent,
-//       child: Row(
-//         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//         children: const [
-//           Text("Need help? Request a call back",
-//               style: TextStyle(color: Colors.white, fontSize: 16)),
-//           Icon(Icons.phone, color: Colors.white),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _membershipPlansCard(BuildContext context) {
-//     return _buildCard(
-//       child: Row(
-//         children: [
-//           const Icon(Icons.card_membership, color: Colors.green, size: 40),
-//           const SizedBox(width: 12),
-//           Expanded(
-//             child:  Text(
-//                 "Upgrade to Premium Membership to get more leads & visibility",
-//                 style: TextStyle(fontSize: 14)),
-//           ),
-//           TextButton(
-//             onPressed: () {
-//               Navigator.push(
-//                 context,
-//                 MaterialPageRoute(
-//                   builder: (context) =>
-//                       ViewPlansScreen(),
-//                 ),
-//               );
-//             },
-//             child: const Text("View Plans"),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildCard({required Widget child, Color? color}) {
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 12),
-//       padding: const EdgeInsets.all(12),
-//       decoration: BoxDecoration(
-//         color: color ?? Colors.white,
-//         borderRadius: BorderRadius.circular(12),
-//       ),
-//       child: child,
-//     );
-//   }
-// }
-
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:happy_weds_vendors/Screens/FAQs/Florists.dart';
+import 'package:happy_weds_vendors/Screens/FAQs/Invites%20and%20Gifts.dart';
+import 'package:happy_weds_vendors/Screens/FAQs/Makeup.dart';
+import 'package:happy_weds_vendors/Screens/FAQs/Pandits.dart';
 import 'package:happy_weds_vendors/Screens/profile_screen.dart';
 import 'package:happy_weds_vendors/Screens/Project/project_page.dart';
 import 'package:happy_weds_vendors/Screens/reviews.dart';
 import 'package:happy_weds_vendors/Screens/stats.dart';
 import 'package:happy_weds_vendors/Screens/view_plan_screen.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'FAQs/Caterars.dart';
+import 'FAQs/Music and dance.dart';
+import 'FAQs/Photographer.dart';
+import 'FAQs/Planning and decor.dart';
+import 'FAQs/Venues.dart';
 import 'answer_faq.dart';
 import 'booking_screen.dart';
 import 'drawer.dart';
@@ -532,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ---------------- Home Tab ----------------
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
 
@@ -540,6 +78,35 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
+  String _vendorTypeName = "";
+
+  // Map vendor types to their FAQ screens
+  final Map<String, Widget Function()> faqScreens = {
+    "Photographers": () => const PhotographerFaqScreen(profileCompletion: 0.5),
+    "venues": () => const VenuefaqScreen(profileCompletion: 0.5),
+    "makeup": () => const MakeupFaqScreen(profileCompletion: 0.5),
+    "planning and decor": () => DecorationAndPlanningfaq( profileCompletion: 0.5,),
+    "caterers":  () => CaterarFaqScreen(profileCompletion: 0.5),
+    "music and dance": () => MusicAndDanceFaq(profileCompletion: 0.5,),
+    "invite and gift" : () => InviteAndGiftFaqScreen(profileCompletion: 0.5),
+    "florists" : () => FloristsFaqScreen(profileCompletion: 0.5),
+    "pandit": () => PanditFaqScreen(profileCompletion: 0.5),
+
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVendorType();
+  }
+
+  Future<void> _loadVendorType() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _vendorTypeName = prefs.getString('vendorTypeName') ?? "";
+    });
+    print("Logged in vendor type: $_vendorTypeName");
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -564,16 +131,14 @@ class _HomeTabState extends State<HomeTab> {
             icon: const Icon(Icons.notifications, color: Colors.white),
             onPressed: () {},
           ),
-
         ],
       ),
-        drawer: BusinessDrawer(),
-
-        body: SingleChildScrollView(
+      drawer: BusinessDrawer(),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _profileCompletionCard(context),
+            _profileCompletionCard(context, _vendorTypeName, faqScreens),
             _uploadAlbumCard(context),
             _getReviewsCard(context),
             _phoneUpdateCard(),
@@ -587,7 +152,8 @@ class _HomeTabState extends State<HomeTab> {
   }
 }
 
-Widget _profileCompletionCard(BuildContext context) {
+// ---------------- Profile Completion Card ----------------
+Widget _profileCompletionCard(BuildContext context, String vendorTypeName, Map<String, Widget Function()> faqScreens) {
   return _buildCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,24 +164,48 @@ Widget _profileCompletionCard(BuildContext context) {
         ),
         const SizedBox(height: 8),
         LinearProgressIndicator(
-          value: 0.6, // Example progress (60%)
+          value: 0.6,
           backgroundColor: Colors.grey[300],
           color: Colors.pinkAccent,
           minHeight: 6,
         ),
         const SizedBox(height: 12),
-
-        // List of actions
         _buildProfileTask(
           icon: Icons.question_answer_outlined,
           text: "Answer FAQs",
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AnswerFaqsScreen()),
-            );
+          onTap: () async {
+            SharedPreferences prefs = await SharedPreferences.getInstance();
+            String vendorTypeName = prefs.getString('vendorTypeName') ?? "";
+            vendorTypeName = vendorTypeName.trim().toLowerCase(); // <-- Add this line
+
+            final faqScreens = {
+              "photographers": () => const PhotographerFaqScreen(profileCompletion: 0.5),
+              "venues": () => const VenuefaqScreen(profileCompletion: 0.5),
+              "makeup": () => const MakeupFaqScreen(profileCompletion: 0.5),
+              "planning and decor": () => DecorationAndPlanningfaq( profileCompletion: 0.5,),
+              "caterers": () => CaterarFaqScreen(profileCompletion: 0.5),
+              "music and dance": () => MusicAndDanceFaq(profileCompletion: 0.5),
+              "invite and gift": () => InviteAndGiftFaqScreen(profileCompletion: 0.5),
+              "florits": () => FloristsFaqScreen(profileCompletion: 0.5,),
+              "pandits": () => PanditFaqScreen(profileCompletion: 0.5,),
+
+            };
+
+            final screenBuilder = faqScreens[vendorTypeName];
+
+            if (screenBuilder != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => screenBuilder()),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("No FAQ screen available for your vendor type")),
+              );
+            }
           },
         ),
+
         _buildProfileTask(
           icon: Icons.link,
           text: "Link Facebook Page / Website",
@@ -662,14 +252,15 @@ Widget _buildProfileTask({
   );
 }
 
+// ---------------- Other Cards ----------------
 Widget _uploadAlbumCard(BuildContext context) {
   return _buildCard(
     child: Row(
       children: [
         const Icon(Icons.photo_album, color: Colors.pinkAccent, size: 40),
         const SizedBox(width: 12),
-        Expanded(
-          child: const Text(
+        const Expanded(
+          child: Text(
             "Upload your work album to attract more clients",
             style: TextStyle(fontSize: 14),
           ),
@@ -683,7 +274,6 @@ Widget _uploadAlbumCard(BuildContext context) {
           },
           child: const Text("Upload"),
         ),
-
       ],
     ),
   );
@@ -695,8 +285,8 @@ Widget _getReviewsCard(BuildContext context) {
       children: [
         const Icon(Icons.star, color: Colors.orange, size: 40),
         const SizedBox(width: 12),
-        Expanded(
-          child: const Text(
+        const Expanded(
+          child: Text(
             "Get more reviews to boost your profile ranking",
             style: TextStyle(fontSize: 14),
           ),
@@ -739,14 +329,13 @@ Widget _phoneUpdateCard() {
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.pinkAccent,
-            minimumSize: Size.fromHeight(40),
+            minimumSize: const Size.fromHeight(40),
           ),
           onPressed: () {},
           child: const Text(
             "Submit",
             style: TextStyle(color: Colors.white),
           ),
-
         ),
       ],
     ),
@@ -763,17 +352,17 @@ Widget _queriesCard() {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const Divider(),
-        ListTile(
-          leading: const CircleAvatar(child: Text("R")),
-          title: const Text("Riya Sharma"),
-          subtitle: const Text("Interested in Wedding Planning"),
-          trailing: const Text("2h ago"),
+        const ListTile(
+          leading: CircleAvatar(child: Text("R")),
+          title: Text("Riya Sharma"),
+          subtitle: Text("Interested in Wedding Planning"),
+          trailing: Text("2h ago"),
         ),
-        ListTile(
-          leading: const CircleAvatar(child: Text("A")),
-          title: const Text("Amit Patel"),
-          subtitle: const Text("Wedding Planner Booking Enquiry"),
-          trailing: const Text("5h ago"),
+        const ListTile(
+          leading: CircleAvatar(child: Text("A")),
+          title: Text("Amit Patel"),
+          subtitle: Text("Wedding Planner Booking Enquiry"),
+          trailing: Text("5h ago"),
         ),
       ],
     ),
@@ -802,7 +391,7 @@ Widget _membershipPlansCard(BuildContext context) {
       children: [
         const Icon(Icons.card_membership, color: Colors.green, size: 40),
         const SizedBox(width: 12),
-        Expanded(
+        const Expanded(
           child: Text(
             "Upgrade to Premium Membership to get more leads & visibility",
             style: TextStyle(fontSize: 14),
@@ -822,6 +411,7 @@ Widget _membershipPlansCard(BuildContext context) {
   );
 }
 
+// ---------------- Generic Card ----------------
 Widget _buildCard({required Widget child, Color? color}) {
   return Container(
     margin: const EdgeInsets.only(bottom: 12),
@@ -834,7 +424,7 @@ Widget _buildCard({required Widget child, Color? color}) {
   );
 }
 
-
+// ---------------- GetNowPage ----------------
 class GetNowPage extends StatelessWidget {
   const GetNowPage({Key? key}) : super(key: key);
 
@@ -861,10 +451,10 @@ class GetNowPage extends StatelessWidget {
             const SizedBox(height: 16),
             const Text(
               "Getting more reviews helps improve your credibility and attracts more clients.\n\n"
-              "You can:\n"
-              "• Share your review link on social media\n"
-              "• Send direct invites to your customers\n"
-              "• Track your review progress",
+                  "You can:\n"
+                  "• Share your review link on social media\n"
+                  "• Send direct invites to your customers\n"
+                  "• Track your review progress",
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 24),
@@ -876,9 +466,7 @@ class GetNowPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
               ),
-              onPressed: () {
-                // Action to share or invite customers for reviews
-              },
+              onPressed: () {},
               child: const Center(
                 child: Text(
                   "Start Now",
@@ -893,17 +481,7 @@ class GetNowPage extends StatelessWidget {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
+// ---------------- Upload Album Page ----------------
 class UploadAlbumPage extends StatefulWidget {
   const UploadAlbumPage({super.key});
 
@@ -917,7 +495,6 @@ class _UploadAlbumPageState extends State<UploadAlbumPage> {
   Future<void> _pickImages() async {
     final ImagePicker picker = ImagePicker();
     final List<XFile> images = await picker.pickMultiImage();
-
     if (images.isNotEmpty) {
       setState(() {
         _selectedImages.addAll(images);
