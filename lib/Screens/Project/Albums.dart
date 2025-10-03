@@ -307,7 +307,7 @@ class _CreateAlbumFormPageState extends State<CreateAlbumFormPage> {
   String _location = '';
   String _selectedBanquet = 'None';
 
-  final List<String> _banquetOptions = ['None', 'Banquet A', 'Banquet B', 'Banquet C'];
+  final List<String> _banquetOptions = ['None', 'Category 1', 'Category 2', 'Category 3'];
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {

@@ -17,7 +17,7 @@ class BusinessDrawer extends StatefulWidget {
 class _BusinessDrawerState extends State<BusinessDrawer> {
   String userName = "";
   String userEmail = "";
-  String profileImage = "";
+  String coverImage = "";
   bool _isLoading = true;
 
   final ImagePicker _picker = ImagePicker();
@@ -27,37 +27,38 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
     super.initState();
     _loadUserData();
   }
+
   Future<void> _loadUserData() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       userName = prefs.getString('businessName') ?? "Vendor Name";
       userEmail = prefs.getString('email') ?? "vendor@example.com";
-      profileImage = prefs.getString('profileImage') ?? "";
+      coverImage = prefs.getString('coverImage') ?? ""; // Only from drawer
       _isLoading = false;
     });
   }
 
-// Add this to reload drawer when it opens
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadUserData(); // Ensures latest info is loaded each time
+    _loadUserData();
   }
 
-
-
-  Future<void> _pickProfileImage() async {
+  Future<void> _pickCoverImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       final file = File(pickedFile.path);
       SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('profileImage', file.path);
+
+      // Save only under drawer key
+      await prefs.setString('coverImage', file.path);
+
       setState(() {
-        profileImage = file.path;
+        coverImage = file.path;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Profile picture updated")),
+        const SnackBar(content: Text("Cover image updated")),
       );
     }
   }
@@ -68,86 +69,71 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drawer header
-          Container(
-            color: Colors.pinkAccent,
-            padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 20),
-            child: _isLoading
-                ? const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            )
-                : Column(
-              children: [
-                Row(
+          // Full-width cover image with name/email overlay
+          GestureDetector(
+            onTap: _pickCoverImage,
+            child: Container(
+              height: 180,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.pinkAccent,
+                image: coverImage.isNotEmpty
+                    ? DecorationImage(
+                  image: coverImage.startsWith('http')
+                      ? NetworkImage(coverImage)
+                      : FileImage(File(coverImage)) as ImageProvider,
+                  fit: BoxFit.cover,
+                )
+                    : null,
+              ),
+              child: Container(
+                // Optional semi-transparent overlay for readability
+                color: Colors.pinkAccent.withOpacity(0.6),
+                padding: const EdgeInsets.only(left: 16, bottom: 16, top: 40, right: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 30,
-                          backgroundImage: profileImage.isNotEmpty
-                              ? (profileImage.startsWith('http')
-                              ? NetworkImage(profileImage)
-                              : FileImage(File(profileImage))) as ImageProvider
-                              : const AssetImage("assets/images/default_profile.png"),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: _pickProfileImage,
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                              ),
-                              padding: const EdgeInsets.all(3),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 16,
-                                color: Colors.pinkAccent,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      userName.isNotEmpty ? userName : "Vendor Name",
+                      style: const TextStyle(
+                        fontSize: 22,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            userName.isNotEmpty ? userName : "Vendor Name",
-                            style: const TextStyle(
-                                fontSize: 18,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            userEmail.isNotEmpty ? userEmail : "vendor@example.com",
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12),
-                          ),
-                        ],
+                    const SizedBox(height: 4),
+                    Text(
+                      userEmail.isNotEmpty ? userEmail : "vendor@example.com",
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _statItem("Leads", "120"),
-                    _statItem("Reviews", "45"),
-                    _statItem("Views", "2.3K"),
-                  ],
-                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Stats row below cover image
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _statItem("Leads", "120"),
+                _statItem("Reviews", "45"),
+                _statItem("Views", "2.3K"),
               ],
             ),
           ),
 
-          // Drawer menu
+          const SizedBox(height: 20),
+
+          // Drawer menu items
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -166,7 +152,7 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
 
           const Divider(),
 
-          // Logout
+          // Logout button
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.pinkAccent),
             title: const Text('Logout'),
@@ -175,7 +161,7 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
               await prefs.setBool('isLoggedIn', false);
               await prefs.remove('businessName');
               await prefs.remove('email');
-              await prefs.remove('profileImage');
+              await prefs.remove('coverImage');
 
               Navigator.pushAndRemoveUntil(
                 context,
@@ -183,7 +169,6 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
                     (route) => false,
               );
             },
-
           ),
         ],
       ),
@@ -196,10 +181,10 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
         Text(
           value,
           style: const TextStyle(
-              color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 2),
-        Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(title, style: const TextStyle(color: Colors.black54, fontSize: 12)),
       ],
     );
   }

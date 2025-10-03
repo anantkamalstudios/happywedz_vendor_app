@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:happy_weds_vendors/Screens/Project/CoverImage.dart';
 import 'package:happy_weds_vendors/Screens/Project/vedioPage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'Albums.dart';
-
-
 
 void main() => runApp(MaterialApp(home: PortfolioPage()));
 
@@ -66,19 +65,26 @@ class PortfolioPage extends StatelessWidget {
                     builder: (context) => AddImagesPage(),
                   ),
                 );
-              }else if (item["title"] == "Albums") {
+              } else if (item["title"] == "Albums") {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => AlbumsPage(),
                   ),
                 );
-              }
-              else if (item["title"] == "Videos") {
+              } else if (item["title"] == "Videos") {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => VideosPage(),
+                  ),
+                );
+              }
+              else if (item["title"] == "Cover pic") {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CoverPicPage(),
                   ),
                 );
               }
@@ -100,11 +106,20 @@ class _AddImagesPageState extends State<AddImagesPage> {
   final ImagePicker _picker = ImagePicker();
   List<XFile> _images = [];
   List<int> _likes = [];
+  String coverImagePath = "";
 
   @override
   void initState() {
     super.initState();
     _loadSavedImages();
+    _loadCoverImage();
+  }
+
+  Future<void> _loadCoverImage() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      coverImagePath = prefs.getString('cover_image_portfolio') ?? "";
+    });
   }
 
   Future<void> _loadSavedImages() async {
@@ -121,6 +136,27 @@ class _AddImagesPageState extends State<AddImagesPage> {
           _likes = List.filled(paths.length, 0);
         }
       });
+    }
+  }
+
+  Future<void> _pickCoverImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      final file = File(pickedFile.path);
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      // Save under drawer key
+      await prefs.setString('coverImage', file.path);
+      // Also save in portfolio key for portfolio page
+      await prefs.setString('cover_image_portfolio', file.path);
+
+      setState(() {
+        coverImagePath = file.path; // Fixed variable name here
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Cover image updated")),
+      );
     }
   }
 
@@ -194,6 +230,9 @@ class _AddImagesPageState extends State<AddImagesPage> {
       appBar: AppBar(
         title: const Text("Portfolio"),
         backgroundColor: Colors.pinkAccent,
+        flexibleSpace: coverImagePath.isNotEmpty
+            ? Image.file(File(coverImagePath), fit: BoxFit.cover)
+            : null,
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -375,6 +414,3 @@ class ImagePreviewPage extends StatelessWidget {
     );
   }
 }
-
-
-
