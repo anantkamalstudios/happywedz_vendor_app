@@ -36,18 +36,17 @@ class _SignUpState extends State<SignUp> {
   final _passwordC = TextEditingController();
 
   bool _agreeTerms = false;
+  bool _isPasswordHidden = true;
+  bool _isSubmitting = false;
 
   List<VendorType> _vendorTypes = [];
   VendorType? _selectedVendorType;
   bool _isLoadingVendorTypes = true;
-  bool _isSubmitting = false;
 
   String? _selectedCountry;
   String? _selectedCity;
-
   List<String> _countries = [];
   Map<String, List<String>> _countryCities = {};
-
   bool _isLoadingCountries = true;
 
   @override
@@ -57,7 +56,7 @@ class _SignUpState extends State<SignUp> {
     _fetchCountries();
   }
 
-  // ---------------- Vendor Types ----------------
+  // ---------------- Fetch Vendor Types ----------------
   Future<void> _fetchVendorTypes() async {
     try {
       final response =
@@ -77,12 +76,12 @@ class _SignUpState extends State<SignUp> {
     }
   }
 
-  // ---------------- Fetch Countries ----------------
+  // ---------------- Fetch Countries & Cities ----------------
   Future<void> _fetchCountries() async {
     setState(() => _isLoadingCountries = true);
     try {
-      final response =
-      await http.get(Uri.parse('https://countriesnow.space/api/v0.1/countries'));
+      final response = await http
+          .get(Uri.parse('https://countriesnow.space/api/v0.1/countries'));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List countriesData = data['data'];
@@ -107,7 +106,7 @@ class _SignUpState extends State<SignUp> {
     }
   }
 
-  // ---------------- Country/City Selection ----------------
+  // ---------------- Country / City Selection ----------------
   Future<void> _selectCountry() async {
     if (_isLoadingCountries) return;
     final selected = await showSearch<String>(
@@ -138,6 +137,11 @@ class _SignUpState extends State<SignUp> {
 
   // ---------------- Registration ----------------
   Future<void> _registerVendor() async {
+    if (!_agreeTerms) {
+      _showSnack("Please agree to the Terms & Conditions");
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final url = Uri.parse('https://happywedz.com/api/vendor/register');
@@ -152,8 +156,6 @@ class _SignUpState extends State<SignUp> {
       "vendor_type_id": _selectedVendorType?.id.toString() ?? "",
     };
 
-    print("📤 Sending registration data: $body");
-
     try {
       final response = await http.post(
         url,
@@ -161,34 +163,37 @@ class _SignUpState extends State<SignUp> {
         body: json.encode(body),
       );
 
-      print("📥 Status Code: ${response.statusCode}");
-      print("📥 Raw Response: ${response.body}");
+      print("🔸 Register Response: ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
 
+        // ✅ Check multiple possible success keys
         if (data["success"] == true ||
             data["status"] == "success" ||
-            data["message"] == "Vendor registered successfully") {
+            data["message"]?.toString().toLowerCase().contains("success") == true) {
 
-          // Save login state
+          // ✅ Save user info to SharedPreferences for later use (Drawer)
           SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setBool('isLoggedIn', true);
+          await prefs.setString('token', data['token'] ?? "");
+          await prefs.setString('businessName', _businessNameC.text.trim());
+          await prefs.setString('email', _emailC.text.trim());
+          await prefs.setString('profileImage', data['profile_image'] ?? "");
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+          _showSnack("Registration successful!");
+
+          // ✅ Navigate to HomeScreen after short delay
+          Future.delayed(const Duration(seconds: 1), () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  (route) => false,
+            );
+          });
+
         } else {
-          _showSnack(data["message"] ?? "Registration successful");
-
-          SharedPreferences prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('isLoggedIn', true);
-
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+          _showSnack(data["message"] ?? "Registration failed, please try again");
         }
       } else if (response.statusCode == 422) {
         final data = json.decode(response.body);
@@ -204,10 +209,28 @@ class _SignUpState extends State<SignUp> {
     }
   }
 
+
   void _showSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  // ---------------- Validators ----------------
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) return "Please enter Phone Number";
+    if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+      return "Phone number must be exactly 10 digits";
+    }
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) return "Please enter Email";
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+      return "Please enter a valid Email";
+    }
+    return null;
   }
 
   // ---------------- UI ----------------
@@ -254,6 +277,7 @@ class _SignUpState extends State<SignUp> {
                           "Email",
                           Icons.email,
                           keyboardType: TextInputType.emailAddress,
+                          validator: _validateEmail,
                         ),
                         const SizedBox(height: 12),
                         _buildTextField(
@@ -261,13 +285,24 @@ class _SignUpState extends State<SignUp> {
                           "Phone Number",
                           Icons.phone,
                           keyboardType: TextInputType.phone,
+                          validator: _validatePhone,
                         ),
                         const SizedBox(height: 12),
                         _buildTextField(
                           _passwordC,
                           "Password",
                           Icons.lock,
-                          obscureText: true,
+                          obscureText: _isPasswordHidden,
+                          suffixIcon: IconButton(
+                            icon: Icon(_isPasswordHidden
+                                ? Icons.visibility
+                                : Icons.visibility_off),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordHidden = !_isPasswordHidden;
+                              });
+                            },
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -291,8 +326,7 @@ class _SignUpState extends State<SignUp> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFE91E63),
-                              padding:
-                              const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -313,8 +347,9 @@ class _SignUpState extends State<SignUp> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.white, // added white color
                               ),
-                            ),
+                            )
                           ),
                         ),
                       ],
@@ -327,7 +362,7 @@ class _SignUpState extends State<SignUp> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => Login()),
+                    MaterialPageRoute(builder: (context) => const Login()),
                   );
                 },
                 child: const Text(
@@ -347,15 +382,21 @@ class _SignUpState extends State<SignUp> {
 
   // ---------------- Helpers ----------------
   Widget _buildTextField(
-      TextEditingController controller, String hint, IconData icon,
-      {TextInputType keyboardType = TextInputType.text,
-        bool obscureText = false}) {
+      TextEditingController controller,
+      String hint,
+      IconData icon, {
+        TextInputType keyboardType = TextInputType.text,
+        bool obscureText = false,
+        Widget? suffixIcon,
+        String? Function(String?)? validator,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: Colors.grey[600]),
+        suffixIcon: suffixIcon,
         hintText: hint,
         filled: true,
         fillColor: Colors.grey[100],
@@ -364,10 +405,11 @@ class _SignUpState extends State<SignUp> {
           borderSide: BorderSide.none,
         ),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) return "Please enter $hint";
-        return null;
-      },
+      validator: validator ??
+              (value) {
+            if (value == null || value.isEmpty) return "Please enter $hint";
+            return null;
+          },
     );
   }
 
@@ -472,9 +514,8 @@ class _SearchDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildResults(BuildContext context) {
-    final results = items
-        .where((e) => e.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    final results =
+    items.where((e) => e.toLowerCase().contains(query.toLowerCase())).toList();
     return ListView.builder(
       itemCount: results.length,
       itemBuilder: (_, i) => ListTile(
@@ -486,9 +527,8 @@ class _SearchDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    final suggestions = items
-        .where((e) => e.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    final suggestions =
+    items.where((e) => e.toLowerCase().contains(query.toLowerCase())).toList();
     return ListView.builder(
       itemCount: suggestions.length,
       itemBuilder: (_, i) => ListTile(

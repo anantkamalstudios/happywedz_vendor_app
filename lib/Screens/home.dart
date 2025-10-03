@@ -475,7 +475,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/Screens/profile_screen.dart';
-import 'package:happy_weds_vendors/Screens/project_page.dart';
+import 'package:happy_weds_vendors/Screens/Project/project_page.dart';
 import 'package:happy_weds_vendors/Screens/reviews.dart';
 import 'package:happy_weds_vendors/Screens/stats.dart';
 import 'package:happy_weds_vendors/Screens/view_plan_screen.dart';
@@ -564,12 +564,7 @@ class _HomeTabState extends State<HomeTab> {
             icon: const Icon(Icons.notifications, color: Colors.white),
             onPressed: () {},
           ),
-          const Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              backgroundImage: AssetImage("assets/profile.jpg"),
-            ),
-          ),
+
         ],
       ),
         drawer: BusinessDrawer(),
@@ -747,7 +742,11 @@ Widget _phoneUpdateCard() {
             minimumSize: Size.fromHeight(40),
           ),
           onPressed: () {},
-          child: const Text("Submit"),
+          child: const Text(
+            "Submit",
+            style: TextStyle(color: Colors.white),
+          ),
+
         ),
       ],
     ),

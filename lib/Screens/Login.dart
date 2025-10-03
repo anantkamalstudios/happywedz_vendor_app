@@ -17,8 +17,10 @@ class _LoginState extends State<Login> {
   final _formKey = GlobalKey<FormState>();
   final _emailC = TextEditingController();
   final _passwordC = TextEditingController();
+
   bool _rememberMe = false;
   bool _isLoading = false;
+  bool _isPasswordHidden = true;
 
   @override
   void initState() {
@@ -31,7 +33,7 @@ class _LoginState extends State<Login> {
   void _loadSavedCredentials() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _emailC.text = prefs.getString('savedEmail') ?? '';
+      _emailC.text = prefs.getString('email') ?? '';
       _passwordC.text = prefs.getString('savedPassword') ?? '';
       _rememberMe = _emailC.text.isNotEmpty && _passwordC.text.isNotEmpty;
     });
@@ -72,15 +74,19 @@ class _LoginState extends State<Login> {
       );
 
       final data = json.decode(response.body);
+      print("🔸 Login Response: ${response.body}");
 
       if (response.statusCode == 200 &&
-          data["message"] != null &&
-          data["message"] == "Login successful") {
-        // Save login state
+          data["message"]?.toLowerCase().contains("success") == true) {
+
+        // ✅ Save vendor info to SharedPreferences
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('token', data['token'] ?? "");
+        await prefs.setString('businessName', data['data']?['business_name'] ?? "");
+        await prefs.setString('email', data['data']?['email'] ?? "");
+        await prefs.setString('profileImage', data['data']?['profile_image'] ?? "");
 
-        // Save credentials if Remember Me checked
         if (_rememberMe) {
           await prefs.setString('savedEmail', _emailC.text);
           await prefs.setString('savedPassword', _passwordC.text);
@@ -89,26 +95,23 @@ class _LoginState extends State<Login> {
           await prefs.remove('savedPassword');
         }
 
-        // Navigate to HomeScreen
+        _showSnack(data["message"] ?? "Login successful");
+
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
-
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(data["message"])));
-      } else if (response.statusCode == 422) {
-        _showSnack("Validation Error: ${data['message'] ?? data.toString()}");
       } else {
-        _showSnack(data["message"] ?? "Login failed. Code: ${response.statusCode}");
+        _showSnack(data["message"] ?? "Login failed");
       }
     } catch (e) {
+      print("❌ Login error: $e");
       _showSnack("An error occurred. Please try again.");
-      print("Login error: $e");
     } finally {
       setState(() => _isLoading = false);
     }
   }
+
 
   void _showSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -116,7 +119,14 @@ class _LoginState extends State<Login> {
     );
   }
 
-  // ---------------- UI ----------------
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) return "Please enter Email";
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+      return "Please enter a valid Email";
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,8 +144,6 @@ class _LoginState extends State<Login> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 24),
-
-              // Card-style login form
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -147,17 +155,31 @@ class _LoginState extends State<Login> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        _buildTextField(_emailC, "Email / Phone", Icons.person),
+                        _buildTextField(
+                          _emailC,
+                          "Email",
+                          Icons.email,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: _validateEmail,
+                        ),
                         const SizedBox(height: 12),
                         _buildTextField(
                           _passwordC,
                           "Password",
                           Icons.lock,
-                          obscureText: true,
+                          obscureText: _isPasswordHidden,
+                          suffixIcon: IconButton(
+                            icon: Icon(_isPasswordHidden
+                                ? Icons.visibility
+                                : Icons.visibility_off),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordHidden = !_isPasswordHidden;
+                              });
+                            },
+                          ),
                         ),
                         const SizedBox(height: 8),
-
-                        // Remember Me & Forgot Password
                         Row(
                           children: [
                             Checkbox(
@@ -167,23 +189,9 @@ class _LoginState extends State<Login> {
                             ),
                             const Text("Remember me"),
                             const Spacer(),
-                            GestureDetector(
-                              onTap: () {
-                                // TODO: Forgot password logic
-                              },
-                              child: const Text(
-                                "Forgot Password?",
-                                style: TextStyle(
-                                  color: Color(0xFFE91E63),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
-
-                        // Login button
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -207,8 +215,10 @@ class _LoginState extends State<Login> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.white, // added white color
                               ),
-                            ),
+                            )
+
                           ),
                         ),
                       ],
@@ -216,10 +226,7 @@ class _LoginState extends State<Login> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // Sign up redirect
               GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -242,24 +249,27 @@ class _LoginState extends State<Login> {
     );
   }
 
-  // ---------------- Helper for text fields ----------------
   Widget _buildTextField(
       TextEditingController controller,
       String hint,
       IconData icon, {
         TextInputType keyboardType = TextInputType.text,
         bool obscureText = false,
+        Widget? suffixIcon,
+        String? Function(String?)? validator,
       }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
-      validator: (value) {
-        if (value == null || value.isEmpty) return "Please enter $hint";
-        return null;
-      },
+      validator: validator ??
+              (value) {
+            if (value == null || value.isEmpty) return "Please enter $hint";
+            return null;
+          },
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: Colors.grey[600]),
+        suffixIcon: suffixIcon,
         hintText: hint,
         filled: true,
         fillColor: Colors.grey[100],
