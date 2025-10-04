@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class MusicAndDanceFaq extends StatefulWidget {
-  final double profileCompletion;
 
-  const MusicAndDanceFaq({super.key, required this.profileCompletion});
+
+  const MusicAndDanceFaq({super.key});
 
   @override
   State<MusicAndDanceFaq> createState() => _MusicAndDanceFaqState();
@@ -11,6 +11,8 @@ class MusicAndDanceFaq extends StatefulWidget {
 
 class _MusicAndDanceFaqState extends State<MusicAndDanceFaq> {
   final TextEditingController priceController = TextEditingController();
+
+  double completionPercentage = 0.0;
 
   final List<String> eventsCovid = [
     "Information not available",
@@ -328,7 +330,7 @@ class _MusicAndDanceFaqState extends State<MusicAndDanceFaq> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
-                      value: widget.profileCompletion,
+                      value: completionPercentage.clamp(0.0, 1.0),
                       minHeight: 12,
                       backgroundColor: Colors.grey[300],
                       valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
@@ -338,9 +340,14 @@ class _MusicAndDanceFaqState extends State<MusicAndDanceFaq> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("PROFILE COMPLETION", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text("${(widget.profileCompletion * 100).toInt()}%",
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      const Text(
+                        "PROFILE COMPLETION",
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      Text(
+                        "${(completionPercentage * 100).toInt()}%",
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
                     ],
                   ),
                 ],

@@ -82,16 +82,15 @@ class _HomeTabState extends State<HomeTab> {
 
   // Map vendor types to their FAQ screens
   final Map<String, Widget Function()> faqScreens = {
-    "Photographers": () => const PhotographerFaqScreen(profileCompletion: 0.5),
-    "venues": () => const VenuefaqScreen(profileCompletion: 0.5),
-    "makeup": () => const MakeupFaqScreen(profileCompletion: 0.5),
-    "planning and decor": () => DecorationAndPlanningfaq( profileCompletion: 0.5,),
-    "caterers":  () => CaterarFaqScreen(profileCompletion: 0.5),
-    "music and dance": () => MusicAndDanceFaq(profileCompletion: 0.5,),
-    "invite and gift" : () => InviteAndGiftFaqScreen(profileCompletion: 0.5),
-    "florists" : () => FloristsFaqScreen(profileCompletion: 0.5),
-    "pandit": () => PanditFaqScreen(profileCompletion: 0.5),
-
+    "photographers": () => const PhotographerFaqScreen(),
+    "venues": () => const VenuefaqScreen(),
+    "makeup": () => const MakeupFaqScreen(),
+    "planning and decor": () => DecorationAndPlanningfaq(),
+    "caterers":  () => CaterarFaqScreen(),
+    "music and dance": () => MusicAndDanceFaq(),
+    "invite and gift" : () => InviteAndGiftFaqScreen(),
+    "florists" : () => FloristsFaqScreen(),
+    "pandits": () => PanditFaqScreen(),
   };
 
   @override
@@ -179,15 +178,15 @@ Widget _profileCompletionCard(BuildContext context, String vendorTypeName, Map<S
             vendorTypeName = vendorTypeName.trim().toLowerCase(); // <-- Add this line
 
             final faqScreens = {
-              "photographers": () => const PhotographerFaqScreen(profileCompletion: 0.5),
-              "venues": () => const VenuefaqScreen(profileCompletion: 0.5),
-              "makeup": () => const MakeupFaqScreen(profileCompletion: 0.5),
-              "planning and decor": () => DecorationAndPlanningfaq( profileCompletion: 0.5,),
-              "caterers": () => CaterarFaqScreen(profileCompletion: 0.5),
-              "music and dance": () => MusicAndDanceFaq(profileCompletion: 0.5),
-              "invite and gift": () => InviteAndGiftFaqScreen(profileCompletion: 0.5),
-              "florits": () => FloristsFaqScreen(profileCompletion: 0.5,),
-              "pandits": () => PanditFaqScreen(profileCompletion: 0.5,),
+              "photographers": () => const PhotographerFaqScreen(),
+              "venues": () => const VenuefaqScreen(),
+              "makeup": () => const MakeupFaqScreen(),
+              "planning and decor": () => DecorationAndPlanningfaq(),
+              "caterers": () => CaterarFaqScreen(),
+              "music and dance": () => MusicAndDanceFaq(),
+              "invite and gift": () => InviteAndGiftFaqScreen(),
+              "florists": () => FloristsFaqScreen(),
+              "pandits": () => PanditFaqScreen(),
 
             };
 

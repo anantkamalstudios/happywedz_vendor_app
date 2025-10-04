@@ -168,12 +168,10 @@ class _SignUpState extends State<SignUp> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
 
-        // ✅ Check multiple possible success keys
         if (data["success"] == true ||
             data["status"] == "success" ||
             data["message"]?.toString().toLowerCase().contains("success") == true) {
 
-          // ✅ Save user info to SharedPreferences for later use (Drawer)
           SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setBool('isLoggedIn', true);
           await prefs.setString('token', data['token'] ?? "");
@@ -181,15 +179,13 @@ class _SignUpState extends State<SignUp> {
           await prefs.setString('email', _emailC.text.trim());
           await prefs.setString('profileImage', data['profile_image'] ?? "");
 
+          // ✅ Add this line to save vendor type name
           if (_selectedVendorType != null) {
-            await prefs.setString('vendorTypeName', _selectedVendorType!.name.trim());
+            await prefs.setString('vendorTypeName', _selectedVendorType!.name.trim().toLowerCase());
           }
 
           _showSnack("Registration successful!");
 
-
-
-          // ✅ Navigate to HomeScreen after short delay
           Future.delayed(const Duration(seconds: 1), () {
             Navigator.pushAndRemoveUntil(
               context,
@@ -214,6 +210,7 @@ class _SignUpState extends State<SignUp> {
       setState(() => _isSubmitting = false);
     }
   }
+
 
 
   void _showSnack(String message) {

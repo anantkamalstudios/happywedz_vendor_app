@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class MakeupFaqScreen extends StatefulWidget {
-  final double profileCompletion;
 
-  const MakeupFaqScreen({super.key, required this.profileCompletion});
+
+  const MakeupFaqScreen({super.key});
 
   @override
   State<MakeupFaqScreen> createState() => _MakeupFaqScreenState();
@@ -11,6 +11,8 @@ class MakeupFaqScreen extends StatefulWidget {
 
 class _MakeupFaqScreenState extends State<MakeupFaqScreen> {
   final TextEditingController priceController = TextEditingController();
+
+  double completionPercentage = 0.0;
 
 
   final List<String> makeupOffer = [
@@ -308,33 +310,37 @@ class _MakeupFaqScreenState extends State<MakeupFaqScreen> {
           SliverAppBar(
             backgroundColor: Colors.grey[300],
             pinned: true,
-            expandedHeight: 80,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              title: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: widget.profileCompletion,
-                      minHeight: 12,
-                      backgroundColor: Colors.grey[300],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
+            expandedHeight: 80,flexibleSpace: FlexibleSpaceBar(
+            titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            title: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: completionPercentage.clamp(0.0, 1.0),
+                    minHeight: 12,
+                    backgroundColor: Colors.grey[300],
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "PROFILE COMPLETION",
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("PROFILE COMPLETION", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text("${(widget.profileCompletion * 100).toInt()}%",
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ],
-              ),
+                    Text(
+                      "${(completionPercentage * 100).toInt()}%",
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ],
             ),
+          ),
           ),
 
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class DecorationAndPlanningfaq extends StatefulWidget {
-  final double profileCompletion;
 
-  const DecorationAndPlanningfaq({super.key, required this.profileCompletion});
+
+  const DecorationAndPlanningfaq({super.key});
 
   @override
   State<DecorationAndPlanningfaq> createState() => _DecorationAndPlanningfaqState();
@@ -14,6 +14,7 @@ class _DecorationAndPlanningfaqState extends State<DecorationAndPlanningfaq> {
   final TextEditingController additionalNoteController = TextEditingController();
   double outdoorBudget = 0;
   String covidOption = '';
+  double completionPercentage = 0.0;
 
   Map<String, bool> selectedThemes = {};
   Map<String, bool> selectedModernThemes = {};
@@ -288,7 +289,7 @@ class _DecorationAndPlanningfaqState extends State<DecorationAndPlanningfaq> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
-                      value: widget.profileCompletion,
+                      value: completionPercentage.clamp(0.0, 1.0),
                       minHeight: 12,
                       backgroundColor: Colors.grey[300],
                       valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
@@ -298,9 +299,14 @@ class _DecorationAndPlanningfaqState extends State<DecorationAndPlanningfaq> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("PROFILE COMPLETION", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text("${(widget.profileCompletion * 100).toInt()}%",
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      const Text(
+                        "PROFILE COMPLETION",
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      Text(
+                        "${(completionPercentage * 100).toInt()}%",
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
                     ],
                   ),
                 ],
