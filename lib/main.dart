@@ -13,6 +13,7 @@ void main() async {
 
   // ✅ REQUIRED
   runApp(const MyApp());
+
 }
 
 class MyApp extends StatelessWidget {
