@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'SignUp.dart';
-import 'home.dart';
+import 'HomeScreen.dart';
 
 class Login extends StatefulWidget {
   const Login({Key? key}) : super(key: key);
@@ -77,26 +77,46 @@ class _LoginState extends State<Login> {
       print("🔸 Login Response: ${response.body}");
 
       if (response.statusCode == 200 &&
-          data["message"]?.toLowerCase().contains("success") == true) {
+          (data["message"]?.toLowerCase().contains("success") ?? false)) {
+        final prefs = await SharedPreferences.getInstance();
+        final vendorData = data['vendor'] ?? data['data'] ?? {};
 
-        // ✅ Save vendor info to SharedPreferences
-        SharedPreferences prefs = await SharedPreferences.getInstance();
+        // 🟢 Debug Prints
+        print("📢 Vendor ID: ${vendorData['id']}");
+        print("📢 Vendor Type ID: ${vendorData['vendor_type_id']}");
+        print("📢 Business Name: ${vendorData['businessName']}");
+        print("📢 Profile Completed: ${vendorData['profile_completed']}");
+
+        // ✅ Save all vendor details (same keys as SignUp)
         await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('authToken', data['token'] ?? "");
         await prefs.setString('token', data['token'] ?? "");
-        await prefs.setString('businessName', data['data']?['business_name'] ?? "");
-        await prefs.setString('email', data['data']?['email'] ?? "");
-        await prefs.setString('profileImage', data['data']?['profile_image'] ?? "");
+        await prefs.setInt('vendorId', vendorData['id']);
+        await prefs.setInt('vendorTypeId', vendorData['vendor_type_id']);
+        await prefs.setString('businessName', vendorData['businessName'] ?? "");
+        await prefs.setString('email', vendorData['email'] ?? "");
+        await prefs.setString('phone', vendorData['phone'] ?? "");
+        await prefs.setString('profileImage', vendorData['profileImage'] ?? "");
+        await prefs.setBool('profileCompleted', vendorData['profile_completed'] ?? false);
 
-        if (_rememberMe) {
-          await prefs.setString('savedEmail', _emailC.text);
-          await prefs.setString('savedPassword', _passwordC.text);
-        } else {
-          await prefs.remove('savedEmail');
-          await prefs.remove('savedPassword');
+        // ✅ Get Vendor Type Name from API (so florist stays florist)
+        try {
+          final typeRes = await http.get(
+            Uri.parse('https://happywedz.com/api/vendor-types/${vendorData['vendor_type_id']}'),
+          );
+          if (typeRes.statusCode == 200) {
+            final typeData = json.decode(typeRes.body);
+            await prefs.setString('vendorTypeName', typeData['name'].toString());
+            print("🌸 Vendor Type Name: ${typeData['name']}");
+          } else {
+            print("⚠️ Could not fetch vendor type name, saving ID only");
+          }
+        } catch (e) {
+          print("❌ Vendor type fetch failed: $e");
         }
 
+        // ✅ Navigate properly
         _showSnack(data["message"] ?? "Login successful");
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -111,6 +131,11 @@ class _LoginState extends State<Login> {
       setState(() => _isLoading = false);
     }
   }
+
+
+
+
+
 
 
   void _showSnack(String message) {
@@ -130,7 +155,7 @@ class _LoginState extends State<Login> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.pink[300],
+      backgroundColor: const Color(0xFF00509D),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -196,7 +221,7 @@ class _LoginState extends State<Login> {
                           width: double.infinity,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE91E63),
+                              backgroundColor: const Color(0xFF00509D),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -237,7 +262,7 @@ class _LoginState extends State<Login> {
                 child: const Text(
                   "Don't have an account? Sign Up",
                   style: TextStyle(
-                    color: Color(0xFFE91E63),
+                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

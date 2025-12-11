@@ -41,15 +41,15 @@ class VendorQuestion {
   }
 }
 
-// ===== PANDITS FAQ SCREEN =====
-class PanditsFaqScreen extends StatefulWidget {
-  const PanditsFaqScreen({super.key});
+// ===== WEDDING DJ SCREEN =====
+class WeddingDjScreen extends StatefulWidget {
+  const WeddingDjScreen({super.key});
 
   @override
-  State<PanditsFaqScreen> createState() => _PanditsFaqScreenState();
+  State<WeddingDjScreen> createState() => _WeddingDjScreenState();
 }
 
-class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
+class _WeddingDjScreenState extends State<WeddingDjScreen> {
   late List<VendorQuestion> questions = [];
   final Map<int, String> selectedRadio = {};
   final Map<int, List<String>> selectedCheckbox = {};
@@ -58,15 +58,13 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   final Map<int, bool> expandCheckbox = {};
 
   int vendorId = 0;
-  int vendorTypeId = 14; // Pandits type
+  int vendorTypeId = 8;
   String token = "";
   bool isLoading = false;
 
-
   late List<VendorQuestion> faqs = [];
+
   @override
-
-
   void initState() {
     super.initState();
     _initFaqScreen();
@@ -75,14 +73,13 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   Future<void> _initFaqScreen() async {
     final prefs = await SharedPreferences.getInstance();
     vendorId = prefs.getInt('vendorId') ?? 0;
-    vendorTypeId = prefs.getInt('vendorTypeId') ?? 14;
+    vendorTypeId = prefs.getInt('vendorTypeId') ?? (weddingDjJson['vendor_type_id'] ?? 8) as int;
     token = prefs.getString('authToken') ?? "";
 
-    // Load static questions from JSON
-    final data = panditsJson['questions'] as List<dynamic>;
+    // Load static questions
+    final data = weddingDjJson['questions'] as List<dynamic>;
     faqs = data.map((e) => VendorQuestion.fromJson(e)).toList();
     questions = faqs;
-
 
     // Prepare text controllers
     for (var q in questions) {
@@ -110,6 +107,8 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
         },
       );
 
+
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         List<dynamic> answers = [];
@@ -119,10 +118,14 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
           answers = data;
         }
 
+
+
         for (var ans in answers) {
           if (ans == null) continue;
           final qid = ans['faqQuestionId'];
           var answer = ans['answer'];
+
+
 
           final question = questions.firstWhere(
                 (q) => q.id == qid,
@@ -135,13 +138,16 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
               options: [],
             ),
           );
+
+
           if (question.id == 0) continue;
+
+
 
           if (question.type == 'checkbox') {
             try {
               if (answer is String && answer.startsWith('{')) {
-                answer = jsonDecode(
-                    answer.replaceAll('{', '[').replaceAll('}', ']'));
+                answer = jsonDecode(answer.replaceAll('{', '[').replaceAll('}', ']'));
               }
               selectedCheckbox[qid] = List<String>.from(answer);
             } catch (_) {
@@ -150,8 +156,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
           } else if (question.type == 'radio') {
             selectedRadio[qid] = answer.toString();
           } else if (question.type == 'range') {
-            selectedSlider[qid] =
-            (answer is num) ? answer.toDouble() : (question.min?.toDouble() ?? 0);
+            selectedSlider[qid] = (answer is num) ? answer.toDouble() : (question.min?.toDouble() ?? 0);
           } else {
             textControllers[qid]?.text = answer.toString();
           }
@@ -170,8 +175,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   Future<void> _saveFaqAnswers() async {
     setState(() => isLoading = true);
 
-    // Only include answered questions
-    final answers = faqs.map((q) {
+    final answers = questions.map((q) {
       dynamic ans;
       if (q.type == 'checkbox') {
         ans = selectedCheckbox[q.id];
@@ -183,7 +187,6 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
         ans = textControllers[q.id]?.text.trim();
       }
 
-      // Skip unanswered questions
       if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
         return null;
       }
@@ -201,6 +204,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
       return;
     }
 
+
     final body = {
       "vendorId": vendorId,
       "vendorTypeId": vendorTypeId,
@@ -215,13 +219,13 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
       );
 
 
+
       print("📤 Sent: ${jsonEncode(body)}");
       print("📩 Response (${response.statusCode}): ${response.body}");
       print("🪪 vendorId: $vendorId");
       print("🔐 token: $token");
       print("🎨 vendorTypeId: $vendorTypeId");
       print("➡️ Sending: ${jsonEncode(body)}");
-
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -252,7 +256,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
-          "Pandit FAQs",
+          "Wedding DJ FAQs",
           style: TextStyle(color: Colors.black), // optional for better contrast
         ),
         centerTitle: true,
@@ -283,7 +287,6 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
           Navigator.popUntil(context, (route) => route.isFirst);
         },
       ),
-
     );
   }
 
@@ -316,19 +319,11 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   Widget _buildInput(VendorQuestion q) {
     switch (q.type) {
       case "number":
-        return TextFormField(
-          controller: textControllers[q.id],
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-
       case "text":
       case "textarea":
         return TextFormField(
           controller: textControllers[q.id],
+          keyboardType: q.type == "number" ? TextInputType.number : TextInputType.text,
           minLines: q.type == "textarea" ? 3 : 1,
           maxLines: q.type == "textarea" ? 5 : 1,
           decoration: InputDecoration(
@@ -405,93 +400,84 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
 
 
 
-// ===== PANDITS JSON =====
-const panditsJson = {
-  "vendor_type_id": 14,
-  "vendor_type": "Pandits",
+
+// ===== WEDDING DJ JSON =====
+const weddingDjJson = {
+  "vendor_type_id": 8,
+  "vendor_type": "Wedding DJ",
   "questions": [
     {
-      "id": 1601,
-      "text": "What is the starting price for wedding ceremony services (pooja/ feras)?",
+      "id": 1501,
+      "text": "What is the starting price for 1 event of your DJ only services?",
       "description": "Enter your average pricing in order for your Storefront to appear in results when couples search by price.",
-      "label": ["Lowest price"],
+      "label": [],
       "type": "number",
       "options": [],
       "min": null,
       "max": null
     },
     {
-      "id": 1602,
-      "text": "What type of pooja/ceremony services do you provide?",
+      "id": 1502,
+      "text": "What is the starting price for 1 event of your DJ services with setup? (Typically includes: sound, light & dance floor set up)",
       "description": "",
       "label": [],
-      "type": "checkbox",
-      "options": ["Wedding ceremony","Kundali match-making","Griha pravesh","Yagya/ Hawan","Mangal dosh","Sundarkand/ Mata ki chowki","Gauri pooja","Lakshmi pooja","Others"],
-      "min": null,
-      "max": null
+      "type": "range",
+      "options": [],
+      "min": 0,
+      "max": 50000
     },
     {
-      "id": 1603,
-      "text": "What are the languages in which you can perform rituals/ceremonies?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Hindi","Sanskrit","Tamil","Telugu","Kannada","Marathi","English","Gujrati","Bangali","Marwari","Jain","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1604,
-      "text": "How do you provide consultation services?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Office/ Shop","Home visit","Online consultation","Telephonic consultation","Video consultation","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1605,
-      "text": "What religions/ faiths can you serve with ceremony or ritual services?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Hinduism","Islam","Jainism","Sikhism","Buddhism","Christianity","Parsis","Judaism","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1606,
-      "text": "Do you travel outstation?",
+      "id": 1503,
+      "text": "Are you ready to host/provide service to events during COVID19, following the government guidelines?",
       "description": "",
       "label": [],
       "type": "radio",
-      "options": ["Yes","No"],
+      "options": ["Information not available", "Not operational", "Yes, with special deals", "Yes"],
       "min": null,
       "max": null
     },
     {
-      "id": 1607,
-      "text": "Which forms of payment do you accept?",
+      "id": 1504,
+      "text": "Which musical genres do you specialise in?",
       "description": "",
       "label": [],
       "type": "checkbox",
-      "options": ["Cash","Cheque/ DD","Credit/ Debit card","UPI","Net banking","Mobile wallets"],
+      "options": ["Bollywood","EDM","Punjabi","Rock","Hollywood","Hip-hop"],
       "min": null,
       "max": null
     },
     {
-      "id": 1608,
+      "id": 1505,
+      "text": "What additional setups do you offer?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": ["Sound system","Dance floor","Lighting","LED screens","Projector","Karaoke"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 1506,
+      "text": "Which forms of payment do you accept",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": ["Cash","Cheque/ DD","Credit/ Debit card","UPI","Net Banking","Mobile wallets"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 1507,
       "text": "What is the % payment/ amount to confirm the booking?",
       "description": "",
       "label": [],
-      "type": "text",
+      "type": "number",
       "options": [],
       "min": null,
       "max": null
     },
     {
-      "id": 1609,
+      "id": 1508,
       "text": "What is the cancellation policy?",
       "description": "",
       "label": [],
@@ -501,7 +487,7 @@ const panditsJson = {
       "max": null
     },
     {
-      "id": 1610,
+      "id": 1509,
       "text": "Which year did you/your company professionally start your services?",
       "description": "",
       "label": [],
@@ -511,7 +497,7 @@ const panditsJson = {
       "max": null
     },
     {
-      "id": 1611,
+      "id": 1510,
       "text": "Awards, recognitions and publications",
       "description": "",
       "label": [],
@@ -521,12 +507,22 @@ const panditsJson = {
       "max": null
     },
     {
-      "id": 1612,
-      "text": "What is the starting price range for wedding ceremony services (pooja/ feras)?",
+      "id": 1511,
+      "text": "What is the starting price range for 1 event of your DJ only services?",
       "description": "",
       "label": [],
       "type": "radio",
-      "options": ["Under ₹2,000","₹2,000 - ₹4,999","₹5,000 - ₹7,999","₹8,000 - ₹9,999","₹10,000 - ₹19,999","₹20,000 and more"],
+      "options": ["Under 5,000","5,000 - 9,999","10,000 - 14,999","15,000 - 19,999","20,000 - 24,999","25,000 - 29,999","30,000 - 39,999","40,000 - 49,999","50,000 and more"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 1512,
+      "text": "What is the starting price range for 1 event of your DJ services with setup? (Typically includes: sound, light & dance floor set up)",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Under 10,000","10,000 - 14,999","15,000 - 19,999","20,000 - 24,999","25,000 - 29,999","30,000 - 49,999","50,000 - 74,999","75,000 - 99,999","1,00,000 and more"],
       "min": null,
       "max": null
     }

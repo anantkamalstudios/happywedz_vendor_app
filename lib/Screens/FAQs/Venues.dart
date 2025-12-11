@@ -1,1074 +1,575 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
-class VenuefaqScreen extends StatefulWidget {
+import 'ProfileScreen.dart';
 
+// ===== MODEL =====
+class FaqQuestion {
+  final int id;
+  final String text;
+  final String description;
+  final List<String> label;
+  final String type;
+  final List<String> options;
+  final int? min;
+  final int? max;
 
-  const VenuefaqScreen({super.key});
+  FaqQuestion({
+    required this.id,
+    required this.text,
+    required this.description,
+    required this.label,
+    required this.type,
+    required this.options,
+    this.min,
+    this.max,
+  });
 
-  @override
-  State<VenuefaqScreen> createState() => _VenuefaqScreenState();
-}
-
-class _VenuefaqScreenState extends State<VenuefaqScreen> {
-  bool isYesSelected = false;
-  bool isNoSelected = false;
-  double completionPercentage = 0.0;
-
-  final List<String> venueOptions = [
-    'Farmhouse with Indoor Banquet capability',
-    'Farmhouse with only outdoor area',
-    'Hotel with indoor banquets & lawn',
-    'Hotel with indoor banquets',
-    'Standalone Banquet hall',
-    'Standalone Banquet hall with outdoor area',
-    'Restaurant / Lounge for Pre wedding events',
-    'Fort / Palace venue',
-    'Cultural Center / Club with Banquet capability',
-    '5 Star Hotel with indoor banquets & lawn',
-    '5 Star Hotel with indoor banquets',
-  ];
-
-  final List<String> cancellationOptions = [
-    'Partial Refund Offered',
-    'No Refund Offered',
-    'No Refund Offered However Date Adjustment Can Be Done',
-    'Full Refund Offered',
-  ];
-
-  final List<String> cateringPolicy = [
-    'Inhouse catering, Outside vendors not permitted',
-    'Inhouse catering, Outside vendors alloed',
-    'No Inhouse service, Outside vendors allowed from panel',
-    'No inhouse services, outside vendors allowed',
-  ];
-
-  final List<String> decorPolicy = [
-    'Decorators should be chosen only from enlisted Panel',
-    'Outside decorators permitted',
-    'In-house decor',
-  ];
-
-  final List<String> parkingAvailable = [
-    'There is sufficient parking available',
-    'Parking is available near the venue',
-    'No parking available',
-  ];
-
-  final List<String> alcoholPolicy = [
-    'In house alcohol available, Outside alcohol permitted',
-    'In house alcohol available, Outside alcohol not permitted',
-    'In house alcohol not available, Outside alcohol permitted',
-    'In house alcohol not available, Outside alcohol not permitted',
-  ];
-
-  final List<String> DjPolicy = [
-    'In house DJ available, Outside DJ permitted',
-    'In house DJ available, Outside DJ not permitted',
-    'In house DJ not available, Outside DJ permitted',
-    'In house DJ not available, Outside DJ not permitted',
-  ];
-
-  String? selectedVenue;
-  String? selectedCancellation;
-  String? selectedCatering;
-  String? seletcedDecor;
-  String? selectedParking;
-  String? selectedAlcohol;
-  String? selectedDj;
-
-  bool isOption1Selected = false;
-  bool isOption2Selected = false;
-  bool isOption3Selected = false;
-
-  bool isIndoorSelected = false;
-  bool isOutdoorSelected = false;
-  bool isPoolsideSelected = false;
-  bool isTerraceSelected = false;
-
-
-  final TextEditingController bookingController = TextEditingController();
-  final TextEditingController uspController = TextEditingController();
-  final TextEditingController advanceBookingController = TextEditingController();
-
-  @override
-  void dispose() {
-    bookingController.dispose();
-    uspController.dispose();
-    advanceBookingController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            // Remove or set to true to show the back button
-            automaticallyImplyLeading: true,
-            backgroundColor: Colors.grey[200],
-            pinned: true,
-            expandedHeight: 60,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              title: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: completionPercentage.clamp(0.0, 1.0),
-                      minHeight: 12,
-                      backgroundColor: Colors.grey[300],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "PROFILE COMPLETION",
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      Text(
-                        "${(completionPercentage * 100).toInt()}%",
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Yes/No rental cost
-                    const SizedBox(height: 20),
-                    const Text(
-                      "Does your venue have rental cost along with per plate cost?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 12,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              isYesSelected = true;
-                              isNoSelected = false;
-                            });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isYesSelected ? Colors.green : Colors.white,
-                            foregroundColor: isYesSelected ? Colors.white : Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(0),
-                              side: const BorderSide(color: Colors.grey),
-                            ),
-                            fixedSize: const Size(100, 45),
-                            elevation: isYesSelected ? 2 : 0,
-                          ),
-                          child: const Text("Yes"),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              isYesSelected = false;
-                              isNoSelected = true;
-                            });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isNoSelected ? Colors.green : Colors.white,
-                            foregroundColor: isNoSelected ? Colors.white : Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25),
-                              side: const BorderSide(color: Colors.grey),
-                            ),
-                            fixedSize: const Size(100, 45),
-                            elevation: isNoSelected ? 2 : 0,
-                          ),
-                          child: const Text("No"),
-                        ),
-                      ],
-                    ),
-
-                    // Primary venue dropdown
-                    const SizedBox(height: 20),
-                    const Text(
-                      "Primary Venue Type",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedVenue,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: venueOptions.map((venue) {
-                        return DropdownMenuItem<String>(
-                          value: venue,
-                          child: Text(venue),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedVenue = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-
-                    // Booking amount
-                    const SizedBox(height: 14),
-                    const Text(
-                      "What is the booking amount (in percentage terms you take) to block a date?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: bookingController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                    ),
-
-                    // USP
-                    const SizedBox(height: 20),
-                    const Text(
-                      "What is your USP? (Max 230 characters)",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      height: 120,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 5,
-                        maxLength: 230,
-                        decoration: const InputDecoration(
-                          hintText: "Enter your USP here",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-
-                    // Advance booking weeks
-                    const SizedBox(height: 20),
-                    const Text(
-                      "How many weeks in advance should a booking be made?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 120,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 5,
-                        maxLength: 230,
-                        decoration: const InputDecoration(
-                          hintText: "Enter your USP here",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-
-                    // Cancellation policy dropdown
-                    const SizedBox(height: 20),
-                    const Text(
-                      "Please describe your cancellation policy (if a user initiates a cancellation including whether you provide refunds of booking amounts and terms for doing so.)",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedCancellation,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: cancellationOptions.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedCancellation = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      "Please describe your cancellation policy (if a user initiates a cancellation including whether you provide refunds of booking amounts and terms for doing so.)",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedCancellation,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: cancellationOptions.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedCancellation = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      "What are the terms & conditions of your cancellation policy? (please describe in detail -eg No refunds within a month of the wedding day or 50% amount refundable)",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 120,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 5,
-                        maxLength: 230,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      "How many rooms are included in your destination Price(per Night)/ (default is 100)",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 80,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 3,
-                        maxLength: 100,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      "What would be the one line bio for your venue",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 120,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 5,
-                        maxLength: 230,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      "Do you need a minimum guarantee of Room booking for hosting a wedding?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Column(
-                      children: [
-                        Card(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Column(
-                            children: [
-                              ListTile(
-                                leading: Checkbox(
-                                  value: isOption1Selected,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      isOption1Selected = value ?? false;
-                                    });
-                                  },
-                                ),
-                                title: const Text(
-                                  "Yes, set a number of rooms should be booked to host a wedding",
-                                ),
-                              ),
-
-                              // Conditional green box inside the same card
-                              if (isOption1Selected)
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green, // Green background
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        "What is the minimum number of Room bookings required to host weddings?",
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.black, // White text
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        height: 80,
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white, // White input area
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: TextField(
-                                          maxLines: 4,
-                                          decoration: const InputDecoration(
-                                            hintText: "Enter number of rooms...",
-                                            border: InputBorder.none,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 8),
-                        Card(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: isOption2Selected,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isOption2Selected = value ?? false;
-                                });
-                              },
-                            ),
-                            title: const Text("No, can host a wedding without room booking"),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Card(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: isOption3Selected,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isOption3Selected = value ?? false;
-                                });
-                              },
-                            ),
-                            title: const Text("Complete buyout of the room is mandatory"),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      "What is the strating price for vegetarian menu? (assume 250 pax and standard menu)",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 80,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 3,
-                        maxLength: 100,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      "How many rooms are available in your accomodation?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 80,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 3,
-                        maxLength: 100,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      "What is your policy on catering?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedCatering,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: cateringPolicy.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedCatering = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                    const SizedBox(height: 20),
-
-                    const Text(
-                      "What is the starting price for a non-veg menu? (assume 250 pax and standard menu)",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 20),
-                    Container(
-                      height: 80,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 3,
-                        maxLength: 100,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      "What is your policy on decor?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: seletcedDecor,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: decorPolicy.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          seletcedDecor = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-
-                    const SizedBox(height: 20),
-
-
-                    const Text(
-                      "What Spaces are available to host wedding events?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Column(
-                      children: [
-                        // Indoor
-                        Card(
-                          color: isIndoorSelected ? Colors.green : Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: isIndoorSelected,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isIndoorSelected = value ?? false;
-                                });
-                              },
-                              activeColor: Colors.white,
-                              checkColor: Colors.green,
-                            ),
-                            title: Text(
-                              "Indoor",
-                              style: TextStyle(
-                                color: isIndoorSelected ? Colors.white : Colors.black,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Outdoor
-                        Card(
-                          color: isOutdoorSelected ? Colors.green : Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: isOutdoorSelected,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isOutdoorSelected = value ?? false;
-                                });
-                              },
-                              activeColor: Colors.white,
-                              checkColor: Colors.green,
-                            ),
-                            title: Text(
-                              "Outdoor",
-                              style: TextStyle(
-                                color: isOutdoorSelected ? Colors.white : Colors.black,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Poolside
-                        Card(
-                          color: isPoolsideSelected ? Colors.green : Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: isPoolsideSelected,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isPoolsideSelected = value ?? false;
-                                });
-                              },
-                              activeColor: Colors.white,
-                              checkColor: Colors.green,
-                            ),
-                            title: Text(
-                              "Poolside",
-                              style: TextStyle(
-                                color: isPoolsideSelected ? Colors.white : Colors.black,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Terrace
-                        Card(
-                          color: isTerraceSelected ? Colors.green : Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: isTerraceSelected,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isTerraceSelected = value ?? false;
-                                });
-                              },
-                              activeColor: Colors.white,
-                              checkColor: Colors.green,
-                            ),
-                            title: Text(
-                              "Terrace/ Rooftop",
-                              style: TextStyle(
-                                color: isTerraceSelected ? Colors.white : Colors.black,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const Text(
-                          "What is the starting price for a basic room at your hotel?",
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          height: 80,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.grey),
-                          ),
-                          child: TextField(
-                            controller: uspController,
-                            maxLines: 3,
-                            maxLength: 100,
-                            decoration: const InputDecoration(
-                              hintText: "",
-                              border: InputBorder.none,
-                              counterText: "",
-                            ),
-                          ),
-
-
-                        ),
-
-                        const SizedBox(height: 16),
-                        const Text(
-                          "Do you also allow small size gatherings (>50)?",
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                        ),
-                        const SizedBox(height: 16),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    isYesSelected = true;
-                                    isNoSelected = false;
-                                  });
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isYesSelected ? Colors.green : Colors.white,
-                                  foregroundColor: isYesSelected ? Colors.white : Colors.black,
-                                  padding: const EdgeInsets.symmetric(vertical: 18),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    side: const BorderSide(color: Colors.grey),
-                                  ),
-                                ),
-                                child: const Text(
-                                  "Yes",
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    isYesSelected = false;
-                                    isNoSelected = true;
-                                  });
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isNoSelected ? Colors.green : Colors.white,
-                                  foregroundColor: isNoSelected ? Colors.white : Colors.black,
-                                  padding: const EdgeInsets.symmetric(vertical: 18),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    side: const BorderSide(color: Colors.grey),
-                                  ),
-                                ),
-                                child: const Text(
-                                  "No",
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-
-                    ),
-                    const Text(
-                      "Please select whatever is applicable for your venue",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 80,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 3,
-                        maxLength: 100,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-                    const Text(
-                      "What year did your venuw start operations?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    Container(
-                      height: 80,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: TextField(
-                        controller: uspController,
-                        maxLines: 3,
-                        maxLength: 100,
-                        decoration: const InputDecoration(
-                          hintText: "",
-                          border: InputBorder.none,
-                          counterText: "",
-                        ),
-                      ),
-                    ),
-
-                    const Text(
-                      "Is parking available at the venue?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedParking,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: parkingAvailable.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedParking = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                    const SizedBox(height: 20),
-
-                    const Text(
-                      "What is your policy on alcohol?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedAlcohol,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: alcoholPolicy.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-
-                      onChanged: (value) {
-                        setState(() {
-                          selectedAlcohol = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-
-                    const Text(
-                      "What is the minimum starting price to decorate your venue?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: bookingController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    const Text(
-                      "What is your policy on DJ's?",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedDj,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      hint: const Text(
-                        "Please Select",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      items: DjPolicy.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-
-                      onChanged: (value) {
-                        setState(() {
-                          selectedDj = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-
-                    const SizedBox(height: 24), // spacing from previous content
-                    Center(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // TODO: handle save action
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[100], // faint green
-                          foregroundColor: Colors.green[800], // text color
-                          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          elevation: 0, // flat appearance
-                        ),
-                        child: const Text(
-                          "Save",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24), // optional spacing at bottom
-                  ]),
-            ),
-          ),
-        ],
-      ),
+  factory FaqQuestion.fromJson(Map<String, dynamic> json) {
+    return FaqQuestion(
+      id: json['id'],
+      text: json['text'] ?? '',
+      description: json['description'] ?? '',
+      label: List<String>.from(json['label'] ?? []),
+      type: json['type'] ?? '',
+      options: List<String>.from(json['options'] ?? []),
+      min: json['min'],
+      max: json['max'],
     );
   }
 }
+
+// ===== VENUE FAQ SCREEN =====
+class VenueFaqScreen extends StatefulWidget {
+  const VenueFaqScreen({super.key});
+
+  @override
+  State<VenueFaqScreen> createState() => _VenueFaqScreenState();
+}
+
+class _VenueFaqScreenState extends State<VenueFaqScreen> {
+  List<FaqQuestion> faqs = [];
+
+  int vendorId = 0;
+  int vendorTypeId = 2; // venue vendor type id
+  String token = "";
+  bool isLoading = false;
+
+  final Map<int, TextEditingController> textControllers = {};
+
+
+
+  final Map<int, String> selectedRadio = {};
+  final Map<int, List<String>> selectedCheckbox = {};
+  final Map<int, double> selectedSlider = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _initFaqScreen();
+  }
+
+  Future<void> _initFaqScreen() async {
+    final prefs = await SharedPreferences.getInstance();
+    vendorId = prefs.getInt('vendorId') ?? 0;
+    vendorTypeId = prefs.getInt('vendorTypeId') ?? (mockVenueJson['vendor_type_id'] ?? 2) as int;
+    token = prefs.getString('authToken') ?? "";
+
+    final data = mockVenueJson['questions'] as List<dynamic>;
+    faqs = data.map((e) => FaqQuestion.fromJson(e)).toList();
+
+    // Prepare controllers for text/number/textarea
+    for (var q in faqs) {
+      if (q.type == 'text' || q.type == 'textarea' || q.type == 'number') {
+        textControllers[q.id] = TextEditingController();
+      }
+    }
+
+    // Fetch saved answers from backend if logged in
+    if (vendorId != 0 && token.isNotEmpty) {
+      await _fetchFaqAnswers();
+    } else {
+      setState(() {});
+    }
+  }
+
+  Future<void> _fetchFaqAnswers() async {
+    setState(() => isLoading = true);
+    try {
+      final response = await http.get(
+        Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200)
+      {
+        print("🔹 FETCH FAQ RESPONSE: ${response.body}");
+        final data = jsonDecode(response.body);
+
+        List<dynamic> answers = [];
+        if (data is Map<String, dynamic>) {
+          answers = (data['answers'] ?? []) as List<dynamic>;
+        } else if (data is List) {
+          answers = data;
+        }
+
+
+        for (var ans in answers) {
+          if (ans == null) continue;
+          final qid = ans['faqQuestionId'];
+          final answer = ans['answer'];
+
+          final question = faqs.firstWhere(
+                (q) => q.id == qid,
+            orElse: () => FaqQuestion(
+              id: 0,
+              text: '',
+              description: '',
+              label: [],
+              type: '',
+              options: [],
+            ),
+          );
+          if (question.id == 0) continue;
+
+          if (question.type == 'checkbox') {
+            try {
+              selectedCheckbox[qid] = List<String>.from(answer);
+            } catch (_) {
+              selectedCheckbox[qid] = [];
+            }
+          } else if (question.type == 'radio') {
+            selectedRadio[qid] = answer.toString();
+          } else if (question.type == 'range') {
+            selectedSlider[qid] = (answer is num) ? answer.toDouble() : 0.0;
+          } else {
+            textControllers[qid]?.text = answer.toString();
+          }
+        }
+      } else {
+        print("❌ Failed to fetch FAQ answers: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("⚠️ Error loading FAQ answers: $e");
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+  Future<void> _saveFaqAnswers() async {
+    setState(() => isLoading = true);
+
+    // Only include answered questions
+    final answers = faqs.map((q) {
+      dynamic ans;
+      if (q.type == 'checkbox') {
+        ans = selectedCheckbox[q.id];
+      } else if (q.type == 'radio') {
+        ans = selectedRadio[q.id];
+      } else if (q.type == 'range') {
+        ans = selectedSlider[q.id];
+      } else {
+        ans = textControllers[q.id]?.text.trim();
+      }
+
+      // Skip unanswered questions
+      if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
+        return null;
+      }
+
+      return {"faqQuestionId": q.id, "answer": ans};
+    }).where((element) => element != null).toList();
+
+    if (vendorId == 0 || token.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pendingFaqAnswers', jsonEncode(answers));
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You are not logged in yet. Answers saved locally.")),
+      );
+      return;
+    }
+
+    final body = {
+      "vendorId": vendorId,
+      "vendorTypeId": vendorTypeId,
+      "answers": answers,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://happywedz.com/api/faq-answers/save"),
+        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+
+      print("📤 Sent: ${jsonEncode(body)}");
+      print("📩 Response (${response.statusCode}): ${response.body}");
+      print("🪪 vendorId: $vendorId");
+      print("🔐 token: $token");
+      print("🎨 vendorTypeId: $vendorTypeId");
+      print("➡️ Sending: ${jsonEncode(body)}");
+
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ FAQ answers saved successfully")),
+        );
+        await _fetchFaqAnswers();
+      } else {
+        String msg = "Failed to save FAQ answers";
+        try {
+          final parsed = jsonDecode(response.body);
+          if (parsed['message'] != null) msg = parsed['message'].toString();
+        } catch (_) {}
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Network error while saving answers")),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          "Venues FAQs",
+          style: TextStyle(color: Colors.black), // optional for better contrast
+        ),
+        centerTitle: true,
+        backgroundColor: const Color(0xFFE0F7FA), // 🌸 light WedMeGood blue
+        elevation: 0, // optional: gives a clean flat look
+        iconTheme: const IconThemeData(color: Colors.black), // optional for visibility
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: faqs.length,
+        itemBuilder: (context, index) => _buildFaqCard(faqs[index]),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF00BCD4),
+        icon: const Icon(Icons.send),
+        label: const Text("Submit"),
+        onPressed: () async {
+          await _saveFaqAnswers();
+
+          // Mark FAQ as completed
+          await ProfileCompletionController.markDone(ProfileCompletionController.keyFaq);
+
+          if (!mounted) return;
+
+          // ✅ Go directly to Home (pop everything till the first route)
+          Navigator.popUntil(context, (route) => route.isFirst);
+        },
+      ),
+
+    );
+  }
+
+  Widget _buildFaqCard(FaqQuestion q) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              q.text,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildInput(q),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInput(FaqQuestion q) {
+    switch (q.type) {
+      case "number":
+        return Column(
+          children: q.label.isNotEmpty
+              ? q.label.map((lbl) {
+            final controller = textControllers[q.id]!;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TextFormField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: lbl,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                ),
+              ),
+            );
+          }).toList()
+              : [
+            TextFormField(
+              controller: textControllers[q.id],
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: "Enter answer",
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+              ),
+            )
+          ],
+        );
+
+      case "text":
+      case "textarea":
+        return TextFormField(
+          controller: textControllers[q.id],
+          minLines: q.type == "textarea" ? 3 : 1,
+          maxLines: q.type == "textarea" ? 5 : 1,
+          decoration: InputDecoration(
+            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+        );
+
+      case "radio":
+        return _buildExpandableOptions(
+          options: q.options,
+          builder: (opt) => RadioListTile(
+            title: Text(opt),
+            value: opt,
+            groupValue: selectedRadio[q.id],
+            onChanged: (val) => setState(() => selectedRadio[q.id] = val.toString()),
+          ),
+        );
+
+      case "checkbox":
+        return _buildExpandableOptions(
+          options: q.options,
+          builder: (opt) {
+            bool isChecked = selectedCheckbox[q.id]?.contains(opt) ?? false;
+            return CheckboxListTile(
+              title: Text(opt),
+              value: isChecked,
+              onChanged: (val) {
+                setState(() {
+                  selectedCheckbox[q.id] ??= [];
+                  if (val == true) {
+                    selectedCheckbox[q.id]!.add(opt);
+                  } else {
+                    selectedCheckbox[q.id]!.remove(opt);
+                  }
+                });
+              },
+            );
+          },
+        );
+
+      default:
+        return const SizedBox();
+    }
+  }
+
+
+  Widget _buildExpandableOptions({
+    required List<String> options,
+    required Widget Function(String) builder,
+  }) {
+    int visibleCount = 2;
+    bool expanded = false;
+
+    return StatefulBuilder(
+      builder: (context, setInnerState) {
+        final visibleOptions =
+        expanded ? options : options.take(visibleCount).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...visibleOptions.map(builder).toList(),
+            if (!expanded && options.length > visibleCount)
+              TextButton.icon(
+                onPressed: () => setInnerState(() => expanded = true),
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.teal),
+                label: const Text(
+                  "View more",
+                  style: TextStyle(
+                    color: Colors.teal,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ===== MOCK JSON FOR VENUES =====
+const mockVenueJson = {
+  "vendor_type_id": 2,
+  "vendor_type": "venues",
+  "questions": [
+    {
+      "id": 101,
+      "text": "Does your venue allow outside caterers?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 202,
+      "text": "Does your venue allow outside decorators?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 203,
+      "text": "Does your venue allow outside DJ?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 204,
+      "text": "Does your venue allow alcohol from outside?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 205,
+      "text": "Does your venue allow fireworks?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 206,
+      "text": "Does your venue have rooms available?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 207,
+      "text": "What are the different spaces available at your venue?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": [
+        "Banquet Hall",
+        "Lawn",
+        "Resort",
+        "Marriage Garden",
+        "Mandapam",
+        "Palace/ Fort",
+        "Destination Wedding Venue",
+        "Other"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 208,
+      "text": "What is your USP (Unique Selling Proposition)?",
+      "description": "",
+      "label": [],
+      "type": "text",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 209,
+      "text": "How many guests can you accommodate?",
+      "description": "",
+      "label": ["Minimum number of guests", "Maximum number of guests"],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 210,
+      "text": "Do you provide valet parking?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 211,
+      "text": "What is the starting price per plate (for veg menu)?",
+      "description": "",
+      "label": ["Price Per Plate (Veg)"],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 212,
+      "text": "What is the starting price per plate (for non-veg menu)?",
+      "description": "",
+      "label": ["Price Per Plate (Non-Veg)"],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 213,
+      "text": "What is the rental charge of your venue (if applicable)?",
+      "description": "",
+      "label": [],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    }
+  ]
+};

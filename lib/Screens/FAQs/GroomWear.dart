@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 import 'ProfileScreen.dart';
 
@@ -41,15 +41,15 @@ class VendorQuestion {
   }
 }
 
-// ===== PANDITS FAQ SCREEN =====
-class PanditsFaqScreen extends StatefulWidget {
-  const PanditsFaqScreen({super.key});
+// ===== GROOMWEAR SCREEN =====
+class GroomwearScreen extends StatefulWidget {
+  const GroomwearScreen({super.key});
 
   @override
-  State<PanditsFaqScreen> createState() => _PanditsFaqScreenState();
+  State<GroomwearScreen> createState() => _GroomwearScreenState();
 }
 
-class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
+class _GroomwearScreenState extends State<GroomwearScreen> {
   late List<VendorQuestion> questions = [];
   final Map<int, String> selectedRadio = {};
   final Map<int, List<String>> selectedCheckbox = {};
@@ -58,15 +58,13 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   final Map<int, bool> expandCheckbox = {};
 
   int vendorId = 0;
-  int vendorTypeId = 14; // Pandits type
+  int vendorTypeId = groomwearJson["vendor_type_id"] as int;
   String token = "";
   bool isLoading = false;
 
-
   late List<VendorQuestion> faqs = [];
+
   @override
-
-
   void initState() {
     super.initState();
     _initFaqScreen();
@@ -75,16 +73,14 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   Future<void> _initFaqScreen() async {
     final prefs = await SharedPreferences.getInstance();
     vendorId = prefs.getInt('vendorId') ?? 0;
-    vendorTypeId = prefs.getInt('vendorTypeId') ?? 14;
+    vendorTypeId = prefs.getInt('vendorTypeId') ?? groomwearJson["vendor_type_id"] as int;
     token = prefs.getString('authToken') ?? "";
 
-    // Load static questions from JSON
-    final data = panditsJson['questions'] as List<dynamic>;
+    final data = groomwearJson['questions'] as List<dynamic>;
     faqs = data.map((e) => VendorQuestion.fromJson(e)).toList();
     questions = faqs;
 
 
-    // Prepare text controllers
     for (var q in questions) {
       if (q.type == 'text' || q.type == 'textarea' || q.type == 'number') {
         textControllers[q.id] = TextEditingController();
@@ -98,32 +94,21 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
     }
   }
 
-  // ===== FETCH SAVED ANSWERS =====
   Future<void> _fetchFaqAnswers() async {
     setState(() => isLoading = true);
     try {
       final response = await http.get(
         Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
+        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        List<dynamic> answers = [];
-        if (data is Map<String, dynamic>) {
-          answers = (data['answers'] ?? []) as List<dynamic>;
-        } else if (data is List) {
-          answers = data;
-        }
+        final answers = (data["answers"] ?? []) as List<dynamic>;
 
         for (var ans in answers) {
-          if (ans == null) continue;
-          final qid = ans['faqQuestionId'];
-          var answer = ans['answer'];
-
+          final qid = ans["faqQuestionId"];
+          var answer = ans["answer"];
           final question = questions.firstWhere(
                 (q) => q.id == qid,
             orElse: () => VendorQuestion(
@@ -137,21 +122,19 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
           );
           if (question.id == 0) continue;
 
-          if (question.type == 'checkbox') {
+          if (question.type == "checkbox") {
             try {
-              if (answer is String && answer.startsWith('{')) {
-                answer = jsonDecode(
-                    answer.replaceAll('{', '[').replaceAll('}', ']'));
+              if (answer is String && answer.startsWith("{")) {
+                answer = jsonDecode(answer.replaceAll("{", "[").replaceAll("}", "]"));
               }
               selectedCheckbox[qid] = List<String>.from(answer);
             } catch (_) {
               selectedCheckbox[qid] = [];
             }
-          } else if (question.type == 'radio') {
+          } else if (question.type == "radio") {
             selectedRadio[qid] = answer.toString();
-          } else if (question.type == 'range') {
-            selectedSlider[qid] =
-            (answer is num) ? answer.toDouble() : (question.min?.toDouble() ?? 0);
+          } else if (question.type == "range") {
+            selectedSlider[qid] = (answer is num) ? answer.toDouble() : (question.min?.toDouble() ?? 0);
           } else {
             textControllers[qid]?.text = answer.toString();
           }
@@ -166,12 +149,11 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
     }
   }
 
-  // ===== SAVE ANSWERS =====
   Future<void> _saveFaqAnswers() async {
     setState(() => isLoading = true);
 
     // Only include answered questions
-    final answers = faqs.map((q) {
+    final answers = questions.map((q) {
       dynamic ans;
       if (q.type == 'checkbox') {
         ans = selectedCheckbox[q.id];
@@ -183,13 +165,13 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
         ans = textControllers[q.id]?.text.trim();
       }
 
-      // Skip unanswered questions
       if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
         return null;
       }
 
       return {"faqQuestionId": q.id, "answer": ans};
     }).where((element) => element != null).toList();
+
 
     if (vendorId == 0 || token.isEmpty) {
       final prefs = await SharedPreferences.getInstance();
@@ -245,14 +227,13 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
     }
   }
 
-  // ===== UI =====
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
-          "Pandit FAQs",
+          "Groom Wear FAQs",
           style: TextStyle(color: Colors.black), // optional for better contrast
         ),
         centerTitle: true,
@@ -268,7 +249,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
         itemBuilder: (context, index) => _buildQuestionCard(questions[index]),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.pinkAccent,
+        backgroundColor: const Color(0xFF00BCD4),
         icon: const Icon(Icons.send),
         label: const Text("Submit"),
         onPressed: () async {
@@ -297,13 +278,11 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(q.text,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(q.text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             if (q.description.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(q.description,
-                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                child: Text(q.description, style: const TextStyle(fontSize: 13, color: Colors.grey)),
               ),
             const SizedBox(height: 12),
             _buildInput(q),
@@ -316,19 +295,11 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   Widget _buildInput(VendorQuestion q) {
     switch (q.type) {
       case "number":
-        return TextFormField(
-          controller: textControllers[q.id],
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-
       case "text":
       case "textarea":
         return TextFormField(
           controller: textControllers[q.id],
+          keyboardType: q.type == "number" ? TextInputType.number : TextInputType.text,
           minLines: q.type == "textarea" ? 3 : 1,
           maxLines: q.type == "textarea" ? 5 : 1,
           decoration: InputDecoration(
@@ -344,8 +315,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
             title: Text(opt),
             value: opt,
             groupValue: selectedRadio[q.id],
-            onChanged: (val) =>
-                setState(() => selectedRadio[q.id] = val.toString()),
+            onChanged: (val) => setState(() => selectedRadio[q.id] = val.toString()),
           ))
               .toList(),
         );
@@ -375,7 +345,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
             if (q.options.length > 2 && expandCheckbox[q.id] != true)
               TextButton(
                 onPressed: () => setState(() => expandCheckbox[q.id] = true),
-                child: const Text("View more"),
+                child: const Text("view more"),
               ),
           ],
         );
@@ -405,130 +375,20 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
 
 
 
-// ===== PANDITS JSON =====
-const panditsJson = {
-  "vendor_type_id": 14,
-  "vendor_type": "Pandits",
+// ===== GROOMWEAR JSON =====
+const groomwearJson = {
+  "vendor_type_id": 11,
+  "vendor_type": "groomwear",
   "questions": [
-    {
-      "id": 1601,
-      "text": "What is the starting price for wedding ceremony services (pooja/ feras)?",
-      "description": "Enter your average pricing in order for your Storefront to appear in results when couples search by price.",
-      "label": ["Lowest price"],
-      "type": "number",
-      "options": [],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1602,
-      "text": "What type of pooja/ceremony services do you provide?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Wedding ceremony","Kundali match-making","Griha pravesh","Yagya/ Hawan","Mangal dosh","Sundarkand/ Mata ki chowki","Gauri pooja","Lakshmi pooja","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1603,
-      "text": "What are the languages in which you can perform rituals/ceremonies?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Hindi","Sanskrit","Tamil","Telugu","Kannada","Marathi","English","Gujrati","Bangali","Marwari","Jain","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1604,
-      "text": "How do you provide consultation services?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Office/ Shop","Home visit","Online consultation","Telephonic consultation","Video consultation","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1605,
-      "text": "What religions/ faiths can you serve with ceremony or ritual services?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Hinduism","Islam","Jainism","Sikhism","Buddhism","Christianity","Parsis","Judaism","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1606,
-      "text": "Do you travel outstation?",
-      "description": "",
-      "label": [],
-      "type": "radio",
-      "options": ["Yes","No"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1607,
-      "text": "Which forms of payment do you accept?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Cash","Cheque/ DD","Credit/ Debit card","UPI","Net banking","Mobile wallets"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1608,
-      "text": "What is the % payment/ amount to confirm the booking?",
-      "description": "",
-      "label": [],
-      "type": "text",
-      "options": [],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1609,
-      "text": "What is the cancellation policy?",
-      "description": "",
-      "label": [],
-      "type": "text",
-      "options": [],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1610,
-      "text": "Which year did you/your company professionally start your services?",
-      "description": "",
-      "label": [],
-      "type": "number",
-      "options": [],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1611,
-      "text": "Awards, recognitions and publications",
-      "description": "",
-      "label": [],
-      "type": "textarea",
-      "options": [],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1612,
-      "text": "What is the starting price range for wedding ceremony services (pooja/ feras)?",
-      "description": "",
-      "label": [],
-      "type": "radio",
-      "options": ["Under ₹2,000","₹2,000 - ₹4,999","₹5,000 - ₹7,999","₹8,000 - ₹9,999","₹10,000 - ₹19,999","₹20,000 and more"],
-      "min": null,
-      "max": null
-    }
+    {"id":401,"text":"Which of the following outfit types do you offer?","description":"","label":[],"type":"checkbox","options":["Sherwani","Bandhgala","Indo-western","Achkan","Jodhpuri","Suits & Tuxedos","Kurta Pyjama sets"],"min":null,"max":null},
+    {"id":402,"text":"Do you provide customization services?","description":"","label":[],"type":"radio","options":["Yes","No"],"min":null,"max":null},
+    {"id":403,"text":"Which type of collection do you primarily deal in?","description":"","label":[],"type":"radio","options":["Men’s Wear","Couple Outfits"],"min":null,"max":null},
+    {"id":404,"text":"What is the price range of your outfits?","description":"","label":[],"type":"radio","options":["Under ₹10,000","₹10,000 - ₹24,999","₹25,000 - ₹49,999","₹50,000 - ₹74,999","₹75,000 - ₹99,999","₹1,00,000 and above"],"min":null,"max":null},
+    {"id":405,"text":"What is the starting price of Sherwanis?","description":"","label":["Price (Sherwanis)"],"type":"number","options":[],"min":null,"max":null},
+    {"id":406,"text":"What is the starting price of Suits/Tuxedos?","description":"","label":["Price (Suits/Tuxedos)"],"type":"number","options":[],"min":null,"max":null},
+    {"id":407,"text":"Do you provide rental outfits?","description":"","label":[],"type":"radio","options":["Yes","No"],"min":null,"max":null},
+    {"id":408,"text":"Which forms of payment do you accept?","description":"","label":[],"type":"checkbox","options":["Cash","Cheque/ DD","Credit/ Debit card","UPI","Net Banking"],"min":null,"max":null},
+    {"id":409,"text":"What is your cancellation policy?","description":"","label":[],"type":"textarea","options":[],"min":null,"max":null},
+    {"id":410,"text":"Which year did you/your store professionally start providing groom wear?","description":"","label":[],"type":"number","options":[],"min":null,"max":null}
   ]
 };

@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../FAQs/ProfileScreen.dart';
 
 class AlbumsPage extends StatefulWidget {
   @override
@@ -81,7 +84,13 @@ class _AlbumsPageState extends State<AlbumsPage> {
           album['cover'] = images.first;
         }
       });
+
+
       await _saveAlbums();
+
+
+      await ProfileCompletionController.markDone(ProfileCompletionController.keyAlbum);
+
     }
   }
 
@@ -125,7 +134,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Albums"),
-        backgroundColor: Colors.blue,
+        backgroundColor: const Color(0xFFE0F7FA),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -255,9 +264,9 @@ class _AlbumsPageState extends State<AlbumsPage> {
                               ),
                             ),
                             Align(
-                              alignment: Alignment.centerRight,
+                              alignment: Alignment.topRight,
                               child: CircleAvatar(
-                                backgroundColor: Colors.blue,
+                                backgroundColor: const Color(0xFF00BCD4),
                                 child: IconButton(
                                   icon: const Icon(Icons.add, color: Colors.white),
                                   onPressed: () => _addMorePhotos(index),
@@ -277,12 +286,14 @@ class _AlbumsPageState extends State<AlbumsPage> {
           // Bottom button
           Container(
             width: double.infinity,
-            color: Colors.blue,
+            color: const Color(0xFFE0F7FA),
+
+
             padding: const EdgeInsets.all(14),
             child: const Center(
               child: Text(
                 "View Album Upload Guidelines",
-                style: TextStyle(color: Colors.white, fontSize: 16),
+                style: TextStyle(color: Colors.black, fontSize: 16),
               ),
             ),
           )
@@ -431,9 +442,20 @@ class _AlbumImagesPageState extends State<AlbumImagesPage> {
       _images.removeAt(index);
       _likes.removeAt(index);
     });
+
+    // Update album in parent widget
     if (widget.onAlbumUpdated != null) {
       widget.onAlbumUpdated!(_images);
     }
+  }
+
+  Future<void> _onMakeCoverPhoto(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('coverImage', _images[index]);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("This photo is now your cover image.")),
+    );
   }
 
   @override
@@ -459,16 +481,15 @@ class _AlbumImagesPageState extends State<AlbumImagesPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => ImagePreviewPage(
-                      image: XFile(_images[index]), // pass as XFile
+                      image: XFile(_images[index]),
                       likes: _likes[index],
                       onLike: () {
                         _onLikeImage(index);
-                        Navigator.pop(context);
                       },
                       onDelete: () {
                         _onImageDeleted(index);
-                        Navigator.pop(context);
                       },
+                      onMakeCover: () => _onMakeCoverPhoto(index),
                     ),
                   ),
                 );
@@ -495,11 +516,13 @@ class _AlbumImagesPageState extends State<AlbumImagesPage> {
   }
 }
 
+
 class ImagePreviewPage extends StatelessWidget {
   final XFile image;
   final int likes;
   final VoidCallback onLike;
   final VoidCallback onDelete;
+  final VoidCallback? onMakeCover;
 
   const ImagePreviewPage({
     Key? key,
@@ -507,95 +530,147 @@ class ImagePreviewPage extends StatelessWidget {
     required this.likes,
     required this.onLike,
     required this.onDelete,
+    this.onMakeCover,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(
-        children: [
-          const SizedBox(height: 40),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-          Expanded(
-            child: Center(
-              child: Image.file(
-                File(image.path),
-                fit: BoxFit.contain,
-                width: double.infinity,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              GestureDetector(
-                onTap: onLike,
-                child: Row(
-                  children: [
-                    const Icon(Icons.favorite_border, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text(
-                      likes.toString(),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Share clicked")),
-                  );
-                },
-                child: const Icon(Icons.share, color: Colors.white),
-              ),
-              GestureDetector(
-                onTap: onDelete,
-                child: const Icon(Icons.delete, color: Colors.red),
-              ),
-            ],
-          ),
-          const Divider(
-            color: Colors.white,
-            thickness: 1,
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Row(
               children: [
-                Column(
-                  children: const [
-                    Icon(Icons.account_circle, color: Colors.white),
-                    SizedBox(height: 4),
-                    Text("Make Cover Photo",
-                        style: TextStyle(color: Colors.white, fontSize: 12)),
-                  ],
-                ),
-                Column(
-                  children: const [
-                    Icon(Icons.edit, color: Colors.white),
-                    SizedBox(height: 4),
-                    Text("Edit Photo",
-                        style: TextStyle(color: Colors.white, fontSize: 12)),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-        ],
+            Expanded(
+              child: Center(
+                child: Image.file(
+                  File(image.path),
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                // ❤️ Like Button
+                GestureDetector(
+                  onTap: () {
+                    onLike();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Photo liked')),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      const Icon(Icons.favorite, color: Colors.pinkAccent),
+                      const SizedBox(width: 4),
+                      Text(
+                        likes.toString(),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 🔄 Share Button
+                GestureDetector(
+                  onTap: () async {
+                    await Share.shareXFiles(
+                      [image],
+                      text: "Check out this photo!",
+                    );
+                  },
+                  child: const Icon(Icons.share, color: Colors.white),
+                ),
+
+                // 🗑 Delete Button with confirmation
+                GestureDetector(
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Photo'),
+                        content: const Text('Are you sure you want to delete this photo?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm == true) {
+                      onDelete(); // remove from album
+                      Navigator.of(context).pop(); // close preview
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Photo deleted')),
+                      );
+                    }
+                  },
+                  child: const Icon(Icons.delete, color: Colors.red),
+                ),
+              ],
+            ),
+            const Divider(color: Colors.white, thickness: 1),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  // 🌄 Make Cover Photo
+                  GestureDetector(
+                    onTap: () {
+                      if (onMakeCover != null) {
+                        onMakeCover!();
+                      }
+                    },
+
+                    child: Column(
+                      children: const [
+                        Icon(Icons.photo, color: Colors.white),
+                        SizedBox(height: 4),
+                        Text(
+                          "Make Cover Photo",
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // ✏️ Edit placeholder (future use)
+                  Column(
+                    children: const [
+                      Icon(Icons.edit, color: Colors.white),
+                      SizedBox(height: 4),
+                      Text("Edit Photo",
+                          style: TextStyle(color: Colors.white, fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
 }
+

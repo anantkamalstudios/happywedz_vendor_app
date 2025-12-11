@@ -1,397 +1,511 @@
+// BridalMakeupFaqScreen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
-class MakeupFaqScreen extends StatefulWidget {
+import 'ProfileScreen.dart';
 
+// ===== MODEL =====
+class FaqQuestion {
+  final int id;
+  final String text;
+  final String description;
+  final List<String> label;
+  final String type;
+  final List<String> options;
+  final int? min;
+  final int? max;
 
-  const MakeupFaqScreen({super.key});
+  FaqQuestion({
+    required this.id,
+    required this.text,
+    required this.description,
+    required this.label,
+    required this.type,
+    required this.options,
+    this.min,
+    this.max,
+  });
 
-  @override
-  State<MakeupFaqScreen> createState() => _MakeupFaqScreenState();
+  factory FaqQuestion.fromJson(Map<String, dynamic> json) {
+    return FaqQuestion(
+      id: json['id'],
+      text: json['text'] ?? '',
+      description: json['description'] ?? '',
+      label: List<String>.from(json['label'] ?? []),
+      type: json['type'] ?? '',
+      options: List<String>.from(json['options'] ?? []),
+      min: json['min'],
+      max: json['max'],
+    );
+  }
 }
 
-class _MakeupFaqScreenState extends State<MakeupFaqScreen> {
-  final TextEditingController priceController = TextEditingController();
+// ===== BRIDAL MAKEUP FAQ SCREEN =====
+class BridalMakeupFaqScreen extends StatefulWidget {
+  const BridalMakeupFaqScreen({super.key});
 
-  double completionPercentage = 0.0;
+  @override
+  State<BridalMakeupFaqScreen> createState() => _BridalMakeupFaqScreenState();
+}
 
+class _BridalMakeupFaqScreenState extends State<BridalMakeupFaqScreen> {
+  late List<FaqQuestion> faqs = [];
+  final Map<int, String> selectedRadio = {};
+  final Map<int, List<String>> selectedCheckbox = {};
+  final Map<int, double> selectedSlider = {};
+  final Map<int, TextEditingController> textControllers = {};
+  final Map<int, bool> expandCheckbox = {};
 
-  final List<String> makeupOffer = [
-    "Bridal Makeup",
-    "Airbrush Makeup",
-    "Party Makeup(for Family)",
-    "Engagement makeup",
-    "Extensions"
-  ];
+  int vendorId = 0;
+  int vendorTypeId = 3;
+  String token = "";
 
-  final List<String>  styles = [
-    "Hair Styling",
-    "Draping",
-    "Nail Polish Change",
-    "Makeup",
-    "Extensions",
-    "False Lashes"
-  ];
-
-  double outdoorBudget = 0;
-  String? radioOption;
-
-  Map<String, bool> selectedMethod = {};
-  Map<String, bool> selectedStyle = {};
-
-  String? travelOutsideOption;
-  String? selectedTrainer;
-
-
-  final TextEditingController additionalNoteController = TextEditingController();
-
+  bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    for( var makeupOffer in makeupOffer) {
-      selectedMethod[makeupOffer] = false;
+    _initFaqScreen();
+  }
+
+  Future<void> _initFaqScreen() async {
+    final prefs = await SharedPreferences.getInstance();
+    vendorId = prefs.getInt('vendorId') ?? 0;
+    vendorTypeId =
+        prefs.getInt('vendorTypeId') ?? (bridalmakeupJson['vendor_type_id'] ?? 3) as int;
+    token = prefs.getString('authToken') ?? "";
+
+    // Load static questions
+    final data = bridalmakeupJson['questions'] as List<dynamic>;
+    faqs = data.map((e) => FaqQuestion.fromJson(e)).toList();
+
+    // Create text controllers
+    for (var q in faqs) {
+      if (q.type == 'text' || q.type == 'textarea' || q.type == 'number') {
+        textControllers[q.id] = TextEditingController();
+      }
     }
-    for( var styles in styles) {
-      selectedStyle[styles] = false;
+
+    if (vendorId != 0 && token.isNotEmpty) {
+      await _fetchFaqAnswers();
+    } else {
+      setState(() {});
     }
   }
 
-  @override
-  void dispose() {
-    priceController.dispose();
-    super.dispose();
-  }
+  // ===== FETCH SAVED ANSWERS =====
+  Future<void> _fetchFaqAnswers() async {
+    setState(() => isLoading = true);
+    try {
+      final response = await http.get(
+        Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
 
-  Widget _buildQuestionWithCurrency(String question, TextEditingController controller) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 8),
-          const Text(
-            "Enter your average pricing in order for your Storefront to appear in results when couples search by price.",
-            style: TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              prefixText: '₹ ',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List<dynamic> answers = [];
+        if (data is Map<String, dynamic>) {
+          answers = (data['answers'] ?? []) as List<dynamic>;
+        } else if (data is List) {
+          answers = data;
+        }
+
+        for (var ans in answers) {
+          if (ans == null) continue;
+          final qid = ans['faqQuestionId'];
+          final answer = ans['answer'];
+
+          final question = faqs.firstWhere(
+                (q) => q.id == qid,
+            orElse: () => FaqQuestion(
+              id: 0,
+              text: '',
+              description: '',
+              label: [],
+              type: '',
+              options: [],
             ),
-          ),
-        ]),
-      ),
-    );
+          );
+          if (question.id == 0) continue;
+
+          if (question.type == 'checkbox') {
+            try {
+              selectedCheckbox[qid] = List<String>.from(answer);
+            } catch (_) {
+              selectedCheckbox[qid] = [];
+            }
+          } else if (question.type == 'radio') {
+            selectedRadio[qid] = answer.toString();
+          } else if (question.type == 'range') {
+            selectedSlider[qid] =
+            (answer is num) ? answer.toDouble() : (question.min?.toDouble() ?? 0);
+          } else {
+            textControllers[qid]?.text = answer.toString();
+          }
+        }
+      } else {
+        print("❌ Failed to fetch FAQ answers: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("⚠️ Error fetching FAQ answers: $e");
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
-  Widget _buildQuestionWithRadio(String question, List<String> options) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          ...options.map((option) {
-            return RadioListTile<String>(
-              title: Text(option),
-              value: option,
-              groupValue: radioOption,
-              onChanged: (value) => setState(() => radioOption = value),
-            );
-          }).toList(),
-        ]),
-      ),
-    );
+  // ===== SAVE ANSWERS =====
+  Future<void> _saveFaqAnswers() async {
+    setState(() => isLoading = true);
+
+    // Only include answered questions
+    final answers = faqs.map((q) {
+      dynamic ans;
+      if (q.type == 'checkbox') {
+        ans = selectedCheckbox[q.id];
+      } else if (q.type == 'radio') {
+        ans = selectedRadio[q.id];
+      } else if (q.type == 'range') {
+        ans = selectedSlider[q.id];
+      } else {
+        ans = textControllers[q.id]?.text.trim();
+      }
+
+      // Skip unanswered questions
+      if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
+        return null;
+      }
+
+      return {"faqQuestionId": q.id, "answer": ans};
+    }).where((element) => element != null).toList();
+
+    if (vendorId == 0 || token.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pendingFaqAnswers', jsonEncode(answers));
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You are not logged in yet. Answers saved locally.")),
+      );
+      return;
+    }
+
+    final body = {
+      "vendorId": vendorId,
+      "vendorTypeId": vendorTypeId,
+      "answers": answers,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://happywedz.com/api/faq-answers/save"),
+        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+
+      print("📤 Sent: ${jsonEncode(body)}");
+      print("📩 Response (${response.statusCode}): ${response.body}");
+      print("🪪 vendorId: $vendorId");
+      print("🔐 token: $token");
+      print("🎨 vendorTypeId: $vendorTypeId");
+      print("➡️ Sending: ${jsonEncode(body)}");
+
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ FAQ answers saved successfully")),
+        );
+        await _fetchFaqAnswers();
+      } else {
+        String msg = "Failed to save FAQ answers";
+        try {
+          final parsed = jsonDecode(response.body);
+          if (parsed['message'] != null) msg = parsed['message'].toString();
+        } catch (_) {}
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Network error while saving answers")),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
-  // state variable for dropdown
-
-  Widget _buildQuestionWithDropdown(String question, List<String> options) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              question,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: selectedTrainer,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              ),
-              hint: const Text("Please select"),
-              items: options.map((opt) {
-                return DropdownMenuItem<String>(
-                  value: opt,
-                  child: Text(opt),
-                );
-              }).toList(),
-              onChanged: (val) {
-                setState(() {
-                  selectedTrainer = val;
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-  Widget _buildAdditionalQuestion(String question) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: additionalNoteController,
-            maxLines: 3,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildTravelOutsideQuestion() {
-    final options = ["Yes", "No"];
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text(
-            "Do you travel to the venue",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: options.map((option) {
-              return Expanded(
-                child: RadioListTile<String>(
-                  title: Text(option),
-                  value: option,
-                  groupValue: travelOutsideOption,
-                  onChanged: (val) {
-                    setState(() {
-                      travelOutsideOption = val;
-                    });
-                  },
-                ),
-              );
-            }).toList(),
-          ),
-        ]),
-      ),
-    );
-  }
-  Widget _buildCheckboxAll(String question, List<String> items, Map<String, bool> selectedMap) {
-    // For payment methods: show all at once
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          ...items.map((item) {
-            return CheckboxListTile(
-              title: Text(item),
-              value: selectedMap[item],
-              onChanged: (val) {
-                setState(() {
-                  selectedMap[item] = val!;
-                });
-              },
-            );
-          }).toList(),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildRadioWithExpand(
-      String question,
-      List<String> options,
-      String? groupValue,
-      ValueChanged<String?> onChanged,
-      bool expand,
-      VoidCallback toggleExpand,
-      ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 12),
-
-            // Always show first 2 options
-            ...options.take(2).map((option) => RadioListTile<String>(
-              title: Text(option),
-              value: option,
-              groupValue: groupValue,
-              onChanged: onChanged,
-            )),
-
-            // Show "Show More" button only when collapsed
-            if (options.length > 2 && !expand)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: toggleExpand,
-                  child: const Text("Show More"),
-                ),
-              ),
-
-            // Show remaining options only when expanded
-            if (expand)
-              ...options.skip(2).map((option) => RadioListTile<String>(
-                title: Text(option),
-                value: option,
-                groupValue: groupValue,
-                onChanged: onChanged,
-              )),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-
-
+  // ===== UI =====
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: Colors.white,
-        child: Row(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          "Bridal Makeup FAQs",
+          style: TextStyle(color: Colors.black), // optional for better contrast
+        ),
+        centerTitle: true,
+        backgroundColor: const Color(0xFFE0F7FA), // 🌸 light WedMeGood blue
+        elevation: 0, // optional: gives a clean flat look
+        iconTheme: const IconThemeData(color: Colors.black), // optional for visibility
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: faqs.length,
+        itemBuilder: (context, index) => _buildFaqCard(faqs[index]),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.pinkAccent,
+        icon: const Icon(Icons.send),
+        label: const Text("Submit"),
+        onPressed: () async {
+          await _saveFaqAnswers();
+
+          // Mark FAQ as completed
+          await ProfileCompletionController.markDone(ProfileCompletionController.keyFaq);
+
+          if (!mounted) return;
+
+          // ✅ Go directly to Home (pop everything till the first route)
+          Navigator.popUntil(context, (route) => route.isFirst);
+        },
+      ),
+
+    );
+  }
+
+  Widget _buildFaqCard(FaqQuestion q) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                print("Price Question: ${priceController.text}");
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+            Text(q.text,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            if (q.description.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(q.description,
+                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
               ),
-              child: const Text("Save"),
-            ),
+            const SizedBox(height: 12),
+            _buildInput(q),
           ],
         ),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: Colors.grey[300],
-            pinned: true,
-            expandedHeight: 80,flexibleSpace: FlexibleSpaceBar(
-            titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: completionPercentage.clamp(0.0, 1.0),
-                    minHeight: 12,
-                    backgroundColor: Colors.grey[300],
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "PROFILE COMPLETION",
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    Text(
-                      "${(completionPercentage * 100).toInt()}%",
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          ),
-
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                  children: [
-                    _buildCheckboxAll(
-                      "Which of the following do you offer",
-                      makeupOffer,
-                      selectedMethod,
-                    ),
-                    _buildAdditionalQuestion("If you travel outside of your hometown for bridal makeup, how much do you charge for one event?"),
-                    _buildAdditionalQuestion("Which products do you see for bridal makeup?"),
-                    _buildAdditionalQuestion("Have you recieved any awards you would like to mention?"),
-                    _buildAdditionalQuestion("What year did you work on your first client professionally? (please mention the year you got your first paid client and not since you have been pracising on yourself"),
-                    _buildQuestionWithDropdown(
-                      "Describe your Business",
-                      [ "Freelance Artist", "Bridal Makeup Studio", "Salon Chain"],
-                    ),
-                    _buildAdditionalQuestion("What are the terms & conditions of your cancellation policy? (please describe in detail- "
-                        "No refunds within a month of the wedding day or 50% amount refundable"),
-
-                    _buildAdditionalQuestion("What Percentage of Booking Advance should be paid"),
-                    _buildAdditionalQuestion("Have you been trained under someone \n Please name them"),
-                    _buildAdditionalQuestion("Describe your signature makeup look in 3 words (example: Glamorous, Minimal, Smokey eyes, natural, fresh, dewy, elegant, minimal,"
-                        "classy, versatile,Ethnic, smkey eyes etc etc. Please DONT write Natural Bridal look or Bridal Loor or classy"),
-                    _buildAdditionalQuestion("I choose to be a MUA because"),
-                    _buildAdditionalQuestion("How many weeks in advanc should a booking be made?"),
-                    _buildAdditionalQuestion("What is the price of bridal makeup from a senior artist your team(Pls ignore if you dont have  a team"),
-                    _buildAdditionalQuestion("What is the price of bridal makeup from the junior artist in your team(Pls ignore if you dont have a team"),
-
-                    _buildTravelOutsideQuestion(),
-
-                    _buildCheckboxAll(
-                      "Which forms of payment do you accept?",
-                      styles,
-                      selectedStyle,
-                    ),
-                    _buildQuestionWithDropdown(
-                      "What is your policy on trails?",
-                      [ "Offer free trail","Offer paid trial","Offer paid triaal - Money adjusted if booked", "Trial not Available"],
-                    ),
-
-
-                  ]),
-            ),
-          ),
-        ],
-      ),
     );
   }
+
+  Widget _buildInput(FaqQuestion q) {
+    switch (q.type) {
+      case "number":
+        return TextFormField(
+          controller: textControllers[q.id],
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+
+      case "text":
+      case "textarea":
+        return TextFormField(
+          controller: textControllers[q.id],
+          minLines: q.type == "textarea" ? 3 : 1,
+          maxLines: q.type == "textarea" ? 5 : 1,
+          decoration: InputDecoration(
+            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+
+      case "radio":
+        return Column(
+          children: q.options
+              .map((opt) => RadioListTile(
+            title: Text(opt),
+            value: opt,
+            groupValue: selectedRadio[q.id],
+            onChanged: (val) =>
+                setState(() => selectedRadio[q.id] = val.toString()),
+          ))
+              .toList(),
+        );
+
+      case "checkbox":
+        int visibleCount = expandCheckbox[q.id] == true ? q.options.length : 2;
+        List<String> visibleOptions = q.options.take(visibleCount).toList();
+        return Column(
+          children: [
+            ...visibleOptions.map((opt) {
+              bool isChecked = selectedCheckbox[q.id]?.contains(opt) ?? false;
+              return CheckboxListTile(
+                title: Text(opt),
+                value: isChecked,
+                onChanged: (val) {
+                  setState(() {
+                    selectedCheckbox[q.id] ??= [];
+                    if (val == true) {
+                      selectedCheckbox[q.id]!.add(opt);
+                    } else {
+                      selectedCheckbox[q.id]!.remove(opt);
+                    }
+                  });
+                },
+              );
+            }),
+            if (q.options.length > 2 && expandCheckbox[q.id] != true)
+              TextButton(
+                onPressed: () => setState(() => expandCheckbox[q.id] = true),
+                child: const Text("View more"),
+              ),
+          ],
+        );
+
+      case "range":
+        double value = selectedSlider[q.id] ?? (q.min?.toDouble() ?? 0.0);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Slider(
+              value: value,
+              min: q.min?.toDouble() ?? 0,
+              max: q.max?.toDouble() ?? 100000,
+              divisions: 10,
+              label: value.toStringAsFixed(0),
+              onChanged: (val) => setState(() => selectedSlider[q.id] = val),
+            ),
+            Text("Selected: ${value.toStringAsFixed(0)}"),
+          ],
+        );
+
+      default:
+        return const SizedBox();
+    }
+  }
 }
+
+// ===== MOCK BRIDAL MAKEUP JSON =====
+const bridalmakeupJson = {
+  "vendor_type_id": 3,
+  "vendor_type": "Bridal Makeup",
+  "questions": [
+    {
+      "id": 701,
+      "text": "Which of the following services do you offer?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": [
+        "Bridal Makeup",
+        "Party Makeup for family",
+        "Engagement Makeup",
+        "Airbrush Makeup",
+        "HD Makeup",
+        "Hair Styling",
+        "Draping",
+        "Nail Extensions",
+        "Eyelashes"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 702,
+      "text": "Do you travel to the venue?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 703,
+      "text": "Do you offer trials?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes (Paid)", "Yes (Free)", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 704,
+      "text": "What is the price (per function) for bridal makeup?",
+      "description": "",
+      "label": ["Price per Function (Bridal Makeup)"],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 705,
+      "text": "What is the price range for party makeup for family?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": [
+        "Under ₹5,000",
+        "₹5,000 - ₹7,499",
+        "₹7,500 - ₹9,999",
+        "₹10,000 and above"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 706,
+      "text": "Which brands of makeup do you use?",
+      "description": "",
+      "label": [],
+      "type": "textarea",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 707,
+      "text": "Which forms of payment do you accept?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": ["Cash", "Cheque/ DD", "Credit/ Debit card", "UPI", "Net Banking"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 708,
+      "text": "What is your cancellation policy?",
+      "description": "",
+      "label": [],
+      "type": "textarea",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 709,
+      "text":
+      "Which year did you/your team professionally start providing makeup services?",
+      "description": "",
+      "label": [],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    }
+  ]
+};

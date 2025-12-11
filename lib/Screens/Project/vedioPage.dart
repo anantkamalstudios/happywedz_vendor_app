@@ -151,7 +151,7 @@ class _VideosPageState extends State<VideosPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Videos"),
-      backgroundColor: Colors.pinkAccent,
+        backgroundColor: const Color(0xFFE0F7FA),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -336,7 +336,7 @@ class _AddVideosScreenState extends State<AddVideosScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Add Videos"),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: Colors.pink[100],
       ),
       body: Column(
         children: [
@@ -368,7 +368,8 @@ class _AddVideosScreenState extends State<AddVideosScreen> {
             onPressed: _addAnotherVideo,
             child: const Text(
               "+ Add another video",
-              style: TextStyle(color: Colors.deepPurple),
+              style: TextStyle(color: const Color(0xFF00BCD4)),
+
             ),
           ),
           const Spacer(),
@@ -378,12 +379,15 @@ class _AddVideosScreenState extends State<AddVideosScreen> {
             child: ElevatedButton(
               onPressed: _uploadVideos,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
+                backgroundColor: const Color(0xFFE0F7FA),
+
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: const Text(
                 "UPLOAD VIDEO",
                 style: TextStyle(color: Colors.white),
+
+
               ),
             ),
           ),

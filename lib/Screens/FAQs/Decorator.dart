@@ -41,15 +41,15 @@ class VendorQuestion {
   }
 }
 
-// ===== PANDITS FAQ SCREEN =====
-class PanditsFaqScreen extends StatefulWidget {
-  const PanditsFaqScreen({super.key});
+// ===== DECORATOR FAQ SCREEN =====
+class DecoratorFaqScreen extends StatefulWidget {
+  const DecoratorFaqScreen({super.key});
 
   @override
-  State<PanditsFaqScreen> createState() => _PanditsFaqScreenState();
+  State<DecoratorFaqScreen> createState() => _DecoratorFaqScreenState();
 }
 
-class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
+class _DecoratorFaqScreenState extends State<DecoratorFaqScreen> {
   late List<VendorQuestion> questions = [];
   final Map<int, String> selectedRadio = {};
   final Map<int, List<String>> selectedCheckbox = {};
@@ -58,15 +58,14 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   final Map<int, bool> expandCheckbox = {};
 
   int vendorId = 0;
-  int vendorTypeId = 14; // Pandits type
+  int vendorTypeId = 4;
   String token = "";
+
   bool isLoading = false;
 
-
   late List<VendorQuestion> faqs = [];
+
   @override
-
-
   void initState() {
     super.initState();
     _initFaqScreen();
@@ -75,11 +74,12 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   Future<void> _initFaqScreen() async {
     final prefs = await SharedPreferences.getInstance();
     vendorId = prefs.getInt('vendorId') ?? 0;
-    vendorTypeId = prefs.getInt('vendorTypeId') ?? 14;
+    vendorTypeId =
+        prefs.getInt('vendorTypeId') ?? (decoratorJson['vendor_type_id'] ?? 4) as int;
     token = prefs.getString('authToken') ?? "";
 
-    // Load static questions from JSON
-    final data = panditsJson['questions'] as List<dynamic>;
+    // Load static questions
+    final data = decoratorJson['questions'] as List<dynamic>;
     faqs = data.map((e) => VendorQuestion.fromJson(e)).toList();
     questions = faqs;
 
@@ -139,6 +139,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
 
           if (question.type == 'checkbox') {
             try {
+              // Handle backend's stringified format {“A”,“B”}
               if (answer is String && answer.startsWith('{')) {
                 answer = jsonDecode(
                     answer.replaceAll('{', '[').replaceAll('}', ']'));
@@ -171,7 +172,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
     setState(() => isLoading = true);
 
     // Only include answered questions
-    final answers = faqs.map((q) {
+    final answers = questions.map((q) {
       dynamic ans;
       if (q.type == 'checkbox') {
         ans = selectedCheckbox[q.id];
@@ -183,13 +184,13 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
         ans = textControllers[q.id]?.text.trim();
       }
 
-      // Skip unanswered questions
       if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
         return null;
       }
 
       return {"faqQuestionId": q.id, "answer": ans};
     }).where((element) => element != null).toList();
+
 
     if (vendorId == 0 || token.isEmpty) {
       final prefs = await SharedPreferences.getInstance();
@@ -252,7 +253,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
-          "Pandit FAQs",
+          "Decorater FAQs",
           style: TextStyle(color: Colors.black), // optional for better contrast
         ),
         centerTitle: true,
@@ -283,6 +284,7 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
           Navigator.popUntil(context, (route) => route.isFirst);
         },
       ),
+
 
     );
   }
@@ -403,95 +405,112 @@ class _PanditsFaqScreenState extends State<PanditsFaqScreen> {
   }
 }
 
-
-
-// ===== PANDITS JSON =====
-const panditsJson = {
-  "vendor_type_id": 14,
-  "vendor_type": "Pandits",
+// ===== DECORATOR JSON =====
+const decoratorJson = {
+  "vendor_type_id": 4,
+  "vendor_type": "Decorators",
   "questions": [
     {
-      "id": 1601,
-      "text": "What is the starting price for wedding ceremony services (pooja/ feras)?",
+      "id": 1201,
+      "text": "What is the price for flower based traditional decoration for an indoor venue setup for 100 PAX for pre-wedding/ reception events? (Typically includes decoration of entrance-8x8 ft, passage, guest area, stage area-16x12 ft)",
       "description": "Enter your average pricing in order for your Storefront to appear in results when couples search by price.",
-      "label": ["Lowest price"],
+      "label": ["Venue decor"],
       "type": "number",
       "options": [],
       "min": null,
       "max": null
     },
     {
-      "id": 1602,
-      "text": "What type of pooja/ceremony services do you provide?",
+      "id": 1202,
+      "text": "What is the price for flower based traditional decoration for an outdoor setup for 300 PAX? (Typically includes decoration of entrance, passage, guest area, manadapa)",
       "description": "",
       "label": [],
-      "type": "checkbox",
-      "options": ["Wedding ceremony","Kundali match-making","Griha pravesh","Yagya/ Hawan","Mangal dosh","Sundarkand/ Mata ki chowki","Gauri pooja","Lakshmi pooja","Others"],
-      "min": null,
-      "max": null
+      "type": "range",
+      "options": [],
+      "min": 0,
+      "max": 3000000
     },
     {
-      "id": 1603,
-      "text": "What are the languages in which you can perform rituals/ceremonies?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Hindi","Sanskrit","Tamil","Telugu","Kannada","Marathi","English","Gujrati","Bangali","Marwari","Jain","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1604,
-      "text": "How do you provide consultation services?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Office/ Shop","Home visit","Online consultation","Telephonic consultation","Video consultation","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1605,
-      "text": "What religions/ faiths can you serve with ceremony or ritual services?",
-      "description": "",
-      "label": [],
-      "type": "checkbox",
-      "options": ["Hinduism","Islam","Jainism","Sikhism","Buddhism","Christianity","Parsis","Judaism","Others"],
-      "min": null,
-      "max": null
-    },
-    {
-      "id": 1606,
-      "text": "Do you travel outstation?",
+      "id": 1203,
+      "text": "Are you ready to host/provide service to events during COVID19, following the government guidelines?",
       "description": "",
       "label": [],
       "type": "radio",
-      "options": ["Yes","No"],
+      "options": [
+        "Information not available",
+        "Not operational",
+        "Yes, with special deals",
+        "Yes"
+      ],
       "min": null,
       "max": null
     },
     {
-      "id": 1607,
+      "id": 1204,
+      "text": "What all traditional themes of decoration can you fulfill?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": [
+        "Floral",
+        "Rajasthani",
+        "Punjabi",
+        "South indian",
+        "Royal",
+        "Bollywood"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 1205,
+      "text": "What all modern themes of decoration can you fulfill?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": [
+        "Art deco/ Gatsby",
+        "Vintage",
+        "Bohemian",
+        "Greenhouse",
+        "Metallic",
+        "Moroccan",
+        "Rustic",
+        "Sun downer",
+        "Theatrical"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 1206,
       "text": "Which forms of payment do you accept?",
       "description": "",
       "label": [],
       "type": "checkbox",
-      "options": ["Cash","Cheque/ DD","Credit/ Debit card","UPI","Net banking","Mobile wallets"],
+      "options": [
+        "Cash",
+        "Cheque/ DD",
+        "Credit/ Debit card",
+        "UPI",
+        "Net Banking",
+        "Mobile wallets"
+      ],
       "min": null,
       "max": null
     },
     {
-      "id": 1608,
+      "id": 1207,
       "text": "What is the % payment/ amount to confirm the booking?",
       "description": "",
       "label": [],
-      "type": "text",
+      "type": "number",
       "options": [],
       "min": null,
       "max": null
     },
     {
-      "id": 1609,
+      "id": 1208,
       "text": "What is the cancellation policy?",
       "description": "",
       "label": [],
@@ -501,7 +520,7 @@ const panditsJson = {
       "max": null
     },
     {
-      "id": 1610,
+      "id": 1209,
       "text": "Which year did you/your company professionally start your services?",
       "description": "",
       "label": [],
@@ -511,7 +530,7 @@ const panditsJson = {
       "max": null
     },
     {
-      "id": 1611,
+      "id": 1210,
       "text": "Awards, recognitions and publications",
       "description": "",
       "label": [],
@@ -521,12 +540,42 @@ const panditsJson = {
       "max": null
     },
     {
-      "id": 1612,
-      "text": "What is the starting price range for wedding ceremony services (pooja/ feras)?",
+      "id": 1211,
+      "text": "What is the price range for flower based traditional decoration for an indoor venue setup for 100 PAX for pre-wedding/ reception events? (Typically includes decoration of entrance-8x8 ft, passage, guest area, stage area-16x12 ft)",
       "description": "",
       "label": [],
       "type": "radio",
-      "options": ["Under ₹2,000","₹2,000 - ₹4,999","₹5,000 - ₹7,999","₹8,000 - ₹9,999","₹10,000 - ₹19,999","₹20,000 and more"],
+      "options": [
+        "Under ₹25,000",
+        "₹25,000 - ₹49,999",
+        "₹50,000 - ₹74,999",
+        "₹75,000 - ₹99,999",
+        "₹1,00,000 - ₹1,24,999",
+        "₹1,25,000 - ₹1,49,999",
+        "₹1,50,000 - ₹1,74,999",
+        "₹1,75,000 - ₹1,99,999",
+        "₹2,00,000 and more"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 1212,
+      "text": "What is the price range for flower based traditional decoration for an outdoor setup for 300 PAX for wedding events?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": [
+        "Under ₹50,000",
+        "₹50,000 - ₹74,999",
+        "₹75,000 - ₹99,999",
+        "₹1,00,000 - ₹1,24,999",
+        "₹1,25,000 - ₹1,49,999",
+        "₹1,50,000 - ₹1,74,999",
+        "₹1,75,000 - ₹1,99,999",
+        "₹2,00,000 - ₹2,99,999",
+        "₹3,00,000 and more"
+      ],
       "min": null,
       "max": null
     }
