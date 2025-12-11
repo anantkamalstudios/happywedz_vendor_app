@@ -54,7 +54,11 @@ class MembershipPackagePage extends StatelessWidget {
                 onPressed: () {
                   // Buy now logic
                 },
-                child: const Text("Buy Now"),
+                child: const Text(
+                  "Buy Now",
+                  style: TextStyle(color: Colors.white),
+                ),
+
               ),
             )
           ],
@@ -68,7 +72,10 @@ class MembershipPackagePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Membership Packages"),
-        backgroundColor: Colors.pinkAccent,
+        backgroundColor: Color(0xFF00509D),
+        foregroundColor: Colors.white,
+
+
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -82,7 +89,8 @@ class MembershipPackagePage extends StatelessWidget {
               "Appear in Search Results",
               "Basic Profile Listing",
             ],
-            color: Colors.pinkAccent,
+            color: const Color(0xFF00509D),
+
           ),
           _planCard(
             title: "Premium Plan",
@@ -94,7 +102,8 @@ class MembershipPackagePage extends StatelessWidget {
               "Featured Vendor Badge",
               "Dedicated Support",
             ],
-            color: Colors.deepPurple,
+            color: const Color(0xFF00509D),
+
           ),
           _planCard(
             title: "Annual Plan",
@@ -106,7 +115,8 @@ class MembershipPackagePage extends StatelessWidget {
               "Premium Badge & Promotion",
               "Dedicated Account Manager",
             ],
-            color: Colors.orangeAccent,
+            color: const Color(0xFF00509D),
+
           ),
         ],
       ),

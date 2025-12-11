@@ -1,397 +1,313 @@
+// PhotographerFaqScreen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ProfileScreen.dart';
+
+// ===== MODEL =====
+class FaqQuestion {
+  final int id;
+  final String text;
+  final String description;
+  final List<String> label;
+  final String type;
+  final List<String> options;
+  final int? min;
+  final int? max;
+
+  FaqQuestion({
+    required this.id,
+    required this.text,
+    required this.description,
+    required this.label,
+    required this.type,
+    required this.options,
+    this.min,
+    this.max,
+  });
+
+  factory FaqQuestion.fromJson(Map<String, dynamic> json) {
+    return FaqQuestion(
+      id: json['id'],
+      text: json['text'] ?? '',
+      description: json['description'] ?? '',
+      label: List<String>.from(json['label'] ?? []),
+      type: json['type'] ?? '',
+      options: List<String>.from(json['options'] ?? []),
+      min: json['min'],
+      max: json['max'],
+    );
+  }
+}
+
+// ===== FAQ SCREEN =====
 class PhotographerFaqScreen extends StatefulWidget {
-
-
   const PhotographerFaqScreen({super.key});
 
   @override
   State<PhotographerFaqScreen> createState() => _PhotographerFaqScreenState();
 }
 
-
 class _PhotographerFaqScreenState extends State<PhotographerFaqScreen> {
-  final TextEditingController priceController = TextEditingController();
+  late List<FaqQuestion> faqs = [];
+  final Map<int, String> selectedRadio = {};
+  final Map<int, List<String>> selectedCheckbox = {};
+  final Map<int, double> selectedSlider = {};
+  final Map<int, TextEditingController> textControllers = {};
+  final Map<int, bool> expandCheckbox = {};
 
-  double completionPercentage = 0.0;
+  int vendorId = 0;
+  int vendorTypeId = 1;
+  String token = "";
 
-
-  final List<String> eventsCovid = [
-    "Information not available",
-    "Not operational",
-    "Yes, with special deals",
-    "Yes"
-  ];
-
-  final List<String> occasionsList = [
-    "Wedding & engagement",
-    "Engagement photography",
-    "Mehndi & sangeet",
-    "Couple pre-wedding",
-    "Parties",
-    "Corporate events",
-    "Maternity shoot",
-    "Baby Shoot"
-  ];
-
-  final List<String> shootingIdeas = [
-    "Traditioanl",
-    "Candid",
-    "cinematographic",
-    "Drone Shoots",
-    "Photobooth",
-    "Live Screening",
-  ];
-
-  final List<String> paymentMethod = [
-    "Net banking",
-    "Cash",
-    "Cheque/DD",
-    "Debit/Credit cards",
-    "Mobile wallets",
-    "UPI"
-  ];
-
-  final List<String> preWeddingAmount = [
-    "Under ₹25,000 ",
-    "₹25,000 - ₹49,999",
-    "₹50,000 - ₹74,999",
-    "₹75,000 - ₹99,999",
-    "₹1,00,000 - ₹1,24,999",
-    "₹1,25,000 - ₹1,49,999",
-    "₹1,50,000 - ₹1,99,999",
-    "₹2,00,000 and more"
-  ];
-
-  final List<String> day1Amount = [
-    "Under ₹25,000",
-    "₹25,000 - ₹49,999",
-    "₹50,000 - ₹74,999",
-    "₹75,000 - ₹99,999",
-    "₹1,00,000 - ₹1,24,999",
-    "₹1,25,000 - ₹1,49,999",
-    "₹1,50,000 - ₹1,99,999",
-    "₹2,00,000 and more",
-  ];
-
-  final List<String> day2Amount = [
-    "Under ₹50,000",
-    "50,000 - ₹74,999",
-    "75,000 - ₹99,999",
-    "₹1,00,000 - ₹1,49,999",
-    "₹1,50,000 - ₹1,99,999",
-    "₹2,00,000 - ₹2,49,999",
-    "₹2,50,000 - ₹2,99,999",
-    "₹3,00,000 and more"
-  ];
-
-  final List<String> day3Amount = [
-    "Under ₹75,000",
-    "₹75,000 - ₹99,999",
-    "₹1,00,000 - 1,49,999",
-    "₹1,50,000 - 1,99,999",
-    "₹2,00,000 - ₹2,49,999",
-    "₹2,50,000 - ₹2,99,999",
-    "₹3,00,000 - ₹3,99,999",
-    "₹4,00,000 and more"
-  ];
-
-  String? selectedPreWedAmount;
-  String? selectedDay1Amount;
-  String? selectedDay2Amount;
-  String? selectedDay3Amount;
-
-  bool expandPreWeddingAmount = false;
-  bool expandDay1Amount = false;
-  bool expandDay2Amount = false;
-  bool expandDay3Amount = false;
-
-
-  double outdoorBudget = 0;
-  String? radioOption;
-
-  bool expandedOcassions = false;
-  bool expandIdeas = false;
-
-  Map<String, bool> selectedOcassion = {};
-  Map<String, bool> selectedIdea = {};
-  Map<String, bool> selectedMethod = {};
-
-  String? travelOutsideOption;
-
-  final TextEditingController additionalNoteController = TextEditingController();
-
+  bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    for (var occasionsList in occasionsList) {
-      selectedOcassion[occasionsList] = false;
+    _initFaqScreen();
+  }
+
+  Future<void> _initFaqScreen() async {
+    // Load vendor data from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    vendorId = prefs.getInt('vendorId') ?? 0;
+    vendorTypeId = prefs.getInt('vendorTypeId') ?? (photographerJson['vendor_type_id'] ?? 1) as int;
+    token = prefs.getString('authToken') ?? "";
+
+    // Initialize FAQ from static JSON (keeping your static screens)
+    final data = photographerJson['questions'] as List<dynamic>;
+    faqs = data.map((e) => FaqQuestion.fromJson(e)).toList();
+
+    // Prepare text controllers
+    for (var q in faqs) {
+      if (q.type == 'text' || q.type == 'textarea' || q.type == 'number') {
+        textControllers[q.id] = TextEditingController();
+      }
     }
-    for( var shootingIdeas in shootingIdeas){
-      selectedIdea[shootingIdeas] = false;
-    }
-    for( var paymentMethod in paymentMethod) {
-      selectedMethod[paymentMethod] = false;
+
+    // If vendor exists and token present, fetch saved answers from backend
+    if (vendorId != 0 && token.isNotEmpty) {
+      await _fetchFaqAnswers();
+    } else {
+      // no vendor yet — that's fine, user can fill; we will save pending answers if they try to submit
+      setState(() {});
     }
   }
 
+  // ===== FETCH SAVED ANSWERS =====
+  Future<void> _fetchFaqAnswers() async {
+    setState(() => isLoading = true);
+    try {
+      final response = await http.get(
+        Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200)
+      {
+        print("🔹 FETCH FAQ RESPONSE: ${response.body}");
+        final data = jsonDecode(response.body);
+
+        List<dynamic> answers = [];
+        if (data is Map<String, dynamic>) {
+          answers = (data['answers'] ?? []) as List<dynamic>;
+        } else if (data is List) {
+          answers = data;
+        }
+
+
+        for (var ans in answers) {
+          if (ans == null) continue;
+          final qid = ans['faqQuestionId'];
+          final answer = ans['answer'];
+
+          final question = faqs.firstWhere(
+                (q) => q.id == qid,
+            orElse: () => FaqQuestion(
+              id: 0,
+              text: '',
+              description: '',
+              label: [],
+              type: '',
+              options: [],
+            ),
+          );
+          if (question.id == 0) continue;
+
+          if (question.type == 'checkbox') {
+            try {
+              selectedCheckbox[qid] = List<String>.from(answer);
+            } catch (_) {
+              selectedCheckbox[qid] = [];
+            }
+          } else if (question.type == 'radio') {
+            selectedRadio[qid] = answer.toString();
+          } else if (question.type == 'range') {
+            selectedSlider[qid] = (answer is num) ? answer.toDouble() : 0.0;
+          } else {
+            textControllers[qid]?.text = answer.toString();
+          }
+        }
+      } else {
+        print("❌ Failed to fetch FAQ answers: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("⚠️ Error loading FAQ answers: $e");
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  // ===== SAVE ANSWERS =====
+  Future<void> _saveFaqAnswers() async {
+    setState(() => isLoading = true);
+
+    // Only include answered questions
+    final answers = faqs.map((q) {
+      dynamic ans;
+      if (q.type == 'checkbox') {
+        ans = selectedCheckbox[q.id];
+      } else if (q.type == 'radio') {
+        ans = selectedRadio[q.id];
+      } else if (q.type == 'range') {
+        ans = selectedSlider[q.id];
+      } else {
+        ans = textControllers[q.id]?.text.trim();
+      }
+
+      // Skip unanswered questions
+      if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
+        return null;
+      }
+
+      return {"faqQuestionId": q.id, "answer": ans};
+    }).where((element) => element != null).toList();
+
+    if (vendorId == 0 || token.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pendingFaqAnswers', jsonEncode(answers));
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You are not logged in yet. Answers saved locally.")),
+      );
+      return;
+    }
+
+    final body = {
+      "vendorId": vendorId,
+      "vendorTypeId": vendorTypeId,
+      "answers": answers,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://happywedz.com/api/faq-answers/save"),
+        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+
+      print("📤 Sent: ${jsonEncode(body)}");
+      print("📩 Response (${response.statusCode}): ${response.body}");
+      print("🪪 vendorId: $vendorId");
+      print("🔐 token: $token");
+      print("🎨 vendorTypeId: $vendorTypeId");
+      print("➡️ Sending: ${jsonEncode(body)}");
+
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ FAQ answers saved successfully")),
+        );
+        await _fetchFaqAnswers();
+      } else {
+        String msg = "Failed to save FAQ answers";
+        try {
+          final parsed = jsonDecode(response.body);
+          if (parsed['message'] != null) msg = parsed['message'].toString();
+        } catch (_) {}
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Network error while saving answers")),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+
+  // ===== UI =====
   @override
-  void dispose() {
-    priceController.dispose();
-    super.dispose();
-  }
-
-  Widget _buildQuestionWithCurrency(String question, TextEditingController controller) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 8),
-          const Text(
-            "Enter your average pricing in order for your Storefront to appear in results when couples search by price.",
-            style: TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              prefixText: '₹ ',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            ),
-          ),
-        ]),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          "Photographer FAQs",
+          style: TextStyle(color: Colors.black), // optional for better contrast
+        ),
+        centerTitle: true,
+        backgroundColor: const Color(0xFFE0F7FA), // 🌸 light WedMeGood blue
+        elevation: 0, // optional: gives a clean flat look
+        iconTheme: const IconThemeData(color: Colors.black), // optional for visibility
       ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: faqs.length,
+        itemBuilder: (context, index) => _buildFaqCard(faqs[index]),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.pinkAccent,
+        icon: const Icon(Icons.send),
+        label: const Text("Submit"),
+        onPressed: () async {
+          await _saveFaqAnswers();
+
+          // Mark FAQ as completed
+          await ProfileCompletionController.markDone(ProfileCompletionController.keyFaq);
+
+          if (!mounted) return;
+
+          // ✅ Go directly to Home (pop everything till the first route)
+          Navigator.popUntil(context, (route) => route.isFirst);
+        },
+      ),
+
+
+
     );
   }
 
-
-
-
-  Widget _buildCheckboxWithExpand(
-      String question, List<String> items, Map<String, bool> selectedMap, bool expand, VoidCallback toggleExpand) {
+  Widget _buildFaqCard(FaqQuestion q) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          ...items.take(2).map((item) {
-            return CheckboxListTile(
-              title: Text(item),
-              value: selectedMap[item],
-              onChanged: (val) {
-                setState(() {
-                  selectedMap[item] = val!;
-                });
-              },
-            );
-          }).toList(),
-          if (items.length > 2)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: toggleExpand,
-                child: Text(expand ? "Show Less" : "Show More"),
-              ),
-            ),
-          if (expand)
-            ...items.skip(2).map((item) {
-              return CheckboxListTile(
-                title: Text(item),
-                value: selectedMap[item],
-                onChanged: (val) {
-                  setState(() {
-                    selectedMap[item] = val!;
-                  });
-                },
-              );
-            }).toList(),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildQuestionWithSlider(String question) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          Slider(
-            value: outdoorBudget,
-            min: 0,
-            max: 1000000,
-            divisions: 300,
-            label: "₹ ${outdoorBudget.toInt()}",
-            onChanged: (value) {
-              setState(() {
-                outdoorBudget = value;
-              });
-            },
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text("₹0", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("₹ 1,000,000+", style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ]),
-      ),
-    );
-  }
-
-
-  Widget _buildQuestionWithRadio(String question, List<String> options) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          ...options.map((option) {
-            return RadioListTile<String>(
-              title: Text(option),
-              value: option,
-              groupValue: radioOption,
-              onChanged: (value) => setState(() => radioOption = value),
-            );
-          }).toList(),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildAdditionalQuestion(String question) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: additionalNoteController,
-            maxLines: 3,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildTravelOutsideQuestion() {
-    final options = ["Yes", "No"];
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text(
-            "Do you travel outside?",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: options.map((option) {
-              return Expanded(
-                child: RadioListTile<String>(
-                  title: Text(option),
-                  value: option,
-                  groupValue: travelOutsideOption,
-                  onChanged: (val) {
-                    setState(() {
-                      travelOutsideOption = val;
-                    });
-                  },
-                ),
-              );
-            }).toList(),
-          ),
-        ]),
-      ),
-    );
-  }
-  Widget _buildCheckboxAll(String question, List<String> items, Map<String, bool> selectedMap) {
-    // For payment methods: show all at once
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          ...items.map((item) {
-            return CheckboxListTile(
-              title: Text(item),
-              value: selectedMap[item],
-              onChanged: (val) {
-                setState(() {
-                  selectedMap[item] = val!;
-                });
-              },
-            );
-          }).toList(),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildRadioWithExpand(
-      String question,
-      List<String> options,
-      String? groupValue,
-      ValueChanged<String?> onChanged,
-      bool expand,
-      VoidCallback toggleExpand,
-      ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 12),
-
-            // Always show first 2 options
-            ...options.take(2).map((option) => RadioListTile<String>(
-              title: Text(option),
-              value: option,
-              groupValue: groupValue,
-              onChanged: onChanged,
-            )),
-
-            // Show "Show More" button only when collapsed
-            if (options.length > 2 && !expand)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: toggleExpand,
-                  child: const Text("Show More"),
-                ),
+            Text(q.text,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            if (q.description.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(q.description,
+                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
               ),
-
-            // Show remaining options only when expanded
-            if (expand)
-              ...options.skip(2).map((option) => RadioListTile<String>(
-                title: Text(option),
-                value: option,
-                groupValue: groupValue,
-                onChanged: onChanged,
-              )),
+            const SizedBox(height: 12),
+            _buildInput(q),
           ],
         ),
       ),
@@ -399,156 +315,333 @@ class _PhotographerFaqScreenState extends State<PhotographerFaqScreen> {
   }
 
 
+  Widget _buildInput(FaqQuestion q) {
+    switch (q.type) {
+      case "number":
+        return TextFormField(
+          controller: textControllers[q.id],
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
 
+      case "text":
+      case "textarea":
+        return TextFormField(
+          controller: textControllers[q.id],
+          minLines: q.type == "textarea" ? 3 : 1,
+          maxLines: q.type == "textarea" ? 5 : 1,
+          decoration: InputDecoration(
+            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: Colors.white,
-        child: Row(
+      case "radio":
+        return Column(
+          children: q.options
+              .map((opt) => RadioListTile(
+            title: Text(opt),
+            value: opt,
+            groupValue: selectedRadio[q.id],
+            onChanged: (val) => setState(() => selectedRadio[q.id] = val.toString()),
+          ))
+              .toList(),
+        );
+
+      case "checkbox":
+        int visibleCount = expandCheckbox[q.id] == true ? q.options.length : 2;
+        List<String> visibleOptions = q.options.take(visibleCount).toList();
+        return Column(
           children: [
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                print("Price Question: ${priceController.text}");
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+            ...visibleOptions.map((opt) {
+              bool isChecked = selectedCheckbox[q.id]?.contains(opt) ?? false;
+              return CheckboxListTile(
+                title: Text(opt),
+                value: isChecked,
+                onChanged: (val) {
+                  setState(() {
+                    selectedCheckbox[q.id] ??= [];
+                    if (val == true) {
+                      selectedCheckbox[q.id]!.add(opt);
+                    } else {
+                      selectedCheckbox[q.id]!.remove(opt);
+                    }
+                  });
+                },
+              );
+            }),
+            if (q.options.length > 2 && expandCheckbox[q.id] != true)
+              TextButton(
+                onPressed: () => setState(() => expandCheckbox[q.id] = true),
+                child: const Text("View more"),
               ),
-              child: const Text("Save"),
-            ),
           ],
-        ),
-      ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: Colors.grey[300],
-            pinned: true,
-            expandedHeight: 80,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              title: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: completionPercentage.clamp(0.0, 1.0),
-                      minHeight: 12,
-                      backgroundColor: Colors.grey[300],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "PROFILE COMPLETION",
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      Text(
-                        "${(completionPercentage * 100).toInt()}%",
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+        );
+
+      case "range":
+        double value = selectedSlider[q.id] ?? (q.min?.toDouble() ?? 0.0);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Slider(
+              value: value,
+              min: q.min?.toDouble() ?? 0,
+              max: q.max?.toDouble() ?? 100,
+              divisions: 10,
+              label: value.toStringAsFixed(0),
+              onChanged: (val) => setState(() => selectedSlider[q.id] = val),
             ),
+            Text("Selected: ${value.toStringAsFixed(0)}"),
+          ],
+        );
 
-          ),
-
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                  children: [
-                    _buildQuestionWithCurrency(
-                      "What is the price for 1 day Marriage offering that inclides Photography and Vediography "
-                          "(Candid/ Cinematographic & Traditional) for an audinece size of 300?",
-                      priceController,
-                    ),
-                    _buildQuestionWithSlider(
-                        "What is the price for 1 day pre-wedding photoshoot? (Typically inlcudes: Teaser & a highlight video with photographs shot candidly and traditionally)"),
-                    _buildQuestionWithRadio("Are you ready to host/provide service to events during COVID19, following the government guidelines?", eventsCovid),
-                    _buildQuestionWithSlider(
-                        "What is the price for 2 day wedding package that covers engagement/reception & wedding for an audience size of 300? "
-                            "(Typically includes: Photography & Videography, both shot candidly and traditionally"),
-                    _buildQuestionWithSlider(
-                        "What is the price for 3 day wedding package that covers pre-Wedding, engagement/reception & wedding for an audience size of 300?"
-                            "(Typically includes: Photography & Videography, both shot candidly and traditionally"),
-
-                    _buildCheckboxWithExpand(
-                      "What are the occasions that you cover?",
-                      occasionsList,
-                      selectedOcassion,
-                      expandedOcassions,
-                          () => setState(() => expandedOcassions = !expandedOcassions),
-                    ),
-                    _buildCheckboxWithExpand(
-                      "What shooting capabilities do you provide?",
-                      shootingIdeas,
-                      selectedIdea,
-                      expandIdeas,
-                          () => setState(() => expandIdeas = !expandIdeas),
-                    ),
-                    _buildTravelOutsideQuestion(),
-                    _buildCheckboxAll(
-                      "Which forms of payment do you accept?",
-                      paymentMethod,
-                      selectedMethod,
-                    ),
-                    _buildAdditionalQuestion("What is the % advance amount to confirm the booking?"),
-                    _buildAdditionalQuestion("What is your cancellation policy?"),
-                    _buildAdditionalQuestion("which year did you/your company professionally start services in?"),
-
-                    _buildRadioWithExpand(
-                      "What is the price range for 1 day pre-wedding photoshoot? (Typically includes: Teaser & a highlight vedio with photographs shot candidly and traditionally)",
-                      preWeddingAmount,
-                      selectedPreWedAmount,
-                          (value) => setState(() => selectedPreWedAmount = value),
-                      expandPreWeddingAmount,
-                          () => setState(() => expandPreWeddingAmount = !expandPreWeddingAmount),
-                    ),
-                    _buildRadioWithExpand(
-                      "What is the price range for 1 day wedding package for an audience size of 300?"
-                          "(Typically includes: Photography & Videography, both shot candidly and traditioanlly)",
-                      day1Amount,
-                      selectedDay1Amount,
-                          (value) => setState(() => selectedDay1Amount = value),
-                      expandDay1Amount,
-                          () => setState(() => expandDay1Amount = !expandDay1Amount),
-                    ),
-                    _buildRadioWithExpand(
-                      "What is the price range for 2 day wedding package that covers engagement/reception & wedding for an audience size of 300?"
-                          "(Typically includes: Photography & Videography, both shot candidly and traditionally)",
-                      day2Amount,
-                      selectedDay2Amount,
-                          (value) => setState(() => selectedDay2Amount = value),
-                      expandDay2Amount,
-                          () => setState(() => expandDay2Amount = !expandDay2Amount),
-                    ),
-                    _buildRadioWithExpand(
-                      "What is the price range fir 3 day wedding packgae that covers pre-Wedding, enagagement/reception & wedding for an audience size of 300?"
-                          "(Typically includes: Photography & Videography, both shot candidly and traditioanlly)",
-                      day3Amount,
-                      selectedDay3Amount,
-                          (value) => setState(() => selectedDay3Amount = value),
-                      expandDay3Amount,
-                          () => setState(() => expandDay3Amount = !expandDay3Amount),
-                    ),
-                  ]),
-            ),
-          ),
-        ],
-      ),
-    );
+      default:
+        return const SizedBox();
+    }
   }
 }
+
+// ===== MOCK JSON =====
+const photographerJson = {
+  "vendor_type_id": 1,
+  "vendor_type": "Photographer",
+  "questions": [
+    {
+      "id": 3101,
+      "text":
+      "What is the price for 1 day Marriage offering that includes Photography and Videography (Candid/ Cinematographic & Traditional) for an audience size of 300?",
+      "description":
+      "Enter your average pricing in order for your Storefront to appear in results when couples seach by price",
+      "label": ["1 Day Wedding Package"],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3102,
+      "text":
+      "What is the price for 1 day pre-wedding photoshoot? (Typically includes: Teaser & a highlight video with photographs shot candidly and traditionally)",
+      "description": "",
+      "label": [],
+      "type": "range",
+      "options": [],
+      "min": 0,
+      "max": 1000000
+    },
+    {
+      "id": 3103,
+      "text":
+      "Are you ready to host/provide service to events during COVID19, following the government guidelines?",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": [
+        "Information not available",
+        "Not operational",
+        "Yes, with special deals",
+        "Yes"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3104,
+      "text":
+      "What is the price for 2 day wedding package that covers enagagement/reception & wedding for an audienece size od 300?(Typically includes: Photography & Videography, both shot candidly and traditionally)",
+      "description": "",
+      "label": [],
+      "type": "range",
+      "options": [],
+      "min": 0,
+      "max": 1000000
+    },
+    {
+      "id": 3105,
+      "text":
+      "What is the price for 3 day wedding package that covers pre-wedding, enagaement/reception & wedding for an audience size of 300? (Typically includes: Photography & videogarphy, both shot candidly and traditioanlly)",
+      "description": "",
+      "label": [],
+      "type": "range",
+      "options": [],
+      "min": 0,
+      "max": 1000000
+    },
+    {
+      "id": 3106,
+      "text": "What are the occasions that you cover?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": [
+        "Wedding & engagement",
+        "Engagement photography",
+        "Mehandi & sangeet",
+        "Couple pre-wedding",
+        "Parties",
+        "Corporate events",
+        "Maternity shoot",
+        "Baby shoot"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3107,
+      "text": "What shooting capabilities do you provide?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": [
+        "Traditional",
+        "Candid",
+        "Cinematographic",
+        "Drone Shoots",
+        "Photobooth",
+        "Live Screening",
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3108,
+      "text": "Do you travel outstation",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3109,
+      "text": "Which forms of payment do you accept?",
+      "description": "",
+      "label": [],
+      "type": "checkbox",
+      "options": [
+        "Cash",
+        "Cheque/ DD",
+        "Credit/ Debit card",
+        "UPI",
+        "Net Banking",
+        "Mobile wallets"
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3110,
+      "text": "What is the % advance amount to confirm the booking?",
+      "description": "",
+      "label": [],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3111,
+      "text": "What is your cancellation policy?",
+      "description": "",
+      "label": [],
+      "type": "textarea",
+      "options": [],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3112,
+      "text": "Which year did you/your company professionally start services in?",
+      "description": "",
+      "label": [],
+      "type": "number",
+      "options": [],
+      "min": null,
+      "max": null,
+    },
+    {
+      "id": 3113,
+      "text":
+      "What is the price range for 1 day pre-wedding photoshoot? (Typically includes: Teaser & a highlight video with photographs shot candidly and traditioanlly)",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": [
+        "Under ₹25,000",
+        "₹25,000 - ₹49,999",
+        "₹50,000 - ₹74,999",
+        "₹75,000 - ₹99,999",
+        "₹1,00,000 - ₹1,24,999",
+        "₹1,25,000 - ₹1,49,999",
+        "₹1,50,000 - ₹1,99,999",
+        "₹2,00,000 and more",
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3114,
+      "text":
+      "What is the price range for 2 day wedding package that covers engagement/reception & wedding for an audience size of 300? (Typically includes: Photography & Videography, both shot candidly and traditionally)",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": [
+        "Under ₹25,000",
+        "₹25,000 - ₹49,999",
+        "₹50,000 - ₹74,999",
+        "₹75,000 - ₹99,999",
+        "₹1,00,000 - ₹1,24,999",
+        "₹1,25,000 - ₹1,49,999",
+        "₹1,50,000 - ₹1,99,999",
+        "₹2,00,000 and more",
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3115,
+      "text":
+      "What is the price range for 2 day wedding package that covers engagement/reception & wedding for an audience size of 300? (Typically includes: Photography & Videography, both shot candidly and traditionally)",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": [
+        "Under ₹50,000",
+        "₹50,000 - ₹74,999",
+        "₹75,000 - ₹99,999",
+        "₹1,00,000 - ₹1,49,999",
+        "₹1,50,000 - ₹1,99,999",
+        "₹2,00,000 - ₹2,49,999",
+        "₹2,50,000 - ₹2,99,999",
+        "₹3,00,000 and more",
+      ],
+      "min": null,
+      "max": null
+    },
+    {
+      "id": 3116,
+      "text":
+      "What is the price range for 3 day wedding package that covers engagement/reception & wedding for an audience size of 300? (Typically includes: Photography & Videography, both shot candidly and traditionally)",
+      "description": "",
+      "label": [],
+      "type": "radio",
+      "options": [
+        "Under ₹75,000",
+        "₹75,000 - ₹99,999",
+        "₹1,00,000 - ₹1,49,999",
+        "₹1,50,000 - ₹1,99,999",
+        "₹2,00,000 - ₹2,49,999",
+        "₹2,50,000 - ₹2,99,999",
+        "₹3,00,000 - ₹3,99,999",
+        "₹4,00,000 and more",
+      ],
+      "min": null,
+      "max": null
+    },
+  ]
+};

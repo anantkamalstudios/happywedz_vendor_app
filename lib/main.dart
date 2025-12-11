@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'Screens/SignUp.dart';
 import 'Screens/Login.dart';
-import 'Screens/home.dart';
+import 'Screens/HomeScreen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
 
-
-void main() {
+  // ✅ REQUIRED
   runApp(const MyApp());
 }
 
@@ -19,11 +22,24 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+
+      // 👇 REQUIRED for Flutter Quill
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        quill.FlutterQuillLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en'),
+      ],
+
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       home: const SplashScreen(),
     );
+
   }
 }
 

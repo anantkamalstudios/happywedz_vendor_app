@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'Login.dart';
-import 'home.dart';
+import 'HomeScreen.dart';
 
 class VendorType {
   final int id;
@@ -77,34 +77,34 @@ class _SignUpState extends State<SignUp> {
   }
 
   // ---------------- Fetch Countries & Cities ----------------
-  Future<void> _fetchCountries() async {
-    setState(() => _isLoadingCountries = true);
-    try {
-      final response = await http
-          .get(Uri.parse('https://countriesnow.space/api/v0.1/countries'));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List countriesData = data['data'];
-        Map<String, List<String>> countryCitiesMap = {};
-        List<String> countryList = [];
-        for (var country in countriesData) {
-          countryList.add(country['country']);
-          countryCitiesMap[country['country']] =
-          List<String>.from(country['cities']);
+    Future<void> _fetchCountries() async {
+      setState(() => _isLoadingCountries = true);
+      try {
+        final response = await http
+            .get(Uri.parse('https://countriesnow.space/api/v0.1/countries'));
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final List countriesData = data['data'];
+          Map<String, List<String>> countryCitiesMap = {};
+          List<String> countryList = [];
+          for (var country in countriesData) {
+            countryList.add(country['country']);
+            countryCitiesMap[country['country']] =
+            List<String>.from(country['cities']);
+          }
+          setState(() {
+            _countries = countryList;
+            _countryCities = countryCitiesMap;
+            _isLoadingCountries = false;
+          });
+        } else {
+          throw Exception('Failed to fetch countries');
         }
-        setState(() {
-          _countries = countryList;
-          _countryCities = countryCitiesMap;
-          _isLoadingCountries = false;
-        });
-      } else {
-        throw Exception('Failed to fetch countries');
+      } catch (e) {
+        print("Error fetching countries: $e");
+        setState(() => _isLoadingCountries = false);
       }
-    } catch (e) {
-      print("Error fetching countries: $e");
-      setState(() => _isLoadingCountries = false);
     }
-  }
 
   // ---------------- Country / City Selection ----------------
   Future<void> _selectCountry() async {
@@ -113,6 +113,7 @@ class _SignUpState extends State<SignUp> {
       context: context,
       delegate: _SearchDelegate(_countries, title: "Select Country"),
     );
+
     if (selected != null) {
       setState(() {
         _selectedCountry = selected;
@@ -146,6 +147,9 @@ class _SignUpState extends State<SignUp> {
 
     final url = Uri.parse('https://happywedz.com/api/vendor/register');
 
+    print("📢 Vendor Type Selected: ${_selectedVendorType?.name ?? 'No vendor type selected'}");
+
+
     final body = {
       "businessName": _businessNameC.text.trim(),
       "country": _selectedCountry ?? "",
@@ -172,19 +176,41 @@ class _SignUpState extends State<SignUp> {
             data["status"] == "success" ||
             data["message"]?.toString().toLowerCase().contains("success") == true) {
 
-          SharedPreferences prefs = await SharedPreferences.getInstance();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('vendorId', data['vendor']['id']);
+          await prefs.setString('authToken', data['token']);
+          await prefs.setString('vendorType', 'photographers'); // optional
+
+
+          // Save login info
           await prefs.setBool('isLoggedIn', true);
           await prefs.setString('token', data['token'] ?? "");
           await prefs.setString('businessName', _businessNameC.text.trim());
           await prefs.setString('email', _emailC.text.trim());
           await prefs.setString('profileImage', data['profile_image'] ?? "");
 
-          // ✅ Add this line to save vendor type name
+          // Save vendorTypeName
           if (_selectedVendorType != null) {
             await prefs.setString('vendorTypeName', _selectedVendorType!.name.trim().toLowerCase());
           }
 
+          // Save vendorId from response
+          if (data["vendor"] != null) {
+            final vendor = data["vendor"];
+            await prefs.setInt('vendorId', vendor['id']);
+            await prefs.setInt('vendorTypeId', vendor['vendor_type_id']);
+            print("✅ Saved vendorId: ${vendor['id']}");
+          }
+
           _showSnack("Registration successful!");
+
+          // Check if there are pending FAQ answers
+          if (prefs.containsKey('pendingFaqAnswers')) {
+            final pending = prefs.getString('pendingFaqAnswers');
+            if (pending != null) {
+              _sendPendingFaqAnswers(jsonDecode(pending), prefs.getString('token') ?? "", prefs.getInt('vendorId') ?? 0);
+            }
+          }
 
           Future.delayed(const Duration(seconds: 1), () {
             Navigator.pushAndRemoveUntil(
@@ -211,6 +237,74 @@ class _SignUpState extends State<SignUp> {
     }
   }
 
+  Future<void> _sendPendingFaqAnswers(List<dynamic> answers, String token, int vendorId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final body = {
+        "vendorId": vendorId,
+        "vendorTypeId": prefs.getInt('vendorTypeId') ?? 1,
+        "answers": answers,
+      };
+
+      final response = await http.post(
+        Uri.parse("https://happywedz.com/api/faq-answers/save"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        prefs.remove('pendingFaqAnswers');
+        print("✅ Pending FAQ answers submitted successfully");
+      } else {
+        print("❌ Failed to submit pending FAQ answers: ${response.body}");
+      }
+    } catch (e) {
+      print("⚠️ Error sending pending FAQ answers: $e");
+    }
+  }
+  Future<void> submitFaqAnswer(Map<String, dynamic> answerData) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final vendorId = prefs.getInt('vendorId');
+    final token = prefs.getString('authToken');
+
+    if (vendorId == null || token == null) {
+      _showSnack("Vendor ID or token missing. Please log in again.");
+      return;
+    }
+
+    final url = Uri.parse('https://happywedz.com/api/vendor/submit-faq'); // replace with your actual endpoint
+
+    final body = {
+      "vendor_id": vendorId,
+      ...answerData, // include your FAQ answer data here
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token", // if your API expects Bearer token
+        },
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        _showSnack(data["message"] ?? "FAQ submitted successfully!");
+      } else {
+        final data = json.decode(response.body);
+        _showSnack("Submission failed: ${data['message'] ?? response.statusCode}");
+      }
+    } catch (e) {
+      print("❌ FAQ submission error: $e");
+      _showSnack("An error occurred. Please try again.");
+    }
+  }
 
 
   void _showSnack(String message) {
@@ -240,7 +334,7 @@ class _SignUpState extends State<SignUp> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.pink[300],
+      backgroundColor: const Color(0xFF00509D),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -327,32 +421,32 @@ class _SignUpState extends State<SignUp> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE91E63),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00509D),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                            ),
-                            onPressed: _isSubmitting
-                                ? null
-                                : () {
-                              if (_formKey.currentState!.validate() &&
-                                  _agreeTerms) {
-                                _registerVendor();
-                              }
-                            },
-                            child: _isSubmitting
-                                ? const CircularProgressIndicator(
-                                color: Colors.white)
-                                : const Text(
-                              "Sign Up",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white, // added white color
-                              ),
-                            )
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () {
+                                if (_formKey.currentState!.validate() &&
+                                    _agreeTerms) {
+                                  _registerVendor();
+                                }
+                              },
+                              child: _isSubmitting
+                                  ? const CircularProgressIndicator(
+                                  color: Colors.white)
+                                  : const Text(
+                                "Sign Up",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              )
                           ),
                         ),
                       ],
@@ -371,7 +465,7 @@ class _SignUpState extends State<SignUp> {
                 child: const Text(
                   "Already have an account? Log in",
                   style: TextStyle(
-                    color: Color(0xFFE91E63),
+                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
