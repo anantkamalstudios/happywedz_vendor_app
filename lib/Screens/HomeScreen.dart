@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:happy_wedz_vendore_new/Screens/FAQs/Makeup.dart';
-import 'package:happy_wedz_vendore_new/Screens/FAQs/Pandits.dart';
-import 'package:happy_wedz_vendore_new/Screens/ReviewScreen.dart';
-import 'package:happy_wedz_vendore_new/Screens/StatsScreen.dart';
-import 'package:happy_wedz_vendore_new/Screens/upload_album_screen.dart';
+import 'package:happy_weds_vendors/Screens/FAQs/Makeup.dart';
+import 'package:happy_weds_vendors/Screens/FAQs/Pandits.dart';
+import 'package:happy_weds_vendors/Screens/ReviewScreen.dart';
+import 'package:happy_weds_vendors/Screens/StatsScreen.dart';
+import 'package:happy_weds_vendors/Screens/upload_album_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:share_plus/share_plus.dart';
