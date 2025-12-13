@@ -97,16 +97,24 @@ class _LoginState extends State<Login> {
         await prefs.setString('email', vendorData['email'] ?? "");
         await prefs.setString('phone', vendorData['phone'] ?? "");
         await prefs.setString('profileImage', vendorData['profileImage'] ?? "");
-        await prefs.setBool('profileCompleted', vendorData['profile_completed'] ?? false);
+        await prefs.setBool(
+          'profileCompleted',
+          vendorData['profile_completed'] ?? false,
+        );
 
         // ✅ Get Vendor Type Name from API (so florist stays florist)
         try {
           final typeRes = await http.get(
-            Uri.parse('https://happywedz.com/api/vendor-types/${vendorData['vendor_type_id']}'),
+            Uri.parse(
+              'https://happywedz.com/api/vendor-types/${vendorData['vendor_type_id']}',
+            ),
           );
           if (typeRes.statusCode == 200) {
             final typeData = json.decode(typeRes.body);
-            await prefs.setString('vendorTypeName', typeData['name'].toString());
+            await prefs.setString(
+              'vendorTypeName',
+              typeData['name'].toString(),
+            );
             print("🌸 Vendor Type Name: ${typeData['name']}");
           } else {
             print("⚠️ Could not fetch vendor type name, saving ID only");
@@ -132,16 +140,10 @@ class _LoginState extends State<Login> {
     }
   }
 
-
-
-
-
-
-
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String? _validateEmail(String? value) {
@@ -156,6 +158,7 @@ class _LoginState extends State<Login> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF00509D),
+
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -166,10 +169,15 @@ class _LoginState extends State<Login> {
               const SizedBox(height: 8),
               const Text(
                 "Vendor Login",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 24),
               Card(
+                color: Colors.white,
                 elevation: 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -194,9 +202,12 @@ class _LoginState extends State<Login> {
                           Icons.lock,
                           obscureText: _isPasswordHidden,
                           suffixIcon: IconButton(
-                            icon: Icon(_isPasswordHidden
-                                ? Icons.visibility
-                                : Icons.visibility_off),
+                            icon: Icon(
+                              _isPasswordHidden
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Colors.grey,
+                            ),
                             onPressed: () {
                               setState(() {
                                 _isPasswordHidden = !_isPasswordHidden;
@@ -204,6 +215,7 @@ class _LoginState extends State<Login> {
                             },
                           ),
                         ),
+
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -230,20 +242,21 @@ class _LoginState extends State<Login> {
                             onPressed: _isLoading ? null : _loginVendor,
                             child: _isLoading
                                 ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2),
-                            )
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : const Text(
-                              "Login",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white, // added white color
-                              ),
-                            )
-
+                                    "Login",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white, // added white color
+                                    ),
+                                  ),
                           ),
                         ),
                       ],
@@ -275,20 +288,21 @@ class _LoginState extends State<Login> {
   }
 
   Widget _buildTextField(
-      TextEditingController controller,
-      String hint,
-      IconData icon, {
-        TextInputType keyboardType = TextInputType.text,
-        bool obscureText = false,
-        Widget? suffixIcon,
-        String? Function(String?)? validator,
-      }) {
+    TextEditingController controller,
+    String hint,
+    IconData icon, {
+    TextInputType keyboardType = TextInputType.text,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    String? Function(String?)? validator,
+  }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
-      validator: validator ??
-              (value) {
+      validator:
+          validator ??
+          (value) {
             if (value == null || value.isEmpty) return "Please enter $hint";
             return null;
           },

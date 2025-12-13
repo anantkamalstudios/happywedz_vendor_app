@@ -5,6 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../Storefront/StoreFront.dart';
+import 'Login.dart';
+
 class BusinessDrawer extends StatefulWidget {
   const BusinessDrawer({Key? key}) : super(key: key);
 
@@ -21,6 +24,7 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
 
   int leadCount = 0;
   int viewsCount = 0;
+  int? vendorId;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -28,8 +32,15 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
   void initState() {
     super.initState();
     _loadUserData();
+    _loadVendorId();
   }
 
+Future<void> _loadVendorId() async {
+  final prefs = await SharedPreferences.getInstance();
+  setState(() {
+    vendorId = prefs.getInt("vendorId");
+  });
+}
   Future<void> _contactSupport() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String fromEmail = prefs.getString('email') ?? "";
@@ -128,177 +139,217 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
 
   @override
   Widget build(BuildContext context) {
+
     return Drawer(
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: _showEditOptions,
-            child: Stack(
-              children: [
-                Container(
-                  height: 180,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.pink[100],
-                    image: coverImage.isNotEmpty
-                        ? DecorationImage(
-                      image: coverImage.startsWith('http')
-                          ? NetworkImage(coverImage)
-                          : FileImage(File(coverImage))
-                      as ImageProvider,
-                      fit: BoxFit.cover,
-                    )
-                        : null,
-                  ),
-                  child: Container(
-                    color: coverImage.isEmpty
-                        ? const Color(0xFFE0F7FA)
-                        : Colors.transparent,
-                    padding: const EdgeInsets.only(
-                      left: 16,
-                      bottom: 16,
-                      top: 40,
-                      right: 16,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          userName,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          userEmail,
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+          // onTap: _showEditOptions,
+          Stack(
+            children: [
+              Container(
+                height: 180,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.pink[100],
+                  image: coverImage.isNotEmpty
+                      ? DecorationImage(
+                    image: coverImage.startsWith('http')
+                        ? NetworkImage(coverImage)
+                        : FileImage(File(coverImage))
+                    as ImageProvider,
+                    fit: BoxFit.cover,
+                  )
+                      : null,
                 ),
 
-                /// ✔️ EDIT BUTTON
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.edit,
-                        color: Colors.white,
-                        size: 20,
+                child: Container(
+                  color: coverImage.isEmpty
+                      ? const Color(0xFFE0F7FA)
+                      : Colors.transparent,
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    bottom: 16,
+                    top: 40,
+                    right: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            userName,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Text(
+                                userEmail,
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.edit,
+                                  color: Colors.black,
+                                  size: 20,
+                                ), onPressed: () { _showEditOptions(); },
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      onPressed: _showEditOptions,
-                    ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // Positioned(
+              //   top: 12,
+              //   right: 12,
+              //   child: Container(
+              //     decoration: BoxDecoration(
+              //       color: Colors.black.withOpacity(0.6),
+              //       shape: BoxShape.circle,
+              //     ),
+              //     child: IconButton(
+              //       icon: const Icon(
+              //         Icons.edit,
+              //         color: Colors.white,
+              //         size: 20,
+              //       ),
+              //       onPressed: _showEditOptions,
+              //     ),
+              //   ),
+              // ),
+            ],
           ),
 
-          const SizedBox(height: 16),
+
 
           /// Stats
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _statItem("Leads", "$leadCount"),
-                _statItem("Reviews", "45"),
-                _statItem("Views", "$viewsCount"),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
+          // Padding(
+          //   padding: const EdgeInsets.symmetric(horizontal: 16),
+          //   child: Row(
+          //     mainAxisAlignment: MainAxisAlignment.spaceAround,
+          //     children: [
+          //       _statItem("Leads", "$leadCount"),
+          //       _statItem("Reviews", "45"),
+          //       _statItem("Views", "$viewsCount"),
+          //     ],
+          //   ),
+          // ),
 
           /// MENU ITEMS
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _drawerItem(
-                  context,
-                  Icons.info_outline,
-                  "Public Info",
-                  const Placeholder(),
-                  iconColor: const Color(0xFF4682B4),
-                ),
-                _drawerItem(
-                  context,
-                  Icons.card_membership,
-                  "Membership Package",
-                  const Placeholder(),
-                  iconColor: const Color(0xFF4682B4),
-                ),
-                ListTile(
-                  leading:
-                  const Icon(Icons.reviews, color: Color(0xFF4682B4)),
-                  title: const Text("Get Client Review to You"),
-                  onTap: () async {
-                    await Share.share(
-                      "Hey! Please share your review about my work 😊",
-                    );
-                  },
-                ),
-                _drawerItem(
-                  context,
-                  Icons.settings,
-                  "Settings",
-                  const Placeholder(),
-                  iconColor: const Color(0xFF4682B4),
-                ),
 
-                ListTile(
-                  leading: const Icon(Icons.support_agent,
-                      color: Color(0xFF4682B4)),
-                  title: const Text("Contact Support"),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    _contactSupport();
-                  },
-                ),
+            child: Container(
+              color: Colors.white,
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  // _drawerItem(
+                  //   context,
+                  //   Icons.info_outline,
+                  //   "Public Info",
+                  //   const Placeholder(),
+                  //   iconColor: const Color(0xFF4682B4),
+                  // ),
 
-                ListTile(
-                  leading: const Icon(Icons.star_rate,
-                      color: Color(0xFF4682B4)),
-                  title: const Text("Rate on Playstore"),
-                  onTap: () => _showRateDialog(context),
-                ),
-              ],
+                  ListTile(
+                    leading: const Icon(Icons.storefront_outlined,
+                        color: Color(0xFF4682B4)),
+                    title: const Text("Storefront"),
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      if (vendorId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                              Text("Vendor ID not found. Please login again.")),
+                        );
+                        return;
+                      }
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => Storefront(vendorId: vendorId!),
+                        ),
+                      );
+                    },
+                  ),
+
+                  ListTile(
+                    leading: const Icon(Icons.reviews,
+                        color: Color(0xFF4682B4)),
+                    title: const Text("Get Client Review to You"),
+                    onTap: () async {
+                      await Share.share(
+                        "Hey! Please share your review about my work 😊",
+                      );
+                    },
+                  ),
+
+                  ListTile(
+                    leading: const Icon(Icons.support_agent,
+                        color: Color(0xFF4682B4)),
+                    title: const Text("Contact Support"),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      _contactSupport();
+                    },
+                  ),
+
+                  ListTile(
+                    leading: const Icon(Icons.star_rate,
+                        color: Color(0xFF4682B4)),
+                    title: const Text("Rate on Playstore"),
+                    onTap: () => _showRateDialog(context),
+                  ),
+                ],
+              ),
             ),
           ),
 
-          const Divider(),
+          const Divider(
+            color: Colors.grey,
+          ),
 
           /// Logout
-          ListTile(
-            leading: const Icon(Icons.logout, color: Color(0xFF00BCD4)),
-            title: const Text('Logout'),
-            onTap: () async {
-              SharedPreferences prefs =
-              await SharedPreferences.getInstance();
-              await prefs.clear();
+          Container(
+            color: Colors.white,
+            child: ListTile(
+              leading: const Icon(Icons.logout,  color: Color(0xFF4682B4)),
+              title: const Text('Logout'),
+              onTap: () async {
+                SharedPreferences prefs =
+                await SharedPreferences.getInstance();
+                await prefs.clear();
 
-              Navigator.pushNamedAndRemoveUntil(
-                  context, "/login", (route) => false);
-            },
+                // Navigator.pushNamedAndRemoveUntil(
+                //     context, "/login", (route) => false);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Login(), // Login Page
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -353,3 +404,4 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
     );
   }
 }
+

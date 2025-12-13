@@ -180,8 +180,6 @@ class _SignUpState extends State<SignUp> {
           await prefs.setInt('vendorId', data['vendor']['id']);
           await prefs.setString('authToken', data['token']);
           await prefs.setString('vendorType', 'photographers'); // optional
-
-
           // Save login info
           await prefs.setBool('isLoggedIn', true);
           await prefs.setString('token', data['token'] ?? "");
@@ -212,22 +210,22 @@ class _SignUpState extends State<SignUp> {
             }
           }
 
+
           Future.delayed(const Duration(seconds: 1), () {
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              MaterialPageRoute(builder: (context) => const HomeScreen()
+              ),
                   (route) => false,
             );
           });
 
-        } else {
-          _showSnack(data["message"] ?? "Registration failed, please try again");
         }
-      } else if (response.statusCode == 422) {
-        final data = json.decode(response.body);
-        _showSnack("Validation Error: ${data['message'] ?? data.toString()}");
-      } else {
-        _showSnack("Registration failed. Code: ${response.statusCode}");
+        // else {
+        //   _showSnack(data["message"] ?? "Registration failed, please try again");
+        // }
+      }  else {
+        _showSnack("User already exists with this email or phone number.");
       }
     } catch (e) {
       print("❌ Register error: $e");
@@ -349,6 +347,7 @@ class _SignUpState extends State<SignUp> {
               ),
               const SizedBox(height: 20),
               Card(
+                color: Colors.white,
                 elevation: 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -428,14 +427,27 @@ class _SignUpState extends State<SignUp> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
+                              // onPressed: _isSubmitting
+                              //     ? null
+                              //     : () {
+                              //   if (_formKey.currentState!.validate() &&
+                              //       _agreeTerms) {
+                              //     _registerVendor();
+                              //   }
+                              // }
                               onPressed: _isSubmitting
                                   ? null
                                   : () {
-                                if (_formKey.currentState!.validate() &&
-                                    _agreeTerms) {
+                                if (!_agreeTerms) {
+                                  _showSnack("please accept terms and conditions");
+                                  return;
+                                }
+
+                                if (_formKey.currentState!.validate()) {
                                   _registerVendor();
                                 }
                               },
+
                               child: _isSubmitting
                                   ? const CircularProgressIndicator(
                                   color: Colors.white)

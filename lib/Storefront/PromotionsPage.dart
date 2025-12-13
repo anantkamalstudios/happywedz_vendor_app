@@ -165,9 +165,11 @@ class _PromotionsPageState extends State<PromotionsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Promotion Details"),
+        title: Text("Promotion Details", style: TextStyle(
+          color: Colors.white
+        ),),
         backgroundColor: const Color(0xFF0072BB),
-        foregroundColor: Colors.white,
+        //foregroundColor: Colors.white,
       ),
       body: loading
           ? Center(child: CircularProgressIndicator())

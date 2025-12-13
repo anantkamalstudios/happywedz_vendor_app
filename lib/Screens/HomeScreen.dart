@@ -1,23 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:happy_weds_vendors/Screens/FAQs/Florists.dart';
-import 'package:happy_weds_vendors/Screens/FAQs/Makeup.dart';
-import 'package:happy_weds_vendors/Screens/FAQs/Pandits.dart';
-import 'package:happy_weds_vendors/Screens/ProfileScreen.dart';
-import 'package:happy_weds_vendors/Storefront/StoreFront.dart';
-import 'package:happy_weds_vendors/Screens/ReviewScreen.dart';
-import 'package:happy_weds_vendors/Screens/StatsScreen.dart';
-import 'package:happy_weds_vendors/Screens/ViewPlanScreen.dart';
+import 'package:happy_wedz_vendore_new/Screens/FAQs/Makeup.dart';
+import 'package:happy_wedz_vendore_new/Screens/FAQs/Pandits.dart';
+import 'package:happy_wedz_vendore_new/Screens/ReviewScreen.dart';
+import 'package:happy_wedz_vendore_new/Screens/StatsScreen.dart';
+import 'package:happy_wedz_vendore_new/Screens/upload_album_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-
+import 'FAQs/Florists.dart';
 import 'FAQs/ProfileScreen.dart';
 import 'LeadsScreen.dart';
-import 'Project/Albums.dart';
 import 'drawer.dart';
 import 'FAQs/BridalWear.dart';
 import 'FAQs/Caterars.dart';
@@ -31,10 +27,6 @@ import 'FAQs/WeddingDj.dart';
 import 'FAQs/WeddingGift.dart';
 
 
-// ---------------- HomeScreen ----------------
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -44,15 +36,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  int? vendorId;
+  //int? vendorId;
+
 
   final List<Widget> _defaultPages = [
-    const HomeTab(),
-    const LeadsPage(),
-    Placeholder(), // Temporary placeholder for Storefront before vendorId loads
-    const ReviewsPage(),
-    const StatsPage(),
+    const HomeTab(),     // 0 - Home
+    const LeadsPage(),   // 1 - Leads
+    const ReviewsPage(), // 2 - Reviews
+    const StatsPage(),   // 3 - Profile / Stats
   ];
+
 
   late List<Widget> _pages;
 
@@ -60,20 +53,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _pages = List.from(_defaultPages);
-    _loadVendorId();
+    //_loadVendorId();
   }
 
-  Future<void> _loadVendorId() async {
-    final prefs = await SharedPreferences.getInstance();
-    final id = prefs.getInt('vendorId');
-
-    if (id != null) {
-      setState(() {
-        vendorId = id;
-        _pages[2] = Storefront(vendorId: vendorId!); // Replace placeholder with real Storefront
-      });
-    }
-  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -85,25 +67,65 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
+
+
       bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Colors.white,
         currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
         selectedItemColor: const Color(0xFF00509D),
         unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: "Leads"),
-          BottomNavigationBarItem(icon: Icon(Icons.pool_rounded), label: "Storefront"),
-          BottomNavigationBarItem(icon: Icon(Icons.reviews_outlined), label: "Reviews"),
-          BottomNavigationBarItem(icon: Icon(Icons.auto_graph), label: "Profile"),
+        type: BottomNavigationBarType.fixed,
+
+        items: [
+          BottomNavigationBarItem(
+            icon: Image.asset(
+              "assets/icons/home.png",
+              height: 24,
+              color: _selectedIndex == 0
+                  ? const Color(0xFF00509D)
+                  : Colors.grey,
+            ),
+            label: "Home",
+          ),
+          BottomNavigationBarItem(
+            icon: Image.asset(
+              "assets/icons/leads.png",
+              height: 24,
+              color: _selectedIndex == 1
+                  ? const Color(0xFF00509D)
+                  : Colors.grey,
+            ),
+            label: "Leads",
+          ),
+          BottomNavigationBarItem(
+            icon: Image.asset(
+              "assets/icons/reviews.png",
+              height: 24,
+              color: _selectedIndex == 2
+                  ? const Color(0xFF00509D)
+                  : Colors.grey,
+            ),
+            label: "Reviews",
+          ),
+          BottomNavigationBarItem(
+            icon: Image.asset(
+              "assets/icons/statistics.png",
+              height: 24,
+              color: _selectedIndex == 3
+                  ? const Color(0xFF00509D)
+                  : Colors.grey,
+            ),
+            label: "Statistics",
+          ),
         ],
       ),
+
     );
   }
-}
+  }
 
-
-// ---------------- Home Tab ----------------
+//---------------- Home Tab ----------------
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
 
@@ -299,9 +321,7 @@ class _HomeTabState extends State<HomeTab> {
             SizedBox(height: 24),
             _getReviewsCard(context),
             SizedBox(height: 24),
-            _phoneUpdateCard(),
-            SizedBox(height: 24),
-            _membershipPlansCard(context),
+
           ],
         ),
       ),
@@ -593,82 +613,80 @@ Widget _roundedOutlineButton({required String label, required VoidCallback onTap
   );
 }
 
-
-Widget _phoneUpdateCard() {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.grey.shade300),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Have any queries? Speak\nto WedMeGood Team",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 16),
-
-        // Green Button
-    SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () {},
-        icon: const Icon(Icons.phone, color: Colors.white),
-        label: const Text(
-          "Request Call Back",
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF00509D), // Steel Azure
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
-    ),
-
-    ],
-    ),
-  );
-}
-
+// Widget _phoneUpdateCard() {
+//   return Container(
+//     padding: const EdgeInsets.all(16),
+//     decoration: BoxDecoration(
+//       color: Colors.white,
+//       borderRadius: BorderRadius.circular(12),
+//       border: Border.all(color: Colors.grey.shade300),
+//     ),
+//     child: Column(
+//       crossAxisAlignment: CrossAxisAlignment.start,
+//       children: [
+//         const Text(
+//           "Have any queries? Speak to happy Weds Team",
+//           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+//         ),
+//         const SizedBox(height: 16),
+//
+//         // Green Button
+//     SizedBox(
+//       width: double.infinity,
+//       child: ElevatedButton.icon(
+//         onPressed: () {},
+//         icon: const Icon(Icons.phone, color: Colors.white),
+//         label: const Text(
+//           "Request Call Back",
+//           style: TextStyle(color: Colors.white, fontSize: 16),
+//         ),
+//         style: ElevatedButton.styleFrom(
+//           backgroundColor: const Color(0xFF00509D), // Steel Azure
+//           padding: const EdgeInsets.symmetric(vertical: 12),
+//           shape: RoundedRectangleBorder(
+//             borderRadius: BorderRadius.circular(8),
+//           ),
+//         ),
+//       ),
+//     ),
+//
+//     ],
+//     ),
+//   );
+// }
 
 
 
-Widget _membershipPlansCard(BuildContext context) {
-  return _buildCard(
-    child: Row(
-      children: [
-        const Icon(
-          Icons.card_membership,
-          color: Color(0xFF00509D), // Steel Azure
-          size: 40,
-        ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Text(
-            "Upgrade to Premium Membership to get more leads & visibility",
-            style: TextStyle(fontSize: 14),
-          ),
-        ),
-        TextButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => ViewPlansScreen()),
-            );
-          },
-          child: const Text("View Plans"),
-        ),
-      ],
-    ),
-  );
-}
-
+//
+// Widget _membershipPlansCard(BuildContext context) {
+//   return _buildCard(
+//     child: Row(
+//       children: [
+//         const Icon(
+//           Icons.card_membership,
+//           color: Color(0xFF00509D), // Steel Azure
+//           size: 40,
+//         ),
+//         const SizedBox(width: 12),
+//         const Expanded(
+//           child: Text(
+//             "Upgrade to Premium Membership to get more leads & visibility",
+//             style: TextStyle(fontSize: 14),
+//           ),
+//         ),
+//         TextButton(
+//           onPressed: () {
+//             Navigator.push(
+//               context,
+//               MaterialPageRoute(builder: (context) => ViewPlansScreen()),
+//             );
+//           },
+//           child: const Text("View Plans"),
+//         ),
+//       ],
+//     ),
+//   );
+// }
 
 Widget _buildCard({required Widget child, Color? color}) {
   return Container(
@@ -682,81 +700,6 @@ Widget _buildCard({required Widget child, Color? color}) {
   );
 }
 
-// ---------------- Upload Album Page ----------------
-class UploadAlbumPage extends StatefulWidget {
-  const UploadAlbumPage({super.key});
-
-  @override
-  State<UploadAlbumPage> createState() => _UploadAlbumPageState();
-}
-
-class _UploadAlbumPageState extends State<UploadAlbumPage> {
-  final List<XFile> _selectedImages = [];
-
-  Future<void> _pickImages() async {
-    final ImagePicker picker = ImagePicker();
-    final List<XFile> images = await picker.pickMultiImage();
-    if (images.isNotEmpty) {
-      setState(() {
-        _selectedImages.addAll(images);
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(backgroundColor: const Color(0xFF00BCD4),
-           title: const Text("Upload Album")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00BCD4),
-
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.add_photo_alternate, color: Colors.white),
-              label: const Text("Select Photos", style: TextStyle(color: Colors.white)),
-              onPressed: _pickImages,
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _selectedImages.isEmpty
-                  ? const Center(child: Text("No photos selected"))
-                  : GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 4,
-                  mainAxisSpacing: 4,
-                ),
-                itemCount: _selectedImages.length,
-                itemBuilder: (context, index) {
-                  return Image.file(
-                    File(_selectedImages[index].path),
-                    fit: BoxFit.cover,
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_selectedImages.isNotEmpty)
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () {},
-                child: const Text("Upload Album", style: TextStyle(color: Colors.white)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 
 

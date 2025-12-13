@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 class MenusPage extends StatefulWidget {
   const MenusPage({super.key});
 
-
   @override
   _MenusPageState createState() => _MenusPageState();
 }

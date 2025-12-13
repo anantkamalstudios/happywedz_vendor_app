@@ -35,9 +35,6 @@ class MyApp extends StatelessWidget {
         Locale('en'),
       ],
 
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
       home: const SplashScreen(),
     );
 
