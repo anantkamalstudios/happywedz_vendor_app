@@ -4,100 +4,95 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../api_services/api_service_vendor.dart';
+import '../api_services/storefront_completion_service.dart';
+import '../utils/common_app_bar.dart';
 
 class GalleryUploadPage extends StatefulWidget {
+  const GalleryUploadPage({super.key});
+
   @override
   State<GalleryUploadPage> createState() => _GalleryUploadPageState();
 }
 
 class _GalleryUploadPageState extends State<GalleryUploadPage> {
-  List<File> selectedImages = [];
-  List<String> savedBase64ImagesList = []; // Stored images
   final ImagePicker picker = ImagePicker();
+  final VendorServiceApi _vendorApi = VendorServiceApi();
+
+  List<File> selectedImages = [];
+  List<String> savedImages = [];
 
   int? vendorId;
   int? serviceId;
   String? token;
-  bool loadingVendorData = true;
-  bool uploading = false;
 
-  Map<String, dynamic> currentAttributes = {}; // existing attributes
+  bool loading = true;
+  bool uploading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadCredentials();
+    _loadCredentialsAndGallery();
   }
 
-  Future<void> _loadCredentials() async {
+  // ----------------------------------------------------------
+  // LOAD TOKEN + IDS + EXISTING GALLERY FROM SERVER
+  // ----------------------------------------------------------
+  Future<void> _loadCredentialsAndGallery() async {
     final prefs = await SharedPreferences.getInstance();
+
     vendorId = prefs.getInt('vendorId');
     serviceId = prefs.getInt('serviceId');
     token = prefs.getString('token');
 
-    print("📌 Loaded => vendorId: $vendorId, serviceId: $serviceId, token: $token");
-
-    if (serviceId != null && token != null) {
-      await fetchCurrentAttributes();
+    if (vendorId == null || serviceId == null || token == null) {
+      setState(() => loading = false);
+      return;
     }
 
-    if (vendorId != null) {
-      savedBase64ImagesList = prefs.getStringList('images_$vendorId') ?? [];
-      print("📌 Loaded ${savedBase64ImagesList.length} saved images");
-    }
-
-    setState(() => loadingVendorData = false);
-  }
-
-  Future<void> fetchCurrentAttributes() async {
-    print("📩 Fetching existing vendor-service attributes...");
     try {
-      final response = await http.get(
-        Uri.parse('https://happywedz.com/api/vendor-services/$serviceId'),
-        headers: {"Authorization": "Bearer $token"},
+      final latest = await _vendorApi.getByServiceId(
+        serviceId: serviceId!,
+        token: token!,
       );
 
-      print("📬 GET Response: ${response.statusCode} | ${response.body}");
+      savedImages = List<String>.from(latest?["media"] ?? []);
 
-      if (response.statusCode == 200) {
-        final parsed = jsonDecode(response.body);
-        currentAttributes = Map<String, dynamic>.from(parsed["attributes"] ?? {});
-
-        // If there are existing images in attributes, merge them
-        if (currentAttributes.containsKey("media") &&
-            currentAttributes["media"] is List) {
-          savedBase64ImagesList = List<String>.from(currentAttributes["media"]);
-        }
-
-        print("✅ Loaded current attributes & images: ${savedBase64ImagesList.length}");
-      } else {
-        print("❌ Failed to fetch existing attributes");
-      }
+      await prefs.setStringList("images_$vendorId", savedImages);
     } catch (e) {
-      print("❌ Error fetching current attributes: $e");
+      debugPrint("❌ Load gallery error: $e");
     }
+
+    setState(() => loading = false);
   }
 
+  // ----------------------------------------------------------
+  // PICK IMAGES
+  // ----------------------------------------------------------
   Future<void> pickImages() async {
-    final List<XFile>? files = await picker.pickMultiImage(imageQuality: 80);
+    final List<XFile>? files =
+    await picker.pickMultiImage(imageQuality: 80);
 
-    if (files != null) {
+    if (files != null && files.isNotEmpty) {
       setState(() {
         selectedImages.addAll(files.map((e) => File(e.path)));
       });
-      print("📌 Selected ${selectedImages.length} images");
     }
   }
 
-  void removeImage(int index) {
+  void removeSelectedImage(int index) {
     setState(() => selectedImages.removeAt(index));
   }
 
+  // ----------------------------------------------------------
+  // UPLOAD GALLERY (ROOT LEVEL media)
+  // ----------------------------------------------------------
   Future<void> uploadGallery() async {
-    if (vendorId == null || token == null || serviceId == null) return;
+    if (vendorId == null || serviceId == null || token == null) return;
+
     if (selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please select images")),
+        const SnackBar(content: Text("Please select images")),
       );
       return;
     }
@@ -105,199 +100,290 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     setState(() => uploading = true);
 
     try {
-      List<String> base64Images = [];
-
-      for (var file in selectedImages) {
-        List<int> bytes = await file.readAsBytes();
-        String base64Str = base64Encode(bytes);
-        base64Images.add("data:image/jpeg;base64,$base64Str");
-      }
-
-      // Merge new images with existing ones
-      savedBase64ImagesList.addAll(base64Images);
-      currentAttributes["media"] = savedBase64ImagesList;
-
-      var body = jsonEncode({
-        "vendor_id": vendorId,
-        "attributes": currentAttributes,
-      });
-
-      var response = await http.put(
-        Uri.parse("https://happywedz.com/api/vendor-services/$serviceId"),
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-        body: body,
+      /// 🔥 FETCH LATEST SERVICE
+      final latest = await _vendorApi.getByServiceId(
+        serviceId: serviceId!,
+        token: token!,
       );
 
-      print("📥 Response: ${response.statusCode} => ${response.body}");
+      /// 🔥 EXISTING MEDIA (ROOT LEVEL)
+      List<String> media =
+      List<String>.from(latest?["media"] ?? []);
 
-      if (response.statusCode == 200) {
+      /// 🔥 CONVERT NEW IMAGES
+      for (var file in selectedImages) {
+        final bytes = await file.readAsBytes();
+        final base64Str = base64Encode(bytes);
+        media.add("data:image/jpeg;base64,$base64Str");
+      }
+
+      /// 🔥 UPDATE SERVICE
+      final success = await _vendorApi.updateService(
+        serviceId: serviceId!,
+        token: token!,
+        body: {
+          "vendor_id": vendorId,
+          "media": media,
+        },
+      );
+
+      if (success) {
+        await StorefrontCompletionService.refreshCompletion(
+          serviceId: serviceId!,
+        );
+
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList("images_$vendorId", savedBase64ImagesList);
+        await prefs.setStringList("images_$vendorId", media);
 
-        selectedImages.clear();
+        setState(() {
+          savedImages = media;
+          selectedImages.clear();
+        });
 
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Gallery saved")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Gallery saved successfully")),
+        );
       } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Upload failed")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to save gallery")),
+        );
       }
     } catch (e) {
-      print("❌ Upload error: $e");
-    } finally {
-      setState(() => uploading = false);
+      debugPrint("❌ Upload error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Upload failed")),
+      );
+    }
+
+    setState(() => uploading = false);
+  }
+
+  // ----------------------------------------------------------
+  // DELETE IMAGE FROM SERVER
+  // ----------------------------------------------------------
+  Future<void> deleteSavedImage(int index) async {
+    if (vendorId == null || serviceId == null || token == null) return;
+
+    try {
+      final latest = await _vendorApi.getByServiceId(
+        serviceId: serviceId!,
+        token: token!,
+      );
+
+      List<String> media =
+      List<String>.from(latest?["media"] ?? []);
+
+      media.removeAt(index);
+
+      final success = await _vendorApi.updateService(
+        serviceId: serviceId!,
+        token: token!,
+        body: {
+          "vendor_id": vendorId,
+          "media": media,
+        },
+      );
+
+      if (success) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList("images_$vendorId", media);
+
+        setState(() => savedImages = media);
+      }
+    } catch (e) {
+      debugPrint("❌ Delete error: $e");
     }
   }
 
-  void deleteSavedImage(int index) async {
-    final prefs = await SharedPreferences.getInstance();
-    savedBase64ImagesList.removeAt(index);
-    currentAttributes["media"] = savedBase64ImagesList;
-    await prefs.setStringList("images_$vendorId", savedBase64ImagesList);
-    setState(() {});
-    print("🗑 Deleted saved image at index: $index");
-  }
-
+  // ----------------------------------------------------------
+  // UI
+  // ----------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xffF2F2F2),
-      appBar: AppBar(
-        title: Text("Upload Gallery", style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF0072BB),
-        elevation: 1,
-        iconTheme: IconThemeData(color: Colors.black),
-      ),
-      body: loadingVendorData
-          ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: Colors.white,
+      appBar: const CommonAppBar(title: "Upload Gallery"),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
             children: [
-              Text("Upload Images",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed: pickImages,
-                child: Text("Browse Images"),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF00509D), foregroundColor: Colors.white),
-              ),
-
-              SizedBox(height: 20),
-
-              selectedImages.isNotEmpty
-                  ? GridView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: selectedImages.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10),
-                itemBuilder: (context, index) {
-                  return Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          selectedImages[index],
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
+              Expanded(
+                child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black12, blurRadius: 8),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Center(
+                      child: Text(
+                        "Upload Images",
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      Positioned(
-                        right: 6,
-                        top: 6,
-                        child: GestureDetector(
-                          onTap: () => removeImage(index),
-                          child: Container(
-                            padding: EdgeInsets.all(4),
-                            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                            child: Icon(Icons.close, size: 16, color: Colors.white),
-                          ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    Center(
+                      child: ElevatedButton(
+                        onPressed: pickImages,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00509D),
+                          foregroundColor: Colors.white,
                         ),
-                      )
-                    ],
-                  );
-                },
-              )
-                  : SizedBox(),
+                        child: const Text("Browse Images"),
+                      ),
+                    ),
 
-              savedBase64ImagesList.isNotEmpty
-                  ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 20),
-                  Text("Saved Images",
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 10),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    itemCount: savedBase64ImagesList.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10),
-                    itemBuilder: (context, index) {
-                      final base64Str = savedBase64ImagesList[index].split(',').last;
+                    const SizedBox(height: 20),
 
-                      return Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.memory(
-                              base64Decode(base64Str),
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                            ),
-                          ),
-                          Positioned(
-                            right: 6,
-                            top: 6,
-                            child: GestureDetector(
-                              onTap: () => deleteSavedImage(index),
-                              child: Container(
-                                padding: EdgeInsets.all(4),
-                                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                                child: Icon(Icons.close, size: 16, color: Colors.white),
+                    /// SELECTED IMAGES
+                    if (selectedImages.isNotEmpty)
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: selectedImages.length,
+                        gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                        ),
+                        itemBuilder: (_, i) => Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.file(
+                                selectedImages[i],
+                                fit: BoxFit.cover,
+                                width: double.infinity,
                               ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: GestureDetector(
+                                onTap: () => removeSelectedImage(i),
+                                child: const CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: Colors.white,
+                                  child: Icon(Icons.close,
+                                      size: 14, color: Colors.black),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    /// SAVED IMAGES
+                    if (savedImages.isNotEmpty) ...[
+                      const SizedBox(height: 30),
+                      const Text(
+                        "Saved Images",
+                        style: TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: savedImages.length,
+                        gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                        ),
+                        itemBuilder: (_, i) {
+                          final img = savedImages[i];
+                          return Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: img.startsWith("http")
+                                    ? Image.network(
+                                  img,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                )
+                                    : Image.memory(
+                                  base64Decode(
+                                      img.split(',').last),
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                ),
+                              ),
+                              Positioned(
+                                top: 6,
+                                right: 6,
+                                child: GestureDetector(
+                                  onTap: () => deleteSavedImage(i),
+                                  child: const CircleAvatar(
+                                    radius: 12,
+                                    backgroundColor: Colors.white,
+                                    child: Icon(Icons.close,
+                                        size: 14, color: Colors.black),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+
+                    const SizedBox(height: 30),
+
+                  ],
+                ),
+                        ),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: uploading ? null : uploadGallery,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00509D),
+                      foregroundColor: Colors.white,
+                      padding:
+                      const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: uploading
+                        ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                        : const Text(
+                      "Save Gallery",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600),
+                    ),
                   ),
-                ],
-              )
-                  : SizedBox(),
-
-              SizedBox(height: 30),
-
-              ElevatedButton(
-                onPressed: uploading ? null : uploadGallery,
-                child: uploading
-                    ? CircularProgressIndicator(color: Colors.white)
-                    : Text("Save Gallery"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00509D),
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ],
+
           ),
-        ),
-      ),
+
     );
   }
 }

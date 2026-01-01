@@ -4,42 +4,51 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../api_services/storefront_completion_service.dart';
+import '../utils/common_app_bar.dart';
+import '../api_services/api_service_vendor.dart';
 
 class LocationPage extends StatefulWidget {
   @override
-  _LocationPageState createState() => _LocationPageState();
+  State<LocationPage> createState() => _LocationPageState();
 }
 
 class _LocationPageState extends State<LocationPage> {
-  final TextEditingController addressController = TextEditingController();
-  final TextEditingController stateController = TextEditingController();
-  final TextEditingController pincodeController = TextEditingController();
-  final TextEditingController landmarkController = TextEditingController();
-  final TextEditingController latitudeController = TextEditingController();
-  final TextEditingController longitudeController = TextEditingController();
+  // ---------------- Controllers ----------------
+  final addressController = TextEditingController();
+  final stateController = TextEditingController();
+  final pincodeController = TextEditingController();
+ // final landmarkController = TextEditingController();
+  final latitudeController = TextEditingController();
+  final longitudeController = TextEditingController();
 
+  // ---------------- Location ----------------
   LatLng selectedLocation = LatLng(20.5937, 78.9629);
 
+  // ---------------- Country / City ----------------
   List<String> countries = [];
   String? selectedCountry;
-
   List<String> citySuggestions = [];
   String? selectedCity;
 
+  // ---------------- Flags ----------------
   bool loadingCountries = true;
   bool loadingCities = false;
   bool loadingVendorData = true;
   bool savingLocation = false;
 
-  final MapController _mapController = MapController();
-
+  // ---------------- IDs ----------------
   int? vendorId;
-  int? vendorSubcategoryId;
+  int? vendorSubcategoryId; // OPTIONAL
   int? serviceId;
   String? token;
 
-  Map<String, dynamic> currentAttributes = {}; // Store existing attributes
+  Map<String, dynamic> currentAttributes = {};
 
+  final VendorServiceApi _vendorApi = VendorServiceApi();
+  final MapController _mapController = MapController();
+
+  // ================= INIT =================
   @override
   void initState() {
     super.initState();
@@ -47,449 +56,466 @@ class _LocationPageState extends State<LocationPage> {
     fetchCountries();
   }
 
+  // ================= LOAD CREDS =================
   Future<void> _loadCredentials() async {
     final prefs = await SharedPreferences.getInstance();
+
     vendorId = prefs.getInt('vendorId');
-    vendorSubcategoryId = prefs.getInt('vendor_subcategory_id');
+    vendorSubcategoryId = prefs.getInt('vendor_subcategory_id'); // MAY BE NULL
     serviceId = prefs.getInt('serviceId');
     token = prefs.getString('token');
 
-    addressController.text = prefs.getString('address') ?? '';
-    stateController.text = prefs.getString('state') ?? '';
-    pincodeController.text = prefs.getString('zip') ?? '';
-    landmarkController.text = prefs.getString('landmark') ?? '';
-    latitudeController.text = prefs.getString('latitude') ?? '';
-    longitudeController.text = prefs.getString('longitude') ?? '';
+    print("🔍 vendorId=$vendorId, subCat=$vendorSubcategoryId, serviceId=$serviceId");
 
-    selectedCountry = prefs.getString('country') ?? 'India';
-    selectedCity = prefs.getString('city') ?? '';
-
-    if (latitudeController.text.isNotEmpty && longitudeController.text.isNotEmpty) {
-      final lat = double.tryParse(latitudeController.text);
-      final lng = double.tryParse(longitudeController.text);
-      if (lat != null && lng != null) selectedLocation = LatLng(lat, lng);
-    }
-
-    print("🔹 Loaded credentials:");
-    print("vendorId: $vendorId, vendorSubcategoryId: $vendorSubcategoryId, serviceId: $serviceId");
-    print("token: $token");
-    print("Address: ${addressController.text}");
-    print("City: $selectedCity, Country: $selectedCountry");
-    print("State: ${stateController.text}, Pincode: ${pincodeController.text}");
-    print("Latitude: ${latitudeController.text}, Longitude: ${longitudeController.text}");
-
-    if (serviceId != null && token != null) {
-      await fetchCurrentAttributes();
+    if (vendorId != null && token != null) {
+      await _ensureServiceId();
+      await _fetchLocationFromApi();
     }
 
     setState(() => loadingVendorData = false);
   }
 
-  Future<void> fetchCurrentAttributes() async {
-    print("📩 Fetching existing vendor-service attributes...");
-    try {
-      final response = await http.get(
-        Uri.parse('https://happywedz.com/api/vendor-services/$serviceId'),
-        headers: {"Authorization": "Bearer $token"},
-      );
+  // ================= ENSURE SERVICE =================
+  Future<void> _ensureServiceId() async {
+    if (serviceId != null) return;
 
-      print("📬 GET Response: ${response.statusCode} | ${response.body}");
+    final prefs = await SharedPreferences.getInstance();
 
-      if (response.statusCode == 200) {
-        final parsed = jsonDecode(response.body);
-        currentAttributes = Map<String, dynamic>.from(parsed["attributes"] ?? {});
-        print("✅ Loaded current attributes: $currentAttributes");
-      } else {
-        print("❌ Failed to fetch existing attributes");
-      }
-    } catch (e) {
-      print("❌ Error fetching current attributes: $e");
+    final existing = await _vendorApi.getByVendorId(
+      vendorId: vendorId!,
+      token: token!,
+    );
+
+    if (existing != null) {
+      serviceId = existing['id'];
+      await prefs.setInt('serviceId', serviceId!);
+      return;
+    }
+
+    await _vendorApi.createService(
+      token: token!,
+      body: {
+        "vendor_id": vendorId,
+        if (vendorSubcategoryId != null)
+          "vendor_subcategory_id": vendorSubcategoryId,
+        "attributes": {},
+      },
+    );
+
+    final fresh = await _vendorApi.getByVendorId(
+      vendorId: vendorId!,
+      token: token!,
+    );
+
+    serviceId = fresh?['id'];
+    if (serviceId != null) {
+      await prefs.setInt('serviceId', serviceId!);
     }
   }
 
+
+  Future<String?> _openSearchBottomSheet({
+    required String title,
+    required List<String> items,
+  }) async {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        TextEditingController searchCtrl = TextEditingController();
+        List<String> filtered = List.from(items);
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.65,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: searchCtrl,
+                      decoration: InputDecoration(
+                        hintText: "Search...",
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        setModalState(() {
+                          filtered = items
+                              .where((e) =>
+                              e.toLowerCase().contains(val.toLowerCase()))
+                              .toList();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text("No results found"))
+                          : ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final value = filtered[index];
+                          return ListTile(
+                            title: Text(value),
+                            onTap: () =>
+                                Navigator.pop(context, value),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+
+  // ================= FETCH LOCATION =================
+  Future<void> _fetchLocationFromApi() async {
+    if (serviceId == null) return;
+
+    final res = await _vendorApi.getByServiceId(
+      serviceId: serviceId!,
+      token: token!,
+    );
+
+    currentAttributes =
+    Map<String, dynamic>.from(res?['attributes'] ?? {});
+
+    final location =
+    Map<String, dynamic>.from(currentAttributes['location'] ?? {});
+
+    setState(() {
+      addressController.text = currentAttributes['address'] ?? '';
+      selectedCity = currentAttributes['city'];
+      selectedCountry = currentAttributes['country'] ?? 'India';
+
+      stateController.text = location['state'] ?? '';
+      pincodeController.text = location['pincode'] ?? '';
+
+     // landmarkController.text = currentAttributes['landmark'] ?? '';
+      latitudeController.text = currentAttributes['latitude'] ?? '';
+      longitudeController.text = currentAttributes['longitude'] ?? '';
+
+      if (latitudeController.text.isNotEmpty &&
+          longitudeController.text.isNotEmpty) {
+        selectedLocation = LatLng(
+          double.parse(latitudeController.text),
+          double.parse(longitudeController.text),
+        );
+      }
+    });
+
+    if (selectedCountry != null) {
+      fetchCities(selectedCountry!);
+    }
+  }
+
+
+  // ================= COUNTRIES API =================
   Future<void> fetchCountries() async {
-    setState(() => loadingCountries = true);
-    print("🌍 Fetching countries...");
     try {
-      final response = await http.get(Uri.parse('https://restcountries.com/v3.1/all?fields=name'));
-      if (response.statusCode == 200) {
-        final List data = json.decode(response.body);
-        countries = data.map((c) => c['name']['common'] as String).toList();
-        countries.sort();
-        print("✅ Countries loaded: ${countries.length}");
-        setState(() => loadingCountries = false);
-        if (selectedCountry != null) fetchCities(selectedCountry!);
-      } else {
-        print("❌ Failed to fetch countries: ${response.statusCode}");
-        setState(() => loadingCountries = false);
-      }
-    } catch (e) {
-      print("❌ Error fetching countries: $e");
-      setState(() => loadingCountries = false);
-    }
+      final res = await http.get(
+        Uri.parse('https://restcountries.com/v3.1/all?fields=name'),
+      );
+      final List data = jsonDecode(res.body);
+      countries =
+      data.map((c) => c['name']['common'] as String).toList()..sort();
+    } catch (_) {}
+    setState(() => loadingCountries = false);
   }
 
+  // ================= CITIES API =================
   Future<void> fetchCities(String country) async {
     setState(() => loadingCities = true);
-    print("🌆 Fetching cities for country: $country...");
     try {
-      final response = await http.get(Uri.parse('https://countriesnow.space/api/v0.1/countries'));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['error'] == false && data['data'] != null) {
-          final countryData = (data['data'] as List)
-              .firstWhere((c) => c['country'] == country, orElse: () => null);
-          if (countryData != null && countryData['cities'] != null) {
-            final cities = List<String>.from(countryData['cities']);
-            setState(() {
-              citySuggestions = cities;
-              if (selectedCity == null || !citySuggestions.contains(selectedCity)) {
-                selectedCity = citySuggestions.isNotEmpty ? citySuggestions.first : null;
-              }
-            });
-            print("✅ Cities loaded: ${citySuggestions.length}, selected: $selectedCity");
-          } else {
-            setState(() {
-              citySuggestions = [];
-              selectedCity = null;
-            });
-            print("⚠ No cities found for country: $country");
-          }
-        }
-      } else {
-        setState(() {
-          citySuggestions = [];
-          selectedCity = null;
-        });
-        print("❌ Failed to fetch cities: ${response.statusCode}");
-      }
-    } catch (e) {
-      setState(() {
-        citySuggestions = [];
-        selectedCity = null;
-      });
-      print("❌ Error fetching cities: $e");
-    } finally {
-      setState(() => loadingCities = false);
+      final res = await http.get(
+        Uri.parse('https://countriesnow.space/api/v0.1/countries'),
+      );
+      final data = jsonDecode(res.body);
+      final c = data['data'].firstWhere((e) => e['country'] == country);
+      citySuggestions = List<String>.from(c['cities']);
+    } catch (_) {
+      citySuggestions = [];
     }
+    setState(() => loadingCities = false);
   }
 
   Future<void> saveLocation() async {
     if (savingLocation) return;
 
-    print("📤 Saving location...");
-    if (vendorId == null || vendorSubcategoryId == null || serviceId == null || token == null) {
-      print("❌ Missing vendor/service info.");
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Missing vendor/service info. Complete Basic Info first.")));
+    if (vendorId == null || token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Vendor not logged in")),
+      );
       return;
     }
 
     if (addressController.text.isEmpty ||
         selectedCity == null ||
+        selectedCountry == null ||
         stateController.text.isEmpty ||
-        pincodeController.text.isEmpty ||
-        selectedCountry == null) {
-      print("❌ Missing required fields.");
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Please fill all required fields")));
+        pincodeController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please fill all required fields")),
+      );
       return;
     }
 
     setState(() => savingLocation = true);
 
-    // Merge location fields into current attributes
-    currentAttributes["address"] = addressController.text.trim();
-    currentAttributes["city"] = selectedCity;
-    currentAttributes["state"] = stateController.text.trim();
-    currentAttributes["country"] = selectedCountry;
-    currentAttributes["pincode"] = pincodeController.text.trim();
-    currentAttributes["landmark"] = landmarkController.text.trim();
-    currentAttributes["latitude"] = latitudeController.text.trim();
-    currentAttributes["longitude"] = longitudeController.text.trim();
-
-    final requestBody = {
-      "vendor_id": vendorId,
-      "vendor_subcategory_id": vendorSubcategoryId,
-      "attributes": currentAttributes,
-    };
-
-    print("📦 Request Body: $requestBody");
-
     try {
-      final url = 'https://happywedz.com/api/vendor-services/$serviceId';
-      final response = await http.put(
-        Uri.parse(url),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
-        },
-        body: jsonEncode(requestBody),
+      await _ensureServiceId();
+
+      final latest = await _vendorApi.getByServiceId(
+        serviceId: serviceId!,
+        token: token!,
       );
 
-      print("📥 Response Status: ${response.statusCode}");
-      print("📜 Response Body: ${response.body}");
+      currentAttributes =
+      Map<String, dynamic>.from(latest?['attributes'] ?? {});
 
-      if (response.statusCode == 200) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('address', addressController.text.trim());
-        await prefs.setString('city', selectedCity ?? '');
-        await prefs.setString('state', stateController.text.trim());
-        await prefs.setString('zip', pincodeController.text.trim());
-        await prefs.setString('landmark', landmarkController.text.trim());
-        await prefs.setString('latitude', latitudeController.text.trim());
-        await prefs.setString('longitude', longitudeController.text.trim());
-        await prefs.setString('country', selectedCountry ?? 'India');
+      // 🔥 location object (IMPORTANT)
+      currentAttributes['location'] = {
+        "state": stateController.text.trim(),
+        "pincode": pincodeController.text.trim(),
+      };
 
-        print("✅ Location saved successfully.");
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Location saved successfully")));
-      } else {
-        print("❌ Failed to save location: ${response.body}");
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Failed to save location")));
+      currentAttributes.addAll({
+        "address": addressController.text.trim(),
+        "city": selectedCity,
+        "country": selectedCountry,
+       // "landmark": landmarkController.text.trim(),
+        "latitude": latitudeController.text.trim(),
+        "longitude": longitudeController.text.trim(),
+      });
+
+      final success = await _vendorApi.updateService(
+        serviceId: serviceId!,
+        token: token!,
+        body: {
+          "vendor_id": vendorId,
+          if (vendorSubcategoryId != null)
+            "vendor_subcategory_id": vendorSubcategoryId,
+          "attributes": currentAttributes,
+        },
+      );
+
+      if (success) {
+        await StorefrontCompletionService.refreshCompletion(
+          serviceId: serviceId!,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Location saved successfully")),
+        );
       }
     } catch (e) {
-      print("❌ Error saving location: $e");
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error saving location")));
+      print("❌ Save error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to save location")),
+      );
     }
 
     setState(() => savingLocation = false);
   }
 
-  Widget field(String label, TextEditingController controller,
-      {bool required = false, TextInputType keyboardType = TextInputType.text}) {
+
+  // ================= UI HELPERS =================
+  Widget field(String label, TextEditingController c,
+      {bool required = false, TextInputType type = TextInputType.text}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label + (required ? " *" : ""), style: TextStyle(fontWeight: FontWeight.w600)),
-        SizedBox(height: 5),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))],
-          ),
-          child: TextFormField(
-            controller: controller,
-            keyboardType: keyboardType,
-            decoration: InputDecoration(
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              border: InputBorder.none,
-            ),
+        Text(label + (required ? " *" : ""),
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        SizedBox(height: 6),
+        TextField(
+          controller: c,
+          keyboardType: type,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            border:
+            OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
-        SizedBox(height: 15),
+        SizedBox(height: 14),
       ],
     );
   }
 
-  Widget dropdownField(String label, String? value, List<String> items, Function(String?) onChanged,
-      {bool required = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label + (required ? " *" : ""), style: TextStyle(fontWeight: FontWeight.w600)),
-        SizedBox(height: 5),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))],
-          ),
-          child: DropdownButtonFormField<String>(
-            value: items.contains(value) ? value : null,
-            isExpanded: true,
-            items: items.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-            onChanged: onChanged,
-            decoration: InputDecoration(border: InputBorder.none),
-          ),
+  Widget countryDropdown() {
+    return GestureDetector(
+      onTap: () async {
+        final selected = await _openSearchBottomSheet(
+          title: "Select Country",
+          items: countries,
+        );
+
+        if (selected != null) {
+          setState(() {
+            selectedCountry = selected;
+            selectedCity = null;
+            fetchCities(selectedCountry!);
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey),
         ),
-        SizedBox(height: 15),
-      ],
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(selectedCountry ?? "Select Country *"),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
     );
   }
 
   Widget cityPicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("City *", style: TextStyle(fontWeight: FontWeight.w600)),
-        SizedBox(height: 5),
-        GestureDetector(
-          onTap: () async {
-            final selected = await showModalBottomSheet<String>(
-              context: context,
-              isScrollControlled: true,
-              builder: (context) {
-                TextEditingController searchController = TextEditingController();
-                List<String> filteredCities = List.from(citySuggestions);
+    return GestureDetector(
+      onTap: () async {
+        final selected = await _openSearchBottomSheet(
+          title: "Select City",
+          items: citySuggestions,
+        );
 
-                return StatefulBuilder(builder: (context, setModalState) {
-                  return Container(
-                    padding: EdgeInsets.all(16),
-                    height: MediaQuery.of(context).size.height * 0.6,
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: searchController,
-                          decoration: InputDecoration(
-                            hintText: "Search city",
-                            prefixIcon: Icon(Icons.search),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          onChanged: (val) {
-                            setModalState(() {
-                              filteredCities = citySuggestions
-                                  .where((c) => c.toLowerCase().contains(val.toLowerCase()))
-                                  .toList();
-                            });
-                          },
-                        ),
-                        SizedBox(height: 10),
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: filteredCities.length,
-                            itemBuilder: (context, index) {
-                              final city = filteredCities[index];
-                              return ListTile(
-                                title: Text(city),
-                                onTap: () {
-                                  Navigator.pop(context, city);
-                                },
-                              );
-                            },
-                          ),
-                        )
-                      ],
-                    ),
-                  );
-                });
-              },
-            );
-
-            if (selected != null) {
-              setState(() {
-                selectedCity = selected;
-                print("📌 City selected: $selectedCity");
-              });
-            }
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(selectedCity ?? "Select City"),
-                Icon(Icons.arrow_drop_down),
-              ],
-            ),
-          ),
+        if (selected != null) {
+          setState(() => selectedCity = selected);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey),
         ),
-        SizedBox(height: 15),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xffF2F2F2),
-      appBar: AppBar(
-        title: Text("Location & Service Areas", style: TextStyle(color: Colors.white)),
-        backgroundColor:  const Color(0xFF0072BB),
-        elevation: 1,
-        iconTheme: IconThemeData(color: Colors.black),
-      ),
-      body: loadingVendorData
-          ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            field("Address", addressController, required: true),
-            loadingCountries
-                ? CircularProgressIndicator()
-                : dropdownField("Country", selectedCountry, countries, (val) {
-              setState(() {
-                selectedCountry = val;
-                print("📌 Country selected: $val");
-                fetchCities(val!);
-              });
-            }, required: true),
-            loadingCities ? CircularProgressIndicator() : cityPicker(),
-            field("State", stateController, required: true),
-            field("Pincode", pincodeController, required: true, keyboardType: TextInputType.number),
-            field("Landmark", landmarkController),
-            field("Latitude", latitudeController, keyboardType: TextInputType.number),
-            field("Longitude", longitudeController, keyboardType: TextInputType.number),
-            SizedBox(height: 10),
-            Text("Pick on Map", style: TextStyle(fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Container(
-              height: 250,
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: selectedLocation,
-                  initialZoom: 5,
-                  onTap: (tapPosition, point) {
-                    setState(() {
-                      selectedLocation = point;
-                      latitudeController.text = point.latitude.toString();
-                      longitudeController.text = point.longitude.toString();
-                      print("📍 Map tapped at: ${point.latitude}, ${point.longitude}");
-                    });
-                  },
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                    userAgentPackageName: 'com.happywedz.vendor',
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: selectedLocation,
-                        width: 45,
-                        height: 45,
-                        child: Icon(Icons.location_pin, color: Colors.red, size: 45),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: savingLocation ? null : saveLocation,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00509D),
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: savingLocation
-                    ? CircularProgressIndicator(color: Colors.white)
-                    : Text("Save Location Details",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
+            Text(selectedCity ?? "Select City *"),
+            const Icon(Icons.arrow_drop_down),
           ],
         ),
       ),
+    );
+  }
+
+  // ================= UI =================
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: CommonAppBar(title: "Location & Service Areas"),
+      body: loadingVendorData
+          ? Center(child: CircularProgressIndicator())
+          : Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                        padding: EdgeInsets.all(16),
+                        child: Column(
+                children: [
+                  field("Address", addressController, required: true),
+                  loadingCountries
+                      ? CircularProgressIndicator()
+                      : countryDropdown(),
+                  SizedBox(height: 14),
+                  loadingCities ? CircularProgressIndicator() : cityPicker(),
+                  SizedBox(height: 14),
+                  field("State", stateController, required: true),
+                  field("Pincode", pincodeController,
+                      required: true, type: TextInputType.number),
+                 // field("Landmark", landmarkController),
+                  field("Latitude", latitudeController,
+                      type: TextInputType.number),
+                  field("Longitude", longitudeController,
+                      type: TextInputType.number),
+                  SizedBox(height: 10),
+                  SizedBox(
+                    height: 250,
+                    child: FlutterMap(
+                      options: MapOptions(
+                        initialCenter: selectedLocation,
+                        initialZoom: 5,
+                        onTap: (_, p) {
+                          setState(() {
+                            selectedLocation = p;
+                            latitudeController.text =
+                                p.latitude.toString();
+                            longitudeController.text =
+                                p.longitude.toString();
+                          });
+                        },
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                        ),
+                        MarkerLayer(markers: [
+                          Marker(
+                            point: selectedLocation,
+                            child: Icon(Icons.location_pin,
+                                color: Colors.red, size: 40),
+                          )
+                        ])
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                ],
+                        ),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: savingLocation ? null : saveLocation,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Color(0xFF00509D),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15)),
+                    ),
+                    child: savingLocation
+                        ? CircularProgressIndicator(color: Colors.white)
+                        : Text("Save Location Details",
+                        style: TextStyle(
+                            fontSize: 16,color: Colors.white
+                            )),
+                  ),
+                ),
+              ),
+            ],
+          ),
     );
   }
 }

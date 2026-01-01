@@ -2,14 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../chat_screen/chat_screenn.dart';
 import 'new_screens/leaddetails_screen.dart';
-
 
 class LeadsPage extends StatefulWidget {
   const LeadsPage({super.key});
-
-  // ✅ Shared static list to access from HomeTab
   static List<dynamic> latestLeads = [];
 
   @override
@@ -21,7 +17,14 @@ class _LeadsPageState extends State<LeadsPage> {
   String _sort = 'Newest';
   String _selectedFilter = 'All Enquiries';
   bool _isLoading = true;
+
+  /// 🔥 SERVER inbox list
   List<dynamic> _leads = [];
+
+  /// 🔥 read helper (local only)
+  Set<String> _openedLeadIds = {};
+
+  Map<String, String> _conversationMap = {};
 
   final List<String> _filters = [
     'All Enquiries',
@@ -32,88 +35,385 @@ class _LeadsPageState extends State<LeadsPage> {
     'Declined',
   ];
 
-  Set<String> _openedLeadIds = {};
-  Set<String> _archivedLeadIds = {};
-
   @override
   void initState() {
     super.initState();
-    _fetchLeads();
+    _loadReadLeads();
+    _loadInitialData();
+    _searchCtrl.addListener(() {
+      setState(() {});
+    });
+  }
+
+  // ================= ARCHIVE =================
+
+  Future<bool> _archiveLeadOnServer(String inboxId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (token == null || token.isEmpty) return false;
+
+      final res = await http.patch(
+        Uri.parse('https://happywedz.com/api/inbox/$inboxId/archive'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint("🔥 ARCHIVE ERROR => $e");
+      return false;
+    }
+  }
+
+  // ================= MARK AS READ (SERVER) =================
+
+  Future<void> _markAsReadOnServer(String inboxId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (token == null || token.isEmpty) return;
+
+      await http.patch(
+        Uri.parse('https://happywedz.com/api/inbox/$inboxId/read'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+    } catch (e) {
+      debugPrint("🔥 READ API ERROR => $e");
+    }
+  }
+
+  // ================= DELETE =================
+
+  Future<bool> _deleteLeadOnServer(String inboxId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (token == null || token.isEmpty) return false;
+
+      final res = await http.delete(
+        Uri.parse('https://happywedz.com/api/inbox/$inboxId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("🔥 DELETE ERROR => $e");
+      return false;
+    }
+  }
+  Future<void> _confirmDelete(String inboxId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: Color(0xFF00509D), // dark red border
+            width: 2.5,
+          ),
+        ),
+        title: const Text("Delete Lead"),
+        content: const Text(
+          "Are you sure you want to delete this enquiry?\nThis action cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel", style: TextStyle(color: Colors.black),),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade800,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.white),),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await _deleteLeadOnServer(inboxId);
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Lead deleted successfully")),
+      );
+      await _fetchLeads(); // 🔥 refresh list
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to delete lead")),
+      );
+    }
+  }
+
+
+  Future<void> _toggleArchive(String inboxId) async {
+    final success = await _archiveLeadOnServer(inboxId);
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to update archive status")),
+      );
+      return;
+    }
+
+    /// 🔥 Always refresh from server (web + mobile sync)
+    await _fetchLeads();
+  }
+
+  // ================= READ / UNREAD =================
+
+  Future<void> _loadReadLeads() async {
+    final prefs = await SharedPreferences.getInstance();
+    _openedLeadIds = (prefs.getStringList('read_leads') ?? []).toSet();
+  }
+
+  Future<void> _markAsRead(String inboxId) async {
+    // 🔥 1. server ko update
+    await _markAsReadOnServer(inboxId);
+
+    // 🔥 2. local helper (fast UI)
+    final prefs = await SharedPreferences.getInstance();
+    _openedLeadIds.add(inboxId);
+    await prefs.setStringList('read_leads', _openedLeadIds.toList());
+
+    // 🔥 3. unread count refresh
+    await _updateUnreadCount();
+  }
+
+  Future<void> _updateUnreadCount() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final unreadCount = _leads.where((item) {
+      return item['isRead'] == false && item['isArchived'] == false;
+    }).length;
+
+    await prefs.setInt('unread_leads_count', unreadCount);
+  }
+
+  // ================= LOAD =================
+
+  Future<void> _loadInitialData() async {
+    setState(() => _isLoading = true);
+
+    await Future.wait([
+      _fetchLeads(),
+      _fetchConversations(),
+    ]);
+
+    setState(() => _isLoading = false);
   }
 
   Future<void> _fetchLeads() async {
-    setState(() => _isLoading = true);
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('token') ?? prefs.getString('authToken');
 
-      if (token == null || token.isEmpty) {
-        print("🔴 No token found.");
-        setState(() => _isLoading = false);
-        return;
-      }
+      if (token == null || token.isEmpty) return;
 
-      final uri = Uri.parse('https://happywedz.com/api/inbox');
       final res = await http.get(
-        uri,
-        headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
+        Uri.parse('https://happywedz.com/api/inbox'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
       );
 
-      print("🟣 API ${res.statusCode}");
-      print(res.body);
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
 
-      dynamic data = json.decode(res.body);
-      if (res.statusCode == 200 && data is Map) {
         setState(() {
-          _leads = data["inbox"] ?? data["data"] ?? [];
-          LeadsPage.latestLeads = _leads; // ✅ store globally
-          _isLoading = false;
+          _leads = data["inbox"] ?? [];
         });
-      } else {
-        setState(() => _isLoading = false);
+
+        LeadsPage.latestLeads = _leads;
+        await _updateUnreadCount();
       }
     } catch (e) {
-      print("🔥 Exception: $e");
-      setState(() => _isLoading = false);
+      debugPrint("🔥 Leads error: $e");
     }
   }
 
+  Future<void> _fetchConversations() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (token == null) return;
+
+      final res = await http.get(
+        Uri.parse("https://happywedz.com/api/messages/vendor/conversations"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Accept": "application/json",
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+
+        for (var c in list) {
+          final requestId = c['requestId']?.toString();
+          final conversationId = c['id']?.toString();
+          print("🟢 Found => requestId: $requestId | conversationId: $conversationId");
+
+          if (requestId != null && conversationId != null) {
+            _conversationMap[requestId] = conversationId;
+          }
+        }
+        print("📦 Conversation Map => $_conversationMap");
+      }
+    } catch (e) {
+      debugPrint("🔥 Conversation error: $e");
+    }
+  }
+
+  // List<dynamic> get _filteredLeads {
+  //   final query = _searchCtrl.text.toLowerCase().trim();
+  //
+  //   List<dynamic> leads = _leads;
+  //
+  //   switch (_selectedFilter) {
+  //     case 'Unread':
+  //       leads = leads
+  //           .where((l) => l['isRead'] == false && l['isArchived'] == false)
+  //           .toList();
+  //       break;
+  //
+  //     case 'Archived':
+  //       leads = leads.where((l) => l['isArchived'] == true).toList();
+  //       break;
+  //
+  //     case 'Pending':
+  //       leads = leads
+  //           .where((l) =>
+  //       l['isArchived'] == false &&
+  //           (l['request']?['status'] ?? '').toLowerCase() == 'pending')
+  //           .toList();
+  //       break;
+  //
+  //     case 'Booked':
+  //       leads = leads
+  //           .where((l) =>
+  //       l['isArchived'] == false &&
+  //           (l['request']?['status'] ?? '').toLowerCase() == 'booked')
+  //           .toList();
+  //       break;
+  //
+  //     case 'Declined':
+  //       leads = leads
+  //           .where((l) =>
+  //       l['isArchived'] == false &&
+  //           (l['request']?['status'] ?? '').toLowerCase() == 'declined')
+  //           .toList();
+  //       break;
+  //
+  //     default:
+  //       leads = leads.where((l) => l['isArchived'] == false).toList();
+  //   }
+  //
+  //   if (query.isNotEmpty) {
+  //     leads = leads.where((l) {
+  //       final r = l['request'];
+  //       final name =
+  //       "${r['firstName'] ?? ''} ${r['lastName'] ?? ''}".toLowerCase();
+  //       return name.contains(query);
+  //     }).toList();
+  //   }
+  //
+  //   return leads;
+  // }
   List<dynamic> get _filteredLeads {
-    final leads = _leads.map((l) => l['request'] ?? l).toList();
+    final query = _searchCtrl.text.toLowerCase().trim();
 
-    switch (_selectedFilter) {
-      case 'Unread':
-        return leads
-            .where((l) => !_openedLeadIds.contains((l['_id'] ?? l['id']).toString()))
-            .toList();
-      case 'Archived':
-        return leads
-            .where((l) => _archivedLeadIds.contains((l['_id'] ?? l['id']).toString()))
-            .toList();
-      case 'Pending':
-        return leads
-            .where((l) => (l['status'] ?? '').toString().toLowerCase() == 'pending')
-            .toList();
-      case 'Booked':
-        return leads
-            .where((l) => (l['status'] ?? '').toString().toLowerCase() == 'booked')
-            .toList();
-      case 'Declined':
-        return leads
-            .where((l) => (l['status'] ?? '').toString().toLowerCase() == 'declined')
-            .toList();
-      default:
-        return leads
-            .where((l) => !_archivedLeadIds.contains((l['_id'] ?? l['id']).toString()))
-            .toList();
+    // 🔥 STEP 1: SEARCH FIRST (NO FILTER)
+    List<dynamic> leads = query.isNotEmpty
+        ? _leads.where((l) {
+      final r = l['request'];
+      final name =
+      "${r['firstName'] ?? ''} ${r['lastName'] ?? ''}".toLowerCase();
+      return name.contains(query);
+    }).toList()
+        : List.from(_leads);
+
+    // 🔥 STEP 2: FILTER ONLY WHEN SEARCH IS EMPTY
+    if (query.isEmpty) {
+      switch (_selectedFilter) {
+        case 'Unread':
+          leads = leads
+              .where((l) => l['isRead'] == false && l['isArchived'] == false)
+              .toList();
+          break;
+
+        case 'Archived':
+          leads = leads.where((l) => l['isArchived'] == true).toList();
+          break;
+
+        case 'Pending':
+          leads = leads
+              .where((l) =>
+          l['isArchived'] == false &&
+              (l['request']?['status'] ?? '')
+                  .toLowerCase() ==
+                  'pending')
+              .toList();
+          break;
+
+        case 'Booked':
+          leads = leads
+              .where((l) =>
+          l['isArchived'] == false &&
+              (l['request']?['status'] ?? '')
+                  .toLowerCase() ==
+                  'booked')
+              .toList();
+          break;
+
+        case 'Declined':
+          leads = leads
+              .where((l) =>
+          l['isArchived'] == false &&
+              (l['request']?['status'] ?? '')
+                  .toLowerCase() ==
+                  'declined')
+              .toList();
+          break;
+
+        default:
+          leads = leads.where((l) => l['isArchived'] == false).toList();
+      }
     }
+
+    return leads;
   }
+
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
   }
+
+  // ================= UI (100% SAME) =================
 
   @override
   Widget build(BuildContext context) {
@@ -127,29 +427,22 @@ class _LeadsPageState extends State<LeadsPage> {
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Color(0xFF003F88), // French Blue
-                  Color(0xFF00509D), // Steel Azure
+                  Color(0xFF003F88),
+                  Color(0xFF00509D),
                 ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
               ),
             ),
             padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Leads',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Spacer(),
-                  ],
+                const Text(
+                  'Enquirys',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _buildSearch(),
@@ -158,14 +451,14 @@ class _LeadsPageState extends State<LeadsPage> {
               ],
             ),
           ),
-
           Expanded(
             child: RefreshIndicator(
               onRefresh: _fetchLeads,
               color: const Color(0xFFFF4D79),
               child: _isLoading
                   ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFFFF4D79)),
+                child: CircularProgressIndicator(
+                    color: Color(0xFFFF4D79)),
               )
                   : _filteredLeads.isEmpty
                   ? const Center(
@@ -179,11 +472,11 @@ class _LeadsPageState extends State<LeadsPage> {
                 ),
               )
                   : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
                 itemCount: _filteredLeads.length,
                 itemBuilder: (context, index) {
-                  final lead = _filteredLeads[index];
-                  return _buildLeadCard(lead);
+                  return _buildLeadCard(_filteredLeads[index]);
                 },
               ),
             ),
@@ -193,38 +486,46 @@ class _LeadsPageState extends State<LeadsPage> {
     );
   }
 
-  Widget _buildLeadCard(dynamic lead) {
-    final name = "${lead['firstName'] ?? ''} ${lead['lastName'] ?? ''}".trim();
+  Widget _buildLeadCard(dynamic item) {
+    final lead = item['request'];
+    final inboxId = item['id'].toString();
+
+    final name =
+    "${lead['firstName'] ?? ''} ${lead['lastName'] ?? ''}".trim();
     final date = lead['eventDate'] ?? 'N/A';
     final status = lead['status'] ?? 'N/A';
-    final msg = (lead['message'] ?? '').isEmpty ? 'No message' : lead['message'];
-    final id = (lead['_id'] ?? lead['id'] ?? '').toString();
+    final msg =
+    (lead['message'] ?? '').isEmpty ? 'No message' : lead['message'];
 
-    // 🔵 BLUE THEME STATUS COLORS
     Color statusColor;
     switch (status.toLowerCase()) {
       case 'booked':
-        statusColor = const Color(0xFF003F88); // Dark Steel Blue
+        statusColor = const Color(0xFF003F88);
         break;
       case 'pending':
-        statusColor = const Color(0xFF4A90E2); // Medium Blue
+        statusColor = const Color(0xFF4A90E2);
         break;
       case 'declined':
-        statusColor = const Color(0xFF89C2D9); // Light Blue
+        statusColor = const Color(0xFF89C2D9);
         break;
       default:
-        statusColor = const Color(0xFFBFD7ED); // Very Light Blue
+        statusColor = const Color(0xFFBFD7ED);
     }
 
     return InkWell(
       onTap: () async {
-        _openedLeadIds.add(id);
-        final updated = await Navigator.push(
+        await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => LeadDetailScreen(lead: lead)),
+          MaterialPageRoute(
+            builder: (_) => LeadDetailScreen(
+              lead: lead,
+              conversationId: _conversationMap[inboxId],
+            ),
+          ),
         );
-        if (updated == true) _fetchLeads();
-        setState(() {});
+
+        await _markAsRead(inboxId);
+        await _fetchLeads();
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -245,35 +546,22 @@ class _LeadsPageState extends State<LeadsPage> {
             ListTile(
               contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-
-              // 🔵 Avatar blue color
               leading: CircleAvatar(
                 radius: 25,
                 backgroundColor: const Color(0xFF00509D),
                 child: Text(
                   name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                  style:
+                  const TextStyle(color: Colors.white, fontSize: 18),
                 ),
               ),
-
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: Colors.black,
-                        // decoration: _archivedLeadIds.contains(id)
-                        //     ? TextDecoration.lineThrough
-                        //     : null,
-                      ),
-                    ),
-                  ),
-                ],
+              title: Text(
+                name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
               ),
-
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Column(
@@ -293,72 +581,69 @@ class _LeadsPageState extends State<LeadsPage> {
                   ],
                 ),
               ),
-
             ),
-
-            // ⋮ Menu + Status Badge
             Positioned(
               right: 10,
               top: 8,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  // PopupMenuButton<String>(
+                  //   onSelected: (value) async {
+                  //     if (value == 'archive') {
+                  //       await _toggleArchive(inboxId);
+                  //     }
+                  //   },
+                  //   itemBuilder: (context) => [
+                  //     PopupMenuItem(
+                  //       value: 'archive',
+                  //       child: Text(
+                  //         item['isArchived'] ? 'Unarchive' : 'Archive',
+                  //       ),
+                  //     ),
+                  //   ],
+                  //   icon:
+                  //   const Icon(Icons.more_horiz, color: Colors.grey),
+                  // ),
                   PopupMenuButton<String>(
-                    onSelected: (value) {
+                    color: Colors.white,
+                    onSelected: (value) async {
                       if (value == 'archive') {
-                        setState(() {
-                          if (_archivedLeadIds.contains(id)) {
-                            _archivedLeadIds.remove(id);
-                          } else {
-                            _archivedLeadIds.add(id);
-                          }
-                        });
-                      }
-
-                      if (value == 'delete') {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text("Delete Lead"),
-                            content: const Text(
-                                "Are you sure you want to delete this lead?"),
-                            actions: [
-                              TextButton(
-                                child: const Text("Cancel"),
-                                onPressed: () => Navigator.pop(context),
-                              ),
-                              TextButton(
-                                child: const Text("Delete",
-                                    style: TextStyle(color: Colors.red)),
-                                onPressed: () {
-                                  setState(() {
-                                    _leads.removeWhere((item) =>
-                                    (item['_id'] ?? item['id'])
-                                        .toString() ==
-                                        id);
-                                  });
-                                  Navigator.pop(context);
-                                },
-                              ),
-                            ],
-                          ),
-                        );
+                        await _toggleArchive(inboxId);
+                      } else if (value == 'delete') {
+                        await _confirmDelete(inboxId);
                       }
                     },
                     itemBuilder: (context) => [
                       PopupMenuItem(
                         value: 'archive',
-                        child: Text(
-                          _archivedLeadIds.contains(id)
-                              ? 'Unarchive'
-                              : 'Archive',
+                        child: Row(
+                          children: [
+                        Icon(
+                        item['isArchived']
+                        ? Icons.unarchive
+                          : Icons.archive,
+                          color: Colors.blueGrey,
+                          size: 18,
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                         Text(
+                          item['isArchived'] ? 'Unarchive' : 'Archive',
+                        ),
+                          ]
+                      ),),
+                      const PopupMenuDivider(),
                       const PopupMenuItem(
                         value: 'delete',
-                        child: Text(
-                          'Delete',
-                          style: TextStyle(color: Colors.red),
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, color: Colors.red, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Delete',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -366,11 +651,9 @@ class _LeadsPageState extends State<LeadsPage> {
                   ),
 
                   const SizedBox(height: 4),
-
-                  // 🔵 BLUE STATUS BADGE
                   Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(10),
@@ -393,7 +676,6 @@ class _LeadsPageState extends State<LeadsPage> {
     );
   }
 
-
   Widget _buildSearch() {
     return TextField(
       controller: _searchCtrl,
@@ -403,7 +685,8 @@ class _LeadsPageState extends State<LeadsPage> {
         prefixIcon: const Icon(Icons.search),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+        contentPadding:
+        const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -425,27 +708,21 @@ class _LeadsPageState extends State<LeadsPage> {
               label,
               style: TextStyle(
                 color: isSelected
-                    ? const Color(0xFF00509D)  // Steel Azure text
+                    ? const Color(0xFF00509D)
                     : Colors.black87,
                 fontWeight: FontWeight.w600,
               ),
             ),
-
             selected: isSelected,
-
-            // Always white background
             backgroundColor: Colors.white,
             selectedColor: Colors.white,
-
-            // Border becomes Steel Azure when selected
             side: BorderSide(
               color: isSelected
                   ? const Color(0xFF00509D)
                   : Colors.grey.shade300,
             ),
-
-            onSelected: (_) => setState(() => _selectedFilter = label),
-
+            onSelected: (_) =>
+                setState(() => _selectedFilter = label),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -454,6 +731,4 @@ class _LeadsPageState extends State<LeadsPage> {
       }).toList(),
     );
   }
-
 }
-

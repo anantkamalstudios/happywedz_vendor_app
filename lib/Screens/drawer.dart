@@ -105,37 +105,38 @@ Future<void> _loadVendorId() async {
   }
 
   /// ✅ Show Edit Options
-  void _showEditOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo, color: Colors.blue),
-              title: const Text("Change Photo"),
-              onTap: () {
-                Navigator.pop(context);
-                _pickCoverImage();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text("Remove Photo"),
-              onTap: () {
-                Navigator.pop(context);
-                _removeCoverImage();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // void _showEditOptions() {
+  //   showModalBottomSheet(
+  //     backgroundColor: Colors.white,
+  //     context: context,
+  //     shape: const RoundedRectangleBorder(
+  //       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+  //     ),
+  //     builder: (_) {
+  //       return Column(
+  //         mainAxisSize: MainAxisSize.min,
+  //         children: [
+  //           ListTile(
+  //             leading: const Icon(Icons.photo, color: Colors.blue),
+  //             title: const Text("Change Photo"),
+  //             onTap: () {
+  //               Navigator.pop(context);
+  //               _pickCoverImage();
+  //             },
+  //           ),
+  //           ListTile(
+  //             leading: const Icon(Icons.delete, color: Colors.red),
+  //             title: const Text("Remove Photo"),
+  //             onTap: () {
+  //               Navigator.pop(context);
+  //               _removeCoverImage();
+  //             },
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -200,13 +201,18 @@ Future<void> _loadVendorId() async {
                                 ),
                               ),
                               SizedBox(width: 4),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit,
-                                  color: Colors.black,
-                                  size: 20,
-                                ), onPressed: () { _showEditOptions(); },
-                              ),
+                              // IconButton(
+                              //   icon: const Icon(
+                              //     Icons.add_a_photo,
+                              //    // color: Color(0xFF4682B4),
+                              //     color: Colors.black,
+                              //     size: 20,
+                              //   ),
+                              //   onPressed: () {
+                              //     _showEditOptions();
+                              //   },
+                              // ),
+
                             ],
                           ),
                         ],
@@ -216,41 +222,9 @@ Future<void> _loadVendorId() async {
                 ),
               ),
 
-              // Positioned(
-              //   top: 12,
-              //   right: 12,
-              //   child: Container(
-              //     decoration: BoxDecoration(
-              //       color: Colors.black.withOpacity(0.6),
-              //       shape: BoxShape.circle,
-              //     ),
-              //     child: IconButton(
-              //       icon: const Icon(
-              //         Icons.edit,
-              //         color: Colors.white,
-              //         size: 20,
-              //       ),
-              //       onPressed: _showEditOptions,
-              //     ),
-              //   ),
-              // ),
             ],
           ),
 
-
-
-          /// Stats
-          // Padding(
-          //   padding: const EdgeInsets.symmetric(horizontal: 16),
-          //   child: Row(
-          //     mainAxisAlignment: MainAxisAlignment.spaceAround,
-          //     children: [
-          //       _statItem("Leads", "$leadCount"),
-          //       _statItem("Reviews", "45"),
-          //       _statItem("Views", "$viewsCount"),
-          //     ],
-          //   ),
-          // ),
 
           /// MENU ITEMS
           Expanded(
@@ -260,13 +234,6 @@ Future<void> _loadVendorId() async {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  // _drawerItem(
-                  //   context,
-                  //   Icons.info_outline,
-                  //   "Public Info",
-                  //   const Placeholder(),
-                  //   iconColor: const Color(0xFF4682B4),
-                  // ),
 
                   ListTile(
                     leading: const Icon(Icons.storefront_outlined,
@@ -304,15 +271,15 @@ Future<void> _loadVendorId() async {
                     },
                   ),
 
-                  ListTile(
-                    leading: const Icon(Icons.support_agent,
-                        color: Color(0xFF4682B4)),
-                    title: const Text("Contact Support"),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      _contactSupport();
-                    },
-                  ),
+                  // ListTile(
+                  //   leading: const Icon(Icons.support_agent,
+                  //       color: Color(0xFF4682B4)),
+                  //   title: const Text("Contact Support"),
+                  //   onTap: () async {
+                  //     Navigator.pop(context);
+                  //     _contactSupport();
+                  //   },
+                  // ),
 
                   ListTile(
                     leading: const Icon(Icons.star_rate,
@@ -340,8 +307,6 @@ Future<void> _loadVendorId() async {
                 await SharedPreferences.getInstance();
                 await prefs.clear();
 
-                // Navigator.pushNamedAndRemoveUntil(
-                //     context, "/login", (route) => false);
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
