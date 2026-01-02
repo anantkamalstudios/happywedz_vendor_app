@@ -1,19 +1,20 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:happy_weds_vendors/Screens/FAQs/Makeup.dart';
-import 'package:happy_weds_vendors/Screens/FAQs/Pandits.dart';
-import 'package:happy_weds_vendors/Screens/ReviewScreen.dart';
 import 'package:happy_weds_vendors/Screens/StatsScreen.dart';
-import 'package:happy_weds_vendors/Screens/upload_album_screen.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import '../Storefront/PhotosScreen.dart';
+import '../Storefront/StoreFront.dart';
+import '../api_services/api_service_vendor.dart';
 import 'FAQs/Florists.dart';
-import 'FAQs/ProfileScreen.dart';
+import 'FAQs/Makeup.dart';
+import 'FAQs/Pandits.dart';
+import 'FAQs/storefront_percentage_bar.dart';
 import 'LeadsScreen.dart';
+import 'ReviewScreen.dart';
+import 'ViewPlanScreen.dart';
 import 'drawer.dart';
 import 'FAQs/BridalWear.dart';
 import 'FAQs/Caterars.dart';
@@ -25,25 +26,27 @@ import 'FAQs/Photographer.dart';
 import 'FAQs/Venues.dart';
 import 'FAQs/WeddingDj.dart';
 import 'FAQs/WeddingGift.dart';
-
+import 'new_screens/review_collector.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  static _HomeScreenState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_HomeScreenState>();
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  //int? vendorId;
-
 
   final List<Widget> _defaultPages = [
     const HomeTab(),     // 0 - Home
     const LeadsPage(),   // 1 - Leads
     const ReviewsPage(), // 2 - Reviews
-    const StatsPage(),   // 3 - Profile / Stats
+    const StatsPage(),   // 3 - stats
   ];
 
 
@@ -53,9 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _pages = List.from(_defaultPages);
-    //_loadVendorId();
   }
-
 
   void _onItemTapped(int index) {
     setState(() {
@@ -96,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? const Color(0xFF00509D)
                   : Colors.grey,
             ),
-            label: "Leads",
+            label: "Enquirys",
           ),
           BottomNavigationBarItem(
             icon: Image.asset(
@@ -138,6 +139,9 @@ class _HomeTabState extends State<HomeTab> {
   String _vendorTypeName = "";
   List<dynamic> _recentLeads = [];
   bool _isLoading = true;
+  int _unreadCount = 0;
+  final VendorServiceApi _vendorApi = VendorServiceApi();
+  int? _serviceId;
 
   final Map<String, Widget Function()> faqScreens = {
     "photographers": () => const PhotographerFaqScreen(),
@@ -155,23 +159,121 @@ class _HomeTabState extends State<HomeTab> {
     "music and dance": () => WeddingDjScreen(),
   };
 
+
   @override
   void initState() {
     super.initState();
     _loadVendorType();
-    _fetchRecentLeads();
-    super.didChangeDependencies();
-    _refreshProgress();
+    _loadServiceAndProgress();
+  //  _refreshProgress();
+    _startUnreadPolling();
+    _loadUnreadCount();
 
   }
 
-  Future<void> _refreshProgress() async {
-    double p = await ProfileCompletionController.getCompletion();
-    setState(() {
-      _progress = p;
+  void _startUnreadPolling() async {
+    await _refreshUnread();
+
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 20));
+      if (!mounted) return false;
+      await _refreshUnread();
+      return true;
     });
   }
 
+  Future<int> _fetchUnreadCountFromApi() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (token == null || token.isEmpty) return 0;
+
+      final res = await http.get(
+        Uri.parse('https://happywedz.com/api/inbox'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final List leads = data['inbox'] ?? [];
+
+        final unreadCount = leads.where((item) {
+          return item['isRead'] == false && item['isArchived'] == false;
+        }).length;
+
+        return unreadCount;
+      }
+      return 0;
+    } catch (e) {
+      debugPrint("🔥 UNREAD API ERROR => $e");
+      return 0;
+    }
+  }
+
+  Future<void> _loadServiceAndProgress() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final token =
+          prefs.getString('token') ?? prefs.getString('authToken');
+      final vendorId = prefs.getInt('vendorId');
+
+      if (token == null || vendorId == null) {
+        print("❌ token/vendorId missing");
+        return;
+      }
+
+      // 🔥 Step 1: get serviceId
+      final serviceId = await _vendorApi.getServiceIdByVendorId(
+        vendorId: vendorId,
+        token: token,
+      );
+
+      if (serviceId == null) {
+        print("❌ serviceId not found");
+        return;
+      }
+
+      _serviceId = serviceId;
+      print("✅ Service ID: $_serviceId");
+
+      // 🔥 Step 2: fetch profile completion
+      final progress =
+      await ProfileCompletionService.fetchCompletion(
+        serviceId: _serviceId!,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _progress = progress; // 0.0 – 1.0
+      });
+    } catch (e) {
+      print("❌ Error loading service progress: $e");
+    }
+  }
+
+  Future<void> _refreshUnread() async {
+    final count = await _fetchUnreadCountFromApi();
+    if (!mounted) return;
+
+    setState(() {
+      _unreadCount = count;
+    });
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final count = await _fetchUnreadCountFromApi();
+    if (mounted) {
+      setState(() {
+        _unreadCount = count;
+      });
+    }
+  }
 
   Future<void> _loadVendorType() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -180,52 +282,54 @@ class _HomeTabState extends State<HomeTab> {
     });
   }
 
-  Future<void> _fetchRecentLeads() async {
-    setState(() => _isLoading = true);
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('token') ?? prefs.getString('authToken');
-
-      if (token == null || token.isEmpty) {
-        print("🔴 No token found");
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final response = await http.get(
-        Uri.parse("https://happywedz.com/api/inbox"),
-        headers: {
-          "Accept": "application/json",
-          "Authorization": "Bearer $token",
-        },
-      );
-
-      print("🟢 Recent Leads Status: ${response.statusCode}");
-      print(response.body);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          final leads = data["inbox"] ?? data["data"] ?? [];
-          _recentLeads = leads.take(2).toList(); // show top 2
-          _isLoading = false;
-        });
-      } else {
-        print("❌ Failed: ${response.statusCode}");
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      print("⚠️ Error fetching recent leads: $e");
-      setState(() => _isLoading = false);
-    }
-  }
+  // Future<void> _fetchRecentLeads() async {
+  //   setState(() => _isLoading = true);
+  //   try {
+  //     SharedPreferences prefs = await SharedPreferences.getInstance();
+  //     String? token = prefs.getString('token') ?? prefs.getString('authToken');
+  //
+  //     if (token == null || token.isEmpty) {
+  //       print("🔴 No token found");
+  //       setState(() => _isLoading = false);
+  //       return;
+  //     }
+  //
+  //     final response = await http.get(
+  //       Uri.parse("https://happywedz.com/api/inbox"),
+  //       headers: {
+  //         "Accept": "application/json",
+  //         "Authorization": "Bearer $token",
+  //       },
+  //     );
+  //
+  //     print("🟢 Recent Leads Status: ${response.statusCode}");
+  //     print(response.body);
+  //
+  //     if (response.statusCode == 200) {
+  //       final data = jsonDecode(response.body);
+  //       setState(() {
+  //         final leads = data["inbox"] ?? data["data"] ?? [];
+  //         _recentLeads = leads.take(2).toList(); // show top 2
+  //         _isLoading = false;
+  //       });
+  //     } else {
+  //       print("❌ Failed: ${response.statusCode}");
+  //       setState(() => _isLoading = false);
+  //     }
+  //   } catch (e) {
+  //     print("⚠️ Error fetching recent leads: $e");
+  //     setState(() => _isLoading = false);
+  //   }
+  // }
 
   Widget _queriesCard(BuildContext context) {
-    int count = _recentLeads.length; // Number of new queries
+
+    int count = _unreadCount;
+
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const LeadsPage()));
+        HomeScreen.of(context)?._onItemTapped(1); // Leads tab
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -247,10 +351,13 @@ class _HomeTabState extends State<HomeTab> {
                         fontSize: 15,
                         fontWeight: FontWeight.w500),
                     children: [
-                      const TextSpan(text: "You have "),
                       TextSpan(
-                          text: "$count new queries",
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                        text: count > 0
+                            ? "You have $count new queries"
+                            : "no new queries",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
                     ],
                   ),
                 ),
@@ -272,15 +379,10 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
-
       appBar: AppBar(
         leading: Builder(
           builder: (context) {
@@ -295,15 +397,15 @@ class _HomeTabState extends State<HomeTab> {
         automaticallyImplyLeading: false,
         backgroundColor: const Color(0xFF003F88), // French Blue
         title: const Text(
-          "HappyWeds Business",
-          style: TextStyle(color: Colors.white),
+          "HappyWedz Business",
+          style: TextStyle(color: Colors.white , fontWeight: FontWeight.bold),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.notifications, color: Colors.white),
+        //     onPressed: () {},
+        //   ),
+        // ],
       ),
 
       drawer: BusinessDrawer(),
@@ -311,9 +413,29 @@ class _HomeTabState extends State<HomeTab> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            ProfileCompletionBar(progress: _progress),
+            ProfileCompletionBar(
+              progress: _progress,
+              onTap: () async {
+                final prefs = await SharedPreferences.getInstance();
+                final vendorId = prefs.getInt('vendorId');
+
+                if (vendorId == null) {
+                  debugPrint("❌ vendorId is null");
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Storefront(vendorId: vendorId),
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: 15),
-            _queriesCard(context),
+            if (_unreadCount > 0) _queriesCard(context),
+
+            // _queriesCard(context),
             const SizedBox(height: 15),
             // _quickActionsBar(context, _vendorTypeName, faqScreens),
             const SizedBox(height: 10),
@@ -321,6 +443,9 @@ class _HomeTabState extends State<HomeTab> {
             SizedBox(height: 24),
             _getReviewsCard(context),
             SizedBox(height: 24),
+           // _phoneUpdateCard(),
+         //   SizedBox(height: 24),
+            _membershipPlansCard(context),
 
           ],
         ),
@@ -505,10 +630,11 @@ Widget _uploadAlbumCard(BuildContext context) {
         // White rounded button
         ElevatedButton(
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const UploadAlbumPage()),
-            );
+            // Navigator.push(
+            //   context,
+            //   MaterialPageRoute(builder: (_) => const UploadAlbumPage()),
+            // );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => GalleryUploadPage()));
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF00509D), // Steel Azure
@@ -578,15 +704,19 @@ Widget _getReviewsCard(BuildContext context) {
             // Ask for Reviews Button
             _roundedOutlineButton(
               label: "Ask for\nReviews",
-              onTap: () {},
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ReviewCollectorScreen()));
+              },
             ),
 
             const SizedBox(width: 16),
-
-            // Upload Reviews Button
             _roundedOutlineButton(
               label: "Upload\nReviews",
-              onTap: () {},
+              onTap: () async {
+                await Share.share(
+                  "Hey! Please share your review about my work 😊",
+                );
+              },
             ),
           ],
         ),
@@ -656,37 +786,47 @@ Widget _roundedOutlineButton({required String label, required VoidCallback onTap
 // }
 
 
+Widget _membershipPlansCard(BuildContext context) {
+  return _buildCard(
+    child:
+    Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: const Color(0xFF00509D),
+          width: 1,
+        )
 
-//
-// Widget _membershipPlansCard(BuildContext context) {
-//   return _buildCard(
-//     child: Row(
-//       children: [
-//         const Icon(
-//           Icons.card_membership,
-//           color: Color(0xFF00509D), // Steel Azure
-//           size: 40,
-//         ),
-//         const SizedBox(width: 12),
-//         const Expanded(
-//           child: Text(
-//             "Upgrade to Premium Membership to get more leads & visibility",
-//             style: TextStyle(fontSize: 14),
-//           ),
-//         ),
-//         TextButton(
-//           onPressed: () {
-//             Navigator.push(
-//               context,
-//               MaterialPageRoute(builder: (context) => ViewPlansScreen()),
-//             );
-//           },
-//           child: const Text("View Plans"),
-//         ),
-//       ],
-//     ),
-//   );
-// }
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.card_membership,
+            color: Color(0xFF00509D), // Steel Azure
+            size: 40,
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              "Upgrade to Premium Membership to get more leads & visibility",
+              style: TextStyle(fontSize: 14),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ViewPlansScreen()),
+              );
+            },
+            child: const Text("View Plans", style: TextStyle(color: Color(0xFF00509D),),),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 Widget _buildCard({required Widget child, Color? color}) {
   return Container(
@@ -794,8 +934,6 @@ class GetNowPage extends StatelessWidget {
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                     color: Color(0xFF00BCD4),
-
-
                 ),
               ),
             ),
@@ -805,3 +943,4 @@ class GetNowPage extends StatelessWidget {
     );
   }
 }
+

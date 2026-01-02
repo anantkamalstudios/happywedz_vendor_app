@@ -1,12 +1,13 @@
-import 'dart:convert';
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../api_services/storefront_completion_service.dart';
+import '../../utils/common_app_bar.dart';
+import 'storefront_percentage_bar.dart';
 
-import 'ProfileScreen.dart';
-
-// ===== MODEL =====
+//===== MODEL =====
 class FaqQuestion {
   final int id;
   final String text;
@@ -42,7 +43,8 @@ class FaqQuestion {
   }
 }
 
-// ===== VENUE FAQ SCREEN =====
+// ================= SCREEN =================
+
 class VenueFaqScreen extends StatefulWidget {
   const VenueFaqScreen({super.key});
 
@@ -54,52 +56,64 @@ class _VenueFaqScreenState extends State<VenueFaqScreen> {
   List<FaqQuestion> faqs = [];
 
   int vendorId = 0;
-  int vendorTypeId = 2; // venue vendor type id
+  int vendorTypeId = 2;
   String token = "";
   bool isLoading = false;
 
+  /// states
   final Map<int, TextEditingController> textControllers = {};
-
-
-
   final Map<int, String> selectedRadio = {};
   final Map<int, List<String>> selectedCheckbox = {};
-  final Map<int, double> selectedSlider = {};
 
   @override
   void initState() {
     super.initState();
-    _initFaqScreen();
+    _init();
   }
 
-  Future<void> _initFaqScreen() async {
+  // ================= INIT =================
+
+  Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
+
     vendorId = prefs.getInt('vendorId') ?? 0;
-    vendorTypeId = prefs.getInt('vendorTypeId') ?? (mockVenueJson['vendor_type_id'] ?? 2) as int;
+    vendorTypeId = prefs.getInt('vendorTypeId') ?? 2;
     token = prefs.getString('authToken') ?? "";
 
-    final data = mockVenueJson['questions'] as List<dynamic>;
+    final data = mockVenueJson['questions'] as List;
     faqs = data.map((e) => FaqQuestion.fromJson(e)).toList();
 
-    // Prepare controllers for text/number/textarea
+    /// 🔥 CONTROLLER FIX HERE
     for (var q in faqs) {
-      if (q.type == 'text' || q.type == 'textarea' || q.type == 'number') {
+      if (q.type == 'number') {
+        if (q.label.isNotEmpty) {
+          // multiple fields (min/max etc.)
+          for (int i = 0; i < q.label.length; i++) {
+            textControllers[q.id + i] = TextEditingController();
+          }
+        } else {
+          // 🔥 single number field (rental charge case)
+          textControllers[q.id] = TextEditingController();
+        }
+      } else if (q.type == 'text' || q.type == 'textarea') {
         textControllers[q.id] = TextEditingController();
       }
     }
 
-    // Fetch saved answers from backend if logged in
     if (vendorId != 0 && token.isNotEmpty) {
       await _fetchFaqAnswers();
-    } else {
-      setState(() {});
     }
+
+    setState(() {});
   }
+
+  // ================= FETCH =================
 
   Future<void> _fetchFaqAnswers() async {
     setState(() => isLoading = true);
+
     try {
-      final response = await http.get(
+      final res = await http.get(
         Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
         headers: {
           "Authorization": "Bearer $token",
@@ -107,26 +121,15 @@ class _VenueFaqScreenState extends State<VenueFaqScreen> {
         },
       );
 
-      if (response.statusCode == 200)
-      {
-        print("🔹 FETCH FAQ RESPONSE: ${response.body}");
-        final data = jsonDecode(response.body);
-
-        List<dynamic> answers = [];
-        if (data is Map<String, dynamic>) {
-          answers = (data['answers'] ?? []) as List<dynamic>;
-        } else if (data is List) {
-          answers = data;
-        }
-
+      if (res.statusCode == 200) {
+        final List answers = jsonDecode(res.body);
 
         for (var ans in answers) {
-          if (ans == null) continue;
-          final qid = ans['faqQuestionId'];
-          final answer = ans['answer'];
+          final qid = ans['faq_question_id'];
+          final value = ans['answer'];
 
-          final question = faqs.firstWhere(
-                (q) => q.id == qid,
+          final q = faqs.firstWhere(
+            (e) => e.id == qid,
             orElse: () => FaqQuestion(
               id: 0,
               text: '',
@@ -136,298 +139,238 @@ class _VenueFaqScreenState extends State<VenueFaqScreen> {
               options: [],
             ),
           );
-          if (question.id == 0) continue;
 
-          if (question.type == 'checkbox') {
-            try {
-              selectedCheckbox[qid] = List<String>.from(answer);
-            } catch (_) {
-              selectedCheckbox[qid] = [];
-            }
-          } else if (question.type == 'radio') {
-            selectedRadio[qid] = answer.toString();
-          } else if (question.type == 'range') {
-            selectedSlider[qid] = (answer is num) ? answer.toDouble() : 0.0;
-          } else {
-            textControllers[qid]?.text = answer.toString();
+          if (q.id == 0) continue;
+
+          switch (q.type) {
+            case 'radio':
+              selectedRadio[qid] = value.toString();
+              break;
+
+            case 'checkbox':
+              if (value is List) {
+                selectedCheckbox[qid] = List<String>.from(value);
+              }
+              break;
+
+            case 'number':
+              if (value is Map) {
+                value.forEach((k, v) {
+                  textControllers[qid + int.parse(k)]?.text = v.toString();
+                });
+              } else {
+                textControllers[qid]?.text = value.toString();
+              }
+              break;
+
+            case 'text':
+            case 'textarea':
+              textControllers[qid]?.text = value.toString();
+              break;
           }
         }
-      } else {
-        print("❌ Failed to fetch FAQ answers: ${response.statusCode} - ${response.body}");
       }
     } catch (e) {
-      print("⚠️ Error loading FAQ answers: $e");
+      debugPrint("FAQ fetch error: $e");
     } finally {
       setState(() => isLoading = false);
     }
   }
+
+  // ================= SAVE =================
+
   Future<void> _saveFaqAnswers() async {
-    setState(() => isLoading = true);
+    final List<Map<String, dynamic>> answers = [];
 
-    // Only include answered questions
-    final answers = faqs.map((q) {
+    for (var q in faqs) {
       dynamic ans;
-      if (q.type == 'checkbox') {
-        ans = selectedCheckbox[q.id];
-      } else if (q.type == 'radio') {
-        ans = selectedRadio[q.id];
-      } else if (q.type == 'range') {
-        ans = selectedSlider[q.id];
-      } else {
-        ans = textControllers[q.id]?.text.trim();
+
+      switch (q.type) {
+        case 'radio':
+          ans = selectedRadio[q.id];
+          break;
+
+        case 'checkbox':
+          ans = selectedCheckbox[q.id];
+          break;
+
+        case 'number':
+          if (q.label.isNotEmpty) {
+            final map = <String, String>{};
+            for (int i = 0; i < q.label.length; i++) {
+              final txt = textControllers[q.id + i]?.text.trim();
+              if (txt != null && txt.isNotEmpty) {
+                map[i.toString()] = txt;
+              }
+            }
+            ans = map.isNotEmpty ? map : null;
+          } else {
+            ans = textControllers[q.id]?.text.trim();
+          }
+          break;
+
+        case 'text':
+        case 'textarea':
+          ans = textControllers[q.id]?.text.trim();
+          break;
       }
 
-      // Skip unanswered questions
-      if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
-        return null;
+      if (ans != null && !(ans is List && ans.isEmpty)) {
+        answers.add({"faqQuestionId": q.id, "answer": ans});
       }
-
-      return {"faqQuestionId": q.id, "answer": ans};
-    }).where((element) => element != null).toList();
-
-    if (vendorId == 0 || token.isEmpty) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('pendingFaqAnswers', jsonEncode(answers));
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You are not logged in yet. Answers saved locally.")),
-      );
-      return;
     }
 
-    final body = {
-      "vendorId": vendorId,
-      "vendorTypeId": vendorTypeId,
-      "answers": answers,
-    };
+    await http.post(
+      Uri.parse("https://happywedz.com/api/faq-answers/save"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "vendorId": vendorId,
+        "vendorTypeId": vendorTypeId,
+        "answers": answers,
+      }),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("faqCompleted", true);
+    final serviceId = prefs.getInt("serviceId");
 
-    try {
-      final response = await http.post(
-        Uri.parse("https://happywedz.com/api/faq-answers/save"),
-        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
-        body: jsonEncode(body),
+    if (serviceId != null) {
+      await StorefrontCompletionService.refreshCompletion(
+        serviceId: serviceId,
       );
-
-
-      print("📤 Sent: ${jsonEncode(body)}");
-      print("📩 Response (${response.statusCode}): ${response.body}");
-      print("🪪 vendorId: $vendorId");
-      print("🔐 token: $token");
-      print("🎨 vendorTypeId: $vendorTypeId");
-      print("➡️ Sending: ${jsonEncode(body)}");
-
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ FAQ answers saved successfully")),
-        );
-        await _fetchFaqAnswers();
-      } else {
-        String msg = "Failed to save FAQ answers";
-        try {
-          final parsed = jsonDecode(response.body);
-          if (parsed['message'] != null) msg = parsed['message'].toString();
-        } catch (_) {}
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Network error while saving answers")),
-      );
-    } finally {
-      setState(() => isLoading = false);
     }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("FAQ Saved")));
   }
+
+  // ================= UI =================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text(
-          "Venues FAQs",
-          style: TextStyle(color: Colors.black), // optional for better contrast
+      backgroundColor: Colors.white,
+      appBar: CommonAppBar(title: "Venue FAQs"),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: faqs.length,
+              itemBuilder: (_, i) => _faqCard(faqs[i]),
+            ),
+
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+             onPressed: _saveFaqAnswers, // 🔥 same save method
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              backgroundColor: const Color(0xFF00509D),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              "Submit",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFFE0F7FA), // 🌸 light WedMeGood blue
-        elevation: 0, // optional: gives a clean flat look
-        iconTheme: const IconThemeData(color: Colors.black), // optional for visibility
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: faqs.length,
-        itemBuilder: (context, index) => _buildFaqCard(faqs[index]),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF00BCD4),
-        icon: const Icon(Icons.send),
-        label: const Text("Submit"),
-        onPressed: () async {
-          await _saveFaqAnswers();
-
-          // Mark FAQ as completed
-          await ProfileCompletionController.markDone(ProfileCompletionController.keyFaq);
-
-          if (!mounted) return;
-
-          // ✅ Go directly to Home (pop everything till the first route)
-          Navigator.popUntil(context, (route) => route.isFirst);
-        },
-      ),
-
     );
   }
 
-  Widget _buildFaqCard(FaqQuestion q) {
+  Widget _faqCard(FaqQuestion q) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white,
+      margin: const EdgeInsets.all(12),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              q.text,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildInput(q),
+            Text(q.text, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            _input(q),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInput(FaqQuestion q) {
+  Widget _input(FaqQuestion q) {
     switch (q.type) {
-      case "number":
+      case 'radio':
         return Column(
-          children: q.label.isNotEmpty
-              ? q.label.map((lbl) {
-            final controller = textControllers[q.id]!;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TextFormField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: lbl,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+          children: q.options
+              .map(
+                (o) => RadioListTile(
+                  title: Text(o),
+                  value: o,
+                  groupValue: selectedRadio[q.id],
+                  onChanged: (v) =>
+                      setState(() => selectedRadio[q.id] = v.toString()),
                 ),
-              ),
-            );
-          }).toList()
-              : [
-            TextFormField(
-              controller: textControllers[q.id],
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: "Enter answer",
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
-              ),
-            )
-          ],
+              )
+              .toList(),
         );
 
-      case "text":
-      case "textarea":
-        return TextFormField(
-          controller: textControllers[q.id],
-          minLines: q.type == "textarea" ? 3 : 1,
-          maxLines: q.type == "textarea" ? 5 : 1,
-          decoration: InputDecoration(
-            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-        );
-
-      case "radio":
-        return _buildExpandableOptions(
-          options: q.options,
-          builder: (opt) => RadioListTile(
-            title: Text(opt),
-            value: opt,
-            groupValue: selectedRadio[q.id],
-            onChanged: (val) => setState(() => selectedRadio[q.id] = val.toString()),
-          ),
-        );
-
-      case "checkbox":
-        return _buildExpandableOptions(
-          options: q.options,
-          builder: (opt) {
-            bool isChecked = selectedCheckbox[q.id]?.contains(opt) ?? false;
+      case 'checkbox':
+        return Column(
+          children: q.options.map((o) {
+            final checked = selectedCheckbox[q.id]?.contains(o) ?? false;
             return CheckboxListTile(
-              title: Text(opt),
-              value: isChecked,
-              onChanged: (val) {
+              title: Text(o),
+              value: checked,
+              onChanged: (v) {
                 setState(() {
                   selectedCheckbox[q.id] ??= [];
-                  if (val == true) {
-                    selectedCheckbox[q.id]!.add(opt);
-                  } else {
-                    selectedCheckbox[q.id]!.remove(opt);
-                  }
+                  v == true
+                      ? selectedCheckbox[q.id]!.add(o)
+                      : selectedCheckbox[q.id]!.remove(o);
                 });
               },
             );
-          },
+          }).toList(),
         );
+
+      case 'number':
+        if (q.label.isNotEmpty) {
+          return Column(
+            children: q.label.asMap().entries.map((e) {
+              return TextField(
+                controller: textControllers[q.id + e.key],
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: e.value),
+              );
+            }).toList(),
+          );
+        } else {
+          // 🔥 rental charge input
+          return TextField(
+            controller: textControllers[q.id],
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: "Enter value"),
+          );
+        }
 
       default:
-        return const SizedBox();
-    }
-  }
-
-
-  Widget _buildExpandableOptions({
-    required List<String> options,
-    required Widget Function(String) builder,
-  }) {
-    int visibleCount = 2;
-    bool expanded = false;
-
-    return StatefulBuilder(
-      builder: (context, setInnerState) {
-        final visibleOptions =
-        expanded ? options : options.take(visibleCount).toList();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...visibleOptions.map(builder).toList(),
-            if (!expanded && options.length > visibleCount)
-              TextButton.icon(
-                onPressed: () => setInnerState(() => expanded = true),
-                icon: const Icon(Icons.arrow_drop_down, color: Colors.teal),
-                label: const Text(
-                  "View more",
-                  style: TextStyle(
-                    color: Colors.teal,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-          ],
+        return TextField(
+          controller: textControllers[q.id],
+          decoration: const InputDecoration(labelText: "Answer"),
         );
-      },
-    );
+    }
   }
 }
 
-// ===== MOCK JSON FOR VENUES =====
 const mockVenueJson = {
   "vendor_type_id": 2,
   "vendor_type": "venues",
@@ -440,7 +383,7 @@ const mockVenueJson = {
       "type": "radio",
       "options": ["Yes", "No"],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 202,
@@ -450,7 +393,7 @@ const mockVenueJson = {
       "type": "radio",
       "options": ["Yes", "No"],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 203,
@@ -460,7 +403,7 @@ const mockVenueJson = {
       "type": "radio",
       "options": ["Yes", "No"],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 204,
@@ -470,7 +413,7 @@ const mockVenueJson = {
       "type": "radio",
       "options": ["Yes", "No"],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 205,
@@ -480,7 +423,7 @@ const mockVenueJson = {
       "type": "radio",
       "options": ["Yes", "No"],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 206,
@@ -490,7 +433,7 @@ const mockVenueJson = {
       "type": "radio",
       "options": ["Yes", "No"],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 207,
@@ -506,10 +449,10 @@ const mockVenueJson = {
         "Mandapam",
         "Palace/ Fort",
         "Destination Wedding Venue",
-        "Other"
+        "Other",
       ],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 208,
@@ -519,7 +462,7 @@ const mockVenueJson = {
       "type": "text",
       "options": [],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 209,
@@ -529,7 +472,7 @@ const mockVenueJson = {
       "type": "number",
       "options": [],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 210,
@@ -539,7 +482,7 @@ const mockVenueJson = {
       "type": "radio",
       "options": ["Yes", "No"],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 211,
@@ -549,7 +492,7 @@ const mockVenueJson = {
       "type": "number",
       "options": [],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 212,
@@ -559,7 +502,7 @@ const mockVenueJson = {
       "type": "number",
       "options": [],
       "min": null,
-      "max": null
+      "max": null,
     },
     {
       "id": 213,
@@ -569,7 +512,7 @@ const mockVenueJson = {
       "type": "number",
       "options": [],
       "min": null,
-      "max": null
-    }
-  ]
+      "max": null,
+    },
+  ],
 };

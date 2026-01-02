@@ -1,9 +1,12 @@
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
-import 'ProfileScreen.dart';
+import '../../api_services/storefront_completion_service.dart';
+import '../../utils/common_app_bar.dart';
+import 'storefront_percentage_bar.dart';
 
 // ===== MODEL =====
 class VendorQuestion {
@@ -50,10 +53,10 @@ class BridalwearFaqScreen extends StatefulWidget {
 }
 
 class _BridalwearFaqScreenState extends State<BridalwearFaqScreen> {
-  late List<VendorQuestion> faqs = [];
+  List<VendorQuestion> faqs = [];
+
   final Map<int, String> selectedRadio = {};
   final Map<int, List<String>> selectedCheckbox = {};
-  final Map<int, double> selectedSlider = {};
   final Map<int, TextEditingController> textControllers = {};
   final Map<int, bool> expandCheckbox = {};
 
@@ -65,48 +68,67 @@ class _BridalwearFaqScreenState extends State<BridalwearFaqScreen> {
   @override
   void initState() {
     super.initState();
-    _initFaqScreen();
+    _init();
   }
 
-  Future<void> _initFaqScreen() async {
+  // ================= INIT =================
+  Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
+
     vendorId = prefs.getInt('vendorId') ?? 0;
-    vendorTypeId = prefs.getInt('vendorTypeId') ?? bridalwearJson["vendor_type_id"] as int;
+    vendorTypeId = prefs.getInt('vendorTypeId') ?? 0;
     token = prefs.getString('authToken') ?? "";
 
-    final data = bridalwearJson['questions'] as List<dynamic>;
+    final data = bridalwearJson['questions'] as List;
     faqs = data.map((e) => VendorQuestion.fromJson(e)).toList();
 
     for (var q in faqs) {
-      if (q.type == 'text' || q.type == 'textarea' || q.type == 'number') {
+      if (q.type == 'text' ||
+          q.type == 'textarea' ||
+          q.type == 'number') {
         textControllers[q.id] = TextEditingController();
       }
     }
 
     if (vendorId != 0 && token.isNotEmpty) {
       await _fetchFaqAnswers();
-    } else {
-      setState(() {});
     }
+
+    setState(() {});
   }
 
+  // ================= FETCH =================
   Future<void> _fetchFaqAnswers() async {
     setState(() => isLoading = true);
+
     try {
       final response = await http.get(
         Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
-        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final answers = (data["answers"] ?? []) as List<dynamic>;
+
+        List answers = [];
+        if (data is List) {
+          answers = data;
+        } else if (data is Map && data['answers'] != null) {
+          answers = data['answers'];
+        }
 
         for (var ans in answers) {
-          final qid = ans["faqQuestionId"];
-          var answer = ans["answer"];
-          final question = faqs.firstWhere(
-                (q) => q.id == qid,
+          final qid =
+              ans['faq_question_id'] ?? ans['faqQuestionId'];
+          final value = ans['answer'];
+
+          if (qid == null || value == null) continue;
+
+          final q = faqs.firstWhere(
+                (e) => e.id == qid,
             orElse: () => VendorQuestion(
               id: 0,
               text: '',
@@ -116,244 +138,215 @@ class _BridalwearFaqScreenState extends State<BridalwearFaqScreen> {
               options: [],
             ),
           );
-          if (question.id == 0) continue;
 
-          if (question.type == "checkbox") {
-            try {
-              if (answer is String && answer.startsWith("{")) {
-                answer = jsonDecode(answer.replaceAll("{", "[").replaceAll("}", "]"));
+          if (q.id == 0) continue;
+
+          switch (q.type) {
+            case 'radio':
+              selectedRadio[qid] = value.toString();
+              break;
+
+            case 'checkbox':
+              if (value is List) {
+                selectedCheckbox[qid] =
+                List<String>.from(value);
               }
-              selectedCheckbox[qid] = List<String>.from(answer);
-            } catch (_) {
-              selectedCheckbox[qid] = [];
-            }
-          } else if (question.type == "radio") {
-            selectedRadio[qid] = answer.toString();
-          } else if (question.type == "range") {
-            selectedSlider[qid] = (answer is num) ? answer.toDouble() : (question.min?.toDouble() ?? 0);
-          } else {
-            textControllers[qid]?.text = answer.toString();
+              break;
+
+            case 'number':
+            case 'text':
+            case 'textarea':
+              textControllers[qid]?.text = value.toString();
+              break;
           }
         }
-      } else {
-        print("❌ Failed to fetch FAQ answers: ${response.statusCode}");
       }
     } catch (e) {
-      print("⚠️ Error fetching FAQ answers: $e");
+      debugPrint("Bridal FAQ fetch error: $e");
     } finally {
       setState(() => isLoading = false);
     }
   }
 
+  // ================= SAVE =================
   Future<void> _saveFaqAnswers() async {
-    setState(() => isLoading = true);
+    final List<Map<String, dynamic>> answers = [];
 
-    // Only include answered questions
-    final answers = faqs.map((q) {
+    for (var q in faqs) {
       dynamic ans;
-      if (q.type == 'checkbox') {
-        ans = selectedCheckbox[q.id];
-      } else if (q.type == 'radio') {
-        ans = selectedRadio[q.id];
-      } else if (q.type == 'range') {
-        ans = selectedSlider[q.id];
-      } else {
-        ans = textControllers[q.id]?.text.trim();
+
+      switch (q.type) {
+        case 'radio':
+          ans = selectedRadio[q.id];
+          break;
+
+        case 'checkbox':
+          ans = selectedCheckbox[q.id];
+          break;
+
+        case 'number':
+        case 'text':
+        case 'textarea':
+          ans = textControllers[q.id]?.text.trim();
+          break;
       }
 
-      // Skip unanswered questions
-      if (ans == null || (ans is String && ans.isEmpty) || (ans is List && ans.isEmpty)) {
-        return null;
+      if (ans != null &&
+          !(ans is String && ans.isEmpty) &&
+          !(ans is List && ans.isEmpty)) {
+        answers.add({"faqQuestionId": q.id, "answer": ans});
       }
-
-      return {"faqQuestionId": q.id, "answer": ans};
-    }).where((element) => element != null).toList();
-
-    if (vendorId == 0 || token.isEmpty) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('pendingFaqAnswers', jsonEncode(answers));
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You are not logged in yet. Answers saved locally.")),
-      );
-      return;
     }
 
-    final body = {
-      "vendorId": vendorId,
-      "vendorTypeId": vendorTypeId,
-      "answers": answers,
-    };
+    await http.post(
+      Uri.parse("https://happywedz.com/api/faq-answers/save"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "vendorId": vendorId,
+        "vendorTypeId": vendorTypeId,
+        "answers": answers,
+      }),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("faqCompleted", true);
+    final serviceId = prefs.getInt("serviceId");
 
-    try {
-      final response = await http.post(
-        Uri.parse("https://happywedz.com/api/faq-answers/save"),
-        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
-        body: jsonEncode(body),
+    if (serviceId != null) {
+      await StorefrontCompletionService.refreshCompletion(
+        serviceId: serviceId,
       );
-
-
-      print("📤 Sent: ${jsonEncode(body)}");
-      print("📩 Response (${response.statusCode}): ${response.body}");
-      print("🪪 vendorId: $vendorId");
-      print("🔐 token: $token");
-      print("🎨 vendorTypeId: $vendorTypeId");
-      print("➡️ Sending: ${jsonEncode(body)}");
-
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ FAQ answers saved successfully")),
-        );
-        await _fetchFaqAnswers();
-      } else {
-        String msg = "Failed to save FAQ answers";
-        try {
-          final parsed = jsonDecode(response.body);
-          if (parsed['message'] != null) msg = parsed['message'].toString();
-        } catch (_) {}
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Network error while saving answers")),
-      );
-    } finally {
-      setState(() => isLoading = false);
     }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text("FAQ Saved")));
   }
 
-
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text(
-          "Bridal Wear FAQs",
-          style: TextStyle(color: Colors.black), // optional for better contrast
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFFE0F7FA), // 🌸 light WedMeGood blue
-        elevation: 0, // optional: gives a clean flat look
-        iconTheme: const IconThemeData(color: Colors.black), // optional for visibility
-      ),
+      backgroundColor: Colors.white,
+      appBar: CommonAppBar(title: "Bridal Wear FAQs"),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: faqs.length,
-        itemBuilder: (context, index) => _buildFaqCard(faqs[index]),
+        itemBuilder: (_, i) => _faqCard(faqs[i]),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF00BCD4),
-        icon: const Icon(Icons.send),
-        label: const Text("Submit"),
-        onPressed: () async {
-          await _saveFaqAnswers();
-
-          // Mark FAQ as completed
-          await ProfileCompletionController.markDone(ProfileCompletionController.keyFaq);
-
-          if (!mounted) return;
-
-          // ✅ Go directly to Home (pop everything till the first route)
-          Navigator.popUntil(context, (route) => route.isFirst);
-        },
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _saveFaqAnswers,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              backgroundColor: const Color(0xFF00509D),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              "Submit",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
       ),
-
     );
   }
 
-  Widget _buildFaqCard(VendorQuestion q) {
+  Widget _faqCard(VendorQuestion q) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white,
+      margin: const EdgeInsets.all(12),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(q.text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(q.text,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             if (q.description.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(q.description, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                child: Text(q.description,
+                    style: const TextStyle(color: Colors.grey)),
               ),
-            const SizedBox(height: 12),
-            _buildInput(q),
+            const SizedBox(height: 10),
+            _input(q),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInput(VendorQuestion q) {
+  Widget _input(VendorQuestion q) {
     switch (q.type) {
-      case "number":
-      case "text":
-      case "textarea":
-        return TextFormField(
-          controller: textControllers[q.id],
-          keyboardType: q.type == "number" ? TextInputType.number : TextInputType.text,
-          minLines: q.type == "textarea" ? 3 : 1,
-          maxLines: q.type == "textarea" ? 5 : 1,
-          decoration: InputDecoration(
-            labelText: q.label.isNotEmpty ? q.label.first : "Enter answer",
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-
-      case "radio":
+      case 'radio':
         return Column(
           children: q.options
-              .map((opt) => RadioListTile(
-            title: Text(opt),
-            value: opt,
-            groupValue: selectedRadio[q.id],
-            onChanged: (val) => setState(() => selectedRadio[q.id] = val.toString()),
-          ))
+              .map(
+                (o) => RadioListTile(
+              title: Text(o),
+              value: o,
+              groupValue: selectedRadio[q.id],
+              onChanged: (v) =>
+                  setState(() => selectedRadio[q.id] = v.toString()),
+            ),
+          )
               .toList(),
         );
 
-      case "checkbox":
+      case 'checkbox':
         bool expanded = expandCheckbox[q.id] ?? false;
-        List<String> visible = expanded || q.options.length <= 2 ? q.options : q.options.take(2).toList();
+        List<String> visible =
+        expanded || q.options.length <= 2
+            ? q.options
+            : q.options.take(2).toList();
+
         return Column(
           children: [
-            ...visible.map((opt) {
-              bool isChecked = selectedCheckbox[q.id]?.contains(opt) ?? false;
+            ...visible.map((o) {
+              final checked =
+                  selectedCheckbox[q.id]?.contains(o) ?? false;
               return CheckboxListTile(
-                title: Text(opt),
-                value: isChecked,
-                onChanged: (val) {
+                title: Text(o),
+                value: checked,
+                onChanged: (v) {
                   setState(() {
                     selectedCheckbox[q.id] ??= [];
-                    if (val == true) {
-                      selectedCheckbox[q.id]!.add(opt);
-                    } else {
-                      selectedCheckbox[q.id]!.remove(opt);
-                    }
+                    v == true
+                        ? selectedCheckbox[q.id]!.add(o)
+                        : selectedCheckbox[q.id]!.remove(o);
                   });
                 },
               );
             }),
             if (q.options.length > 2 && !expanded)
               TextButton(
-                onPressed: () => setState(() => expandCheckbox[q.id] = true),
+                onPressed: () =>
+                    setState(() => expandCheckbox[q.id] = true),
                 child: const Text("View more"),
               ),
           ],
         );
 
       default:
-        return const SizedBox();
+        return TextField(
+          controller: textControllers[q.id],
+          decoration: const InputDecoration(labelText: "Answer"),
+        );
     }
   }
 }
-
-
 
 // ===== STATIC JSON =====
 const bridalwearJson = {
@@ -402,48 +395,34 @@ const bridalwearJson = {
     {
       "id": 605,
       "text": "What is the starting price of bridal lehengas?",
-      "description": "",
       "label": ["Price(Bridal Lehengas)"],
       "type": "number",
-      "options": [],
-      "min": null,
-      "max": null,
+      "options": []
     },
     {
       "id": 606,
       "text": "What is the starting price of light lehengas?",
-      "description": "",
       "label": ["Price(Light Lehengas)"],
       "type": "number",
-      "options": [],
-      "min": null,
-      "max": null,
+      "options": []
     },
     {
       "id": 607,
       "text": "What is the starting price of sarees?",
-      "description": "",
       "label": ["Price (Sarees)"],
       "type": "number",
-      "options": [],
-      "min": null,
-      "max": null,
+      "options": []
     },
     {
       "id": 608,
       "text": "What is the starting price of gowns?",
-      "description": "",
       "label": ["Price(Gowns)"],
       "type": "number",
-      "options": [],
-      "min": null,
-      "max": null,
+      "options": []
     },
     {
       "id": 609,
       "text": "Which forms of payment do you accept?",
-      "description": "",
-      "label": [],
       "type": "checkbox",
       "options": [
         "Cash",
@@ -452,29 +431,20 @@ const bridalwearJson = {
         "UPI",
         "Net Banking",
         "Mobile wallets"
-      ],
-      "min": null,
-      "max": null
+      ]
     },
     {
       "id": 610,
       "text": "What is your cancellation policy?",
-      "description": "",
-      "label": [],
       "type": "textarea",
-      "options": [],
-      "min": null,
-      "max": null
+      "options": []
     },
     {
       "id": 611,
-      "text": "Which year did you/your company professionally start services in?",
-      "description": "",
-      "label": [],
+      "text":
+      "Which year did you/your company professionally start services in?",
       "type": "number",
-      "options": [],
-      "min": null,
-      "max": null,
-    },
+      "options": []
+    }
   ]
 };

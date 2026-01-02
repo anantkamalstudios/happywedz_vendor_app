@@ -6,6 +6,9 @@ import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:http/http.dart' as http;
 
+import '../api_services/storefront_completion_service.dart';
+import '../utils/common_app_bar.dart';
+
 class VideoUploadPage extends StatefulWidget {
   @override
   State<VideoUploadPage> createState() => _VideoUploadPageState();
@@ -151,6 +154,10 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
       );
 
       if (response.statusCode == 200) {
+
+        await StorefrontCompletionService.refreshCompletion(
+          serviceId: serviceId!,
+        );
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList("videos_$vendorId", videoURLs);
         ScaffoldMessenger.of(context)
@@ -227,20 +234,31 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
                     aspectRatio: activeController!.value.aspectRatio,
                     child: VideoPlayer(activeController!),
                   )
-                      : thumb != null
-                      ? (url.contains("youtube")
+                      :
+                  thumb != null
+                      ? (thumb.startsWith("http")
                       ? Image.network(
                     thumb,
                     fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.play_circle,
+                      size: 40,
+                      color: Colors.white,
+                    ),
                   )
                       : Image.file(
                     File(thumb),
                     fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.play_circle,
+                      size: 40,
+                      color: Colors.white,
+                    ),
                   ))
-                      : Center(
-                    child: Icon(Icons.play_arrow,
-                        size: 40, color: Colors.white),
+                      : const Center(
+                    child: Icon(Icons.play_arrow, size: 40, color: Colors.white),
                   ),
+
                 ),
               ),
               Positioned(
@@ -288,13 +306,8 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xffF2F2F2),
-      appBar: AppBar(
-        title: Text("Video Gallery", style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF0072BB),
-        elevation: 1,
-        iconTheme: IconThemeData(color: Colors.black),
-      ),
+      backgroundColor: Colors.white,
+      appBar: CommonAppBar(title:"Video Gallery"),
       body: loadingVendorData
           ? Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -313,27 +326,72 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
                   ),
                 ),
                 SizedBox(width: 10),
+                // ElevatedButton(
+                //   onPressed: addVideoURL,
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Color(0xFF00509D),
+                //   ),
+                //   child: Text("Add"),
+                // )
                 ElevatedButton(
                   onPressed: addVideoURL,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF00509D),
+                    backgroundColor: const Color(0xFF00509D),
+                    foregroundColor: Colors.white, // 👈 text + icon color
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  child: Text("Add"),
-                )
+                  child: const Text(
+                    "+   Add",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+
               ],
             ),
             SizedBox(height: 20),
             buildVideoGrid(),
             SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: saving ? null : saveVideoGallery,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor:Color(0xFF00509D),
-                  padding: EdgeInsets.symmetric(vertical: 14)),
-              child: saving
-                  ? CircularProgressIndicator(color: Colors.white)
-                  : Text("Save Gallery"),
-            )
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: saving ? null : saveVideoGallery,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00509D), // Steel Azure
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                child: saving
+                    ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
+                  "Save Gallery",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+
           ],
         ),
       ),

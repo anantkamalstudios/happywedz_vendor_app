@@ -108,11 +108,6 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-
-
-
-
-
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({super.key});
 

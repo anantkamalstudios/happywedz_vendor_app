@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import '../api_services/api_service_vendor.dart';
+import '../api_services/storefront_completion_service.dart';
+import '../utils/common_app_bar.dart';
 class ContactDetailsPage extends StatefulWidget {
   final int? vendorId;
   final int? vendorSubcategoryId;
@@ -30,6 +32,7 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
   int? vendorId;
   int? vendorSubcategoryId;
   int? serviceId;
+  final VendorServiceApi _vendorApi = VendorServiceApi();
 
   Map<String, dynamic> currentAttributes = {}; // <-- store existing attributes
 
@@ -81,45 +84,51 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
     setState(() => isLoading = false);
   }
 
+
   Future<void> fetchContactDetails() async {
     try {
-      final response = await http.get(
-        Uri.parse("https://happywedz.com/api/vendor-services/$serviceId"),
-        headers: {"Authorization": "Bearer $token"},
+      final data = await _vendorApi.getByServiceId(
+        serviceId: serviceId!,
+        token: token!,
       );
 
-      print("📩 GET Response: ${response.statusCode} | ${response.body}");
+      if (data == null) return;
 
-      if (response.statusCode == 200) {
-        final parsed = jsonDecode(response.body);
-        currentAttributes = Map<String, dynamic>.from(parsed["attributes"] ?? {});
+      currentAttributes = Map<String, dynamic>.from(data["attributes"] ?? {});
 
-        final contact = currentAttributes["contact"] ?? {};
+      final contact = currentAttributes["contact"] ?? {};
 
-        contactPersonController.text = contact["name"] ?? currentAttributes["name"] ?? "";
-        primaryPhoneController.text = contact["phone"] ?? "";
-        alternativePhoneController.text = contact["altPhone"] ?? "";
-        whatsappController.text = contact["whatsapp"] ?? "";
+      contactPersonController.text =
+          contact["name"] ?? currentAttributes["name"] ?? "";
 
-        print("✅ Contact details loaded successfully");
-      } else {
-        print("❌ Failed to load contact details");
-      }
+      primaryPhoneController.text = contact["phone"] ?? "";
+      alternativePhoneController.text = contact["altPhone"] ?? "";
+      whatsappController.text = contact["whatsapp"] ?? "";
     } catch (e) {
-      print("❌ Error fetching contact details: $e");
+      debugPrint("❌ fetchContactDetails error: $e");
     }
   }
 
   Future<void> saveContactDetails() async {
     if (token == null || serviceId == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Missing Token or Service ID")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Missing Token or Service ID please fill your basic info details ")),
+      );
       return;
     }
 
     setState(() => isSaving = true);
 
-    // Merge updated contact info into current attributes
+    // 🔥 Fetch latest attributes again (safety)
+    final latest = await _vendorApi.getByServiceId(
+      serviceId: serviceId!,
+      token: token!,
+    );
+
+    currentAttributes =
+    Map<String, dynamic>.from(latest?["attributes"] ?? currentAttributes);
+
+    // ✅ update ONLY contact section
     currentAttributes["contact"] = {
       "name": contactPersonController.text.trim(),
       "phone": primaryPhoneController.text.trim(),
@@ -127,41 +136,32 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
       "whatsapp": whatsappController.text.trim(),
     };
 
-    final requestBody = {
+    final body = {
       "vendor_id": vendorId,
       "vendor_subcategory_id": vendorSubcategoryId,
       "attributes": currentAttributes,
     };
 
-    print("📤 Saving contact details with body: $requestBody");
+    final success = await _vendorApi.updateService(
+      serviceId: serviceId!,
+      token: token!,
+      body: body,
+    );
 
-    try {
-      final response = await http.put(
-        Uri.parse("https://happywedz.com/api/vendor-services/$serviceId"),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
-        },
-        body: jsonEncode(requestBody),
+    if (success) {
+      await StorefrontCompletionService.refreshCompletion(
+        serviceId: serviceId!,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Contact updated successfully")),
       );
 
-      print("📩 PUT Response: ${response.statusCode} | ${response.body}");
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Contact updated successfully")));
-        print("✅ Contact details saved successfully");
-      } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Failed: ${response.body}")));
-        print("❌ Failed to save contact details");
-      }
-    } catch (e) {
-      print("❌ Error saving contact details: $e");
     }
+
 
     setState(() => isSaving = false);
   }
+
 
   Widget field(String label, TextEditingController controller,
       {bool required = false, TextInputType keyboardType = TextInputType.text}) {
@@ -193,52 +193,59 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Contact Details", style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF0072BB),
-        elevation: 1,
-        iconTheme: IconThemeData(color: Colors.black),
-      ),
+
+      appBar: CommonAppBar(title:"Contact Details"),
       backgroundColor: Color(0xffF2F2F2),
       body: isLoading
           ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3))],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          : Column(
             children: [
-              field("Contact Person", contactPersonController, required: true),
-              field("Primary Phone", primaryPhoneController, required: true, keyboardType: TextInputType.phone),
-              field("Alternative Phone", alternativePhoneController, keyboardType: TextInputType.phone),
-              field("WhatsApp Number", whatsappController, keyboardType: TextInputType.phone),
+              Expanded(
+                child: SingleChildScrollView(
+                        padding: EdgeInsets.all(16),
+                        child: Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    field("Contact Person", contactPersonController, required: true),
+                    field("Primary Phone", primaryPhoneController, required: true, keyboardType: TextInputType.phone),
+                    field("Alternative Phone", alternativePhoneController, keyboardType: TextInputType.phone),
+                    field("WhatsApp Number", whatsappController, keyboardType: TextInputType.phone),
 
-              SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isSaving ? null : saveContactDetails,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF00509D),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    SizedBox(height: 20),
+
+                  ],
+                ),
+                        ),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isSaving ? null : saveContactDetails,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Color(0xFF00509D),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: isSaving
+                        ? CircularProgressIndicator(color: Colors.white)
+                        : Text("Save Contact Details", style: TextStyle(fontSize: 16, color: Colors.white)),
                   ),
-                  child: isSaving
-                      ? CircularProgressIndicator(color: Colors.white)
-                      : Text("Save Contact Details", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }

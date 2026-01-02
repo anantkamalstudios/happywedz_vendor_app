@@ -3,8 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'new_screens/leads_list_stats.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({Key? key}) : super(key: key);
@@ -15,93 +19,50 @@ class StatsPage extends StatefulWidget {
 
 class _StatsPageState extends State<StatsPage>
     with SingleTickerProviderStateMixin {
-  // ---------- Leads (existing) ----------
-  String selectedRange = "Daily";
-  bool isLoading = true;
-  List<dynamic> apiRequests = [];
-  String? token;
-
-  int leadCount = 0;
-  int viewsCount = 0;
-
-
-  final List<String> ranges = ["Daily", "Weekly", "Monthly"];
-  List<String> leadTypes = [
+  // ---------- Common Period ----------
+  String selectedPeriod = "This Week";
+  final List<String> periods = [
     "This Week",
     "This Month",
     "Last Month",
-    "Custom Range"
+    "Custom Range",
   ];
-  List<String> selectedLeadTypes = [];
+  DateTime? customStartDate;
+  DateTime? customEndDate;
 
+  // ---------- Data ----------
+  bool isLoading = true;
+  List<dynamic> apiRequests = [];
+  List<dynamic> impressionList = [];
+  List<dynamic> profileViewsList = [];
+  int profileViewsTotal = 0;
+
+  String? token;
+  int? vendorId;
+
+  // Chart Data
   List<String> dailyLabels = [];
   List<double> dailyValues = [];
+  List<String> impressionDailyLabels = [];
+  List<double> impressionDailyValues = [];
+  List<String> profileViewLabels = [];
+  List<double> profileViewValues = [];
 
-  List<String> weeklyLabels = [];
-  List<double> weeklyValues = [];
+  int visibleLeadCount = 0;
+  int visibleImpressionCount = 0;
+  int visibleProfileViewCount = 0;
 
-  List<String> monthlyLabels = [];
-  List<double> monthlyValues = [];
-
-  // animations (used for both sections)
+  // Animation
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
-  late Animation<double> _slideAnim;
-
-  List<String> get xLabels {
-    if (selectedRange == "Daily") return dailyLabels;
-    if (selectedRange == "Weekly") return weeklyLabels;
-    return monthlyLabels;
-  }
-
-  List<double> get yValues {
-    if (selectedRange == "Daily") return dailyValues;
-    if (selectedRange == "Weekly") return weeklyValues;
-    return monthlyValues;
-  }
-
-  // ---------- Profile Views (new, independent) ----------
-  // independent selected range for profile views
-  String pvSelectedRange = "Daily";
-  List<dynamic> profileViews = []; // list of user objects from wishlist API
-
-  List<String> pvDailyLabels = [];
-  List<double> pvDailyValues = [];
-
-  List<String> pvWeeklyLabels = [];
-  List<double> pvWeeklyValues = [];
-
-  List<String> pvMonthlyLabels = [];
-  List<double> pvMonthlyValues = [];
-
-  int profileViewsTotal = 0; // from vendor/profile-views API
-
-  List<String> get pvXLabels {
-    if (pvSelectedRange == "Daily") return pvDailyLabels;
-    if (pvSelectedRange == "Weekly") return pvWeeklyLabels;
-    return pvMonthlyLabels;
-  }
-
-  List<double> get pvYValues {
-    if (pvSelectedRange == "Daily") return pvDailyValues;
-    if (pvSelectedRange == "Weekly") return pvWeeklyValues;
-    return pvMonthlyValues;
-  }
-
-  int? vendorId; // resolved from SharedPreferences or token
 
   @override
   void initState() {
     super.initState();
-    _controller =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 800));
     _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-    _slideAnim =
-        Tween<double>(begin: 30, end: 0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-
     fetchDashboardData();
-    _saveCountsToPrefs(leadCount, viewsCount);
-
   }
 
   @override
@@ -110,494 +71,396 @@ class _StatsPageState extends State<StatsPage>
     super.dispose();
   }
 
-  /// Try to read vendorId from SharedPreferences, if not present try to decode from JWT token payload.
+  // Token se vendor ID extract
   int? _resolveVendorIdFromPrefsOrToken(SharedPreferences prefs, String? token) {
     final int? vid = prefs.getInt("vendor_id");
     if (vid != null) return vid;
-
     if (token == null) return null;
     try {
       final parts = token.split('.');
       if (parts.length < 2) return null;
-      String payload = parts[1];
-
-      // base64Url decode with padding fix
-      String normalized = base64Url.normalize(payload);
-      final Uint8List decoded = base64Url.decode(normalized);
-      final Map<String, dynamic> map = jsonDecode(utf8.decode(decoded));
-      // payload may contain id or vendor id; check common keys
-      if (map.containsKey('id')) return (map['id'] as num).toInt();
-      if (map.containsKey('vendorId')) return (map['vendorId'] as num).toInt();
-      if (map.containsKey('vendor_id')) return (map['vendor_id'] as num).toInt();
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final decoded = base64Url.decode(normalized);
+      final map = jsonDecode(utf8.decode(decoded));
+      return (map['id'] ?? map['vendorId'] ?? map['vendor_id'])?.toInt();
     } catch (e) {
-      print("⚠ Error decoding token for vendor id: $e");
+      print("Token decode error: $e");
     }
     return null;
   }
 
-  Future<void> _saveCountsToPrefs(int leads, int views) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('lead_count', leads);
-    await prefs.setInt('views_count', views);
-    print('✅ Counts saved -> Leads: $leads, Views: $views');
+  // ==================== Custom Range Picker ====================
+  Future<void> _openCustomRangePicker() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+      initialDateRange: customStartDate != null && customEndDate != null
+          ? DateTimeRange(start: customStartDate!, end: customEndDate!)
+          : null,
+    );
+
+    if (picked == null) return;
+
+    customStartDate = picked.start;
+    customEndDate = picked.end;
+
+    setState(() {
+      selectedPeriod = "Custom Range";
+    });
+
+    // Direct PDF generate & show
+    await _generateAndShowPdf();
   }
 
+  // ==================== PDF Generation & Preview ====================
+  Future<void> _generateAndShowPdf() async {
+    final pdf = pw.Document();
 
+    Map<String, int> getCountByDate(List<dynamic> list, String dateKey) {
+      final map = <String, int>{};
+      for (var item in list) {
+        final dateStr = item[dateKey];
+        if (dateStr == null) continue;
+        final date = DateTime.parse(dateStr);
+        if (date.isBefore(customStartDate!) || date.isAfter(customEndDate!)) continue;
+
+        final formatted = DateFormat("dd MMM yyyy").format(date);
+        map[formatted] = (map[formatted] ?? 0) + 1;
+      }
+      return map;
+    }
+
+    final leadsData = getCountByDate(apiRequests, "createdAt");
+    final impressionsData = getCountByDate(impressionList, "addedAt");
+    final profileViewsData = getCountByDate(profileViewsList, "createdAt");
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (context) => [
+          pw.Center(
+            child: pw.Text("Statistics Report",
+                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Center(
+            child: pw.Text(
+              "${DateFormat("dd MMM yyyy").format(customStartDate!)} - ${DateFormat("dd MMM yyyy").format(customEndDate!)}",
+              style: const pw.TextStyle(fontSize: 16),
+            ),
+          ),
+          pw.SizedBox(height: 30),
+
+          if (leadsData.isNotEmpty) ...[
+            pw.Text("Leads", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table.fromTextArray(
+              headers: ["Date", "Count"],
+              data: leadsData.entries.map((e) => [e.key, e.value.toString()]).toList(),
+              border: pw.TableBorder.all(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 25),
+          ],
+
+          if (impressionsData.isNotEmpty) ...[
+            pw.Text("Impressions", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table.fromTextArray(
+              headers: ["Date", "Count"],
+              data: impressionsData.entries.map((e) => [e.key, e.value.toString()]).toList(),
+              border: pw.TableBorder.all(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 25),
+          ],
+
+          if (profileViewsData.isNotEmpty) ...[
+            pw.Text("Profile Views", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table.fromTextArray(
+              headers: ["Date", "Count"],
+              data: profileViewsData.entries.map((e) => [e.key, e.value.toString()]).toList(),
+              border: pw.TableBorder.all(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            ),
+          ],
+
+          if (leadsData.isEmpty && impressionsData.isEmpty && profileViewsData.isEmpty)
+            pw.Center(child: pw.Text("No data available in selected range")),
+        ],
+      ),
+    );
+
+    // Direct PDF preview (print/share option bhi aayega)
+    await Printing.layoutPdf(onLayout: (_) => pdf.save());
+  }
+
+  // ==================== Chart Regeneration ====================
+  void _regenerateAllCharts(String period) {
+    _regenerateLeadsChart(period);
+    _regenerateImpressionsChart(period);
+    _regenerateProfileViewsChart(period);
+    setState(() {});
+  }
+
+  void _regenerateLeadsChart(String period) {
+    dailyLabels.clear();
+    dailyValues.clear();
+    final now = DateTime.now();
+    late DateTime start, end;
+
+    if (period == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (period == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (period == "Last Month") {
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
+    } else {
+      return;
+    }
+
+    var current = DateTime(start.year, start.month, start.day);
+    int total = 0;
+    while (!current.isAfter(end)) {
+      final label = period == "This Week"
+          ? DateFormat("EEE").format(current)
+          : DateFormat("dd MMM").format(current);
+
+      final count = apiRequests.where((req) {
+        final d = DateTime.parse(req["createdAt"]);
+        return d.year == current.year && d.month == current.month && d.day == current.day;
+      }).length;
+
+      dailyLabels.add(label);
+      dailyValues.add(count.toDouble());
+      total += count;
+      current = current.add(const Duration(days: 1));
+    }
+    visibleLeadCount = total;
+  }
+
+  void _regenerateImpressionsChart(String period) {
+    impressionDailyLabels.clear();
+    impressionDailyValues.clear();
+    // Same logic as above...
+    final now = DateTime.now();
+    late DateTime start, end;
+
+    if (period == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (period == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (period == "Last Month") {
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
+    } else {
+      return;
+    }
+
+    var current = DateTime(start.year, start.month, start.day);
+    int total = 0;
+    while (!current.isAfter(end)) {
+      final label = period == "This Week"
+          ? DateFormat("EEE").format(current)
+          : DateFormat("dd MMM").format(current);
+
+      final count = impressionList.where((v) {
+        final d = DateTime.parse(v["addedAt"]);
+        return d.year == current.year && d.month == current.month && d.day == current.day;
+      }).length;
+
+      impressionDailyLabels.add(label);
+      impressionDailyValues.add(count.toDouble());
+      total += count;
+      current = current.add(const Duration(days: 1));
+    }
+    visibleImpressionCount = total;
+  }
+
+  void _regenerateProfileViewsChart(String period) {
+    profileViewLabels.clear();
+    profileViewValues.clear();
+    final now = DateTime.now();
+    late DateTime start, end;
+
+    if (period == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (period == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (period == "Last Month") {
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
+    } else {
+      return;
+    }
+
+    var current = DateTime(start.year, start.month, start.day);
+    int total = 0;
+    while (!current.isAfter(end)) {
+      final label = period == "This Week"
+          ? DateFormat("EEE").format(current)
+          : DateFormat("dd MMM").format(current);
+
+      final count = profileViewsList.where((v) {
+        final d = DateTime.parse(v["createdAt"]);
+        return d.year == current.year && d.month == current.month && d.day == current.day;
+      }).length;
+
+      profileViewLabels.add(label);
+      profileViewValues.add(count.toDouble());
+      total += count;
+      current = current.add(const Duration(days: 1));
+    }
+    visibleProfileViewCount = total;
+  }
+
+  // ==================== API Fetch ====================
   Future<void> fetchDashboardData() async {
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       token = prefs.getString("token");
       vendorId = _resolveVendorIdFromPrefsOrToken(prefs, token);
 
-      print("🟢 Starting dashboard fetch. token present: ${token != null}, vendorId: $vendorId");
-
       if (token == null) {
-        print("⚠ Token not found");
         setState(() => isLoading = false);
         return;
       }
 
-      if (vendorId == null) {
-        print("⚠ vendor_id not found in prefs or token payload");
-      }
-
-      // ------------------------------------------------------------------
-      // ✅ 1) LEADS API
-      // ------------------------------------------------------------------
-      final leadUrl = Uri.parse("https://happywedz.com/api/request-pricing/vendor/dashboard");
-      final leadRes = await http.get(leadUrl, headers: {"Authorization": "Bearer $token"});
-      print("✅ Recent Leads Status: ${leadRes.statusCode}");
-      print("📡 Raw Lead Response: ${leadRes.body}");
-
+      final leadRes = await http.get(
+        Uri.parse("https://happywedz.com/api/request-pricing/vendor/dashboard"),
+        headers: {"Authorization": "Bearer $token"},
+      );
       if (leadRes.statusCode == 200) {
-        final data = jsonDecode(leadRes.body);
-        apiRequests = data["requests"] ?? [];
-        print("ℹ Loaded ${apiRequests.length} lead requests");
-      } else {
-        print("⚠ Lead Server Error: ${leadRes.statusCode}");
+        apiRequests = jsonDecode(leadRes.body)["requests"] ?? [];
       }
 
-      // ------------------------------------------------------------------
-      // ✅ 2) PROFILE VIEWS TOTAL (Display count)
-      // ------------------------------------------------------------------
-      profileViewsTotal = 0;
-
       if (vendorId != null) {
-        final pvTotalUrl = Uri.parse("https://happywedz.com/api/vendor/profile-views/$vendorId");
-        print("📡 Fetching Profile Views Total → $pvTotalUrl");
-
-        final pvTotalRes =
-        await http.get(pvTotalUrl, headers: {"Authorization": "Bearer $token"});
-
-        print("✅ Raw Profile Views Total Response Status: ${pvTotalRes.statusCode}");
-        print("✅ Raw Body: ${pvTotalRes.body}");
-
-        if (pvTotalRes.statusCode == 200) {
-          final pData = jsonDecode(pvTotalRes.body);
-
-          if (pData["success"] == true && pData["vendor"] != null) {
-            final views = pData["vendor"]["profileViews"];
-            profileViewsTotal = (views ?? 0).toInt();
-            print("✅ Assigned profileViewsTotal → $profileViewsTotal");
-          } else {
-            print("⚠ Invalid structure in profile-views response");
+        final pvRes = await http.get(
+          Uri.parse("https://happywedz.com/api/vendor/profile-views/$vendorId"),
+          headers: {"Authorization": "Bearer $token"},
+        );
+        if (pvRes.statusCode == 200) {
+          final data = jsonDecode(pvRes.body);
+          if (data["success"] == true) {
+            profileViewsTotal = (data["totalViews"] ?? 0);
+            profileViewsList = List<dynamic>.from(data["views"] ?? []);
           }
-        } else {
-          print("❌ ERROR → Profile Views Total statusCode = ${pvTotalRes.statusCode}");
+        }
+
+        final impRes = await http.get(
+          Uri.parse("https://happywedz.com/api/wishlist/vendor/stats/$vendorId"),
+          headers: {"Authorization": "Bearer $token"},
+        );
+        if (impRes.statusCode == 200) {
+          final data = jsonDecode(impRes.body);
+          if (data["data"] != null && (data["data"] as List).isNotEmpty) {
+            impressionList = List<dynamic>.from(data["data"][0]["users"] ?? []);
+          }
         }
       }
 
-      // ------------------------------------------------------------------
-      // ✅ 3) IMPRESSIONS (wishlist users)
-      // ------------------------------------------------------------------
-      profileViews = [];
-      int impressionCount = 0;
-
-      if (vendorId != null) {
-        final profileUrl =
-        Uri.parse("https://happywedz.com/api/wishlist/vendor/stats/$vendorId");
-
-        print("📡 Fetching Wishlist Stats (Impressions) → $profileUrl");
-
-        final profileRes =
-        await http.get(profileUrl, headers: {"Authorization": "Bearer $token"});
-
-        print("✅ Raw Wishlist Response Status: ${profileRes.statusCode}");
-        print("✅ Raw Body: ${profileRes.body}");
-
-        if (profileRes.statusCode == 200) {
-          final pData = jsonDecode(profileRes.body);
-
-          if (pData["data"] != null && (pData["data"] as List).isNotEmpty) {
-            final first = pData["data"][0];
-
-            if (first != null && first["users"] != null) {
-              profileViews = List<dynamic>.from(first["users"]);
-            }
-          }
-        } else {
-          print("⚠ Wishlist Server Error: ${profileRes.statusCode}");
-        }
-      }
-
-      impressionCount = profileViews.length;
-      print("✅ impressionCount = $impressionCount");
-
-      // ------------------------------------------------------------------
-      // ✅ STORE COUNTS TO PREFERENCES
-      // ------------------------------------------------------------------
       await prefs.setInt("lead_count", apiRequests.length);
       await prefs.setInt("views_count", profileViewsTotal);
-      await prefs.setInt("impression_count", impressionCount);
+      await prefs.setInt("impression_count", impressionList.length);
 
-      // ✅ Save the counts to SharedPreferences so Drawer can read them
-
-      await prefs.setInt("lead_count", leadCount);
-      await prefs.setInt("views_count", viewsCount);
-
-      print("✅ Saved lead_count = $leadCount");
-      print("✅ Saved views_count = $viewsCount");
-
-
-      setState(() {});
-
-
-
-
-
-      print("✅ SAVED lead_count = ${apiRequests.length}");
-      print("✅ SAVED views_count = $profileViewsTotal");
-      print("✅ SAVED impression_count = $impressionCount");
-
-      await prefs.setBool("stats_updated", true);
-
-      bool updated = prefs.getBool("stats_updated") ?? false;
-      if (updated) setState(() {});
-
-      // ------------------------------------------------------------------
-      // ✅ PROCESS STATS
-      // ------------------------------------------------------------------
-      generateDaily();
-      generateWeekly();
-      generateMonthly();
-      generateProfileDaily();
-      generateProfileWeekly();
-      generateProfileMonthly();
+      _regenerateAllCharts("This Week");
     } catch (e) {
-      print("⚠ Exception: $e");
-    }
-
-    setState(() {
-      isLoading = false;
-    });
-
-    _controller.forward();
-  }
-
-
-  // ----------------- LEADS data generators (unchanged) -----------------
-  void generateDaily() {
-    dailyLabels.clear();
-    dailyValues.clear();
-
-    List<DateTime> last7days =
-    List.generate(7, (i) => DateTime.now().subtract(Duration(days: i))).reversed.toList();
-
-    for (var day in last7days) {
-      String label = DateFormat("dd MMM").format(day);
-      int count = apiRequests.where((req) {
-        DateTime d = DateTime.parse(req["createdAt"]);
-        return d.year == day.year && d.month == day.month && d.day == day.day;
-      }).length;
-      dailyLabels.add(label);
-      dailyValues.add(count.toDouble());
-    }
-    print("📅 DAILY LABELS → $dailyLabels");
-    print("📊 DAILY VALUES → $dailyValues");
-  }
-
-  void generateWeekly() {
-    weeklyLabels.clear();
-    weeklyValues.clear();
-
-    DateTime now = DateTime.now();
-    DateTime currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
-
-    for (int i = 0; i < 6; i++) {
-      DateTime weekStart = currentWeekStart.subtract(Duration(days: 7 * i));
-      DateTime weekEnd = weekStart.add(const Duration(days: 6));
-
-      String label =
-          "${DateFormat('MMM d').format(weekStart)}-${DateFormat('d').format(weekEnd)}";
-      weeklyLabels.insert(0, label);
-
-      int count = apiRequests.where((req) {
-        DateTime d = DateTime.parse(req["createdAt"]);
-        return (d.isAfter(weekStart) || d.isAtSameMomentAs(weekStart)) &&
-            (d.isBefore(weekEnd) || d.isAtSameMomentAs(weekEnd));
-      }).length;
-
-      weeklyValues.insert(0, count.toDouble());
-    }
-
-    print("✅ WEEKLY LABELS → $weeklyLabels");
-    print("✅ WEEKLY VALUES → $weeklyValues");
-  }
-
-  void generateMonthly() {
-    monthlyLabels.clear();
-    monthlyValues.clear();
-
-    DateTime now = DateTime.now();
-
-    for (int i = 5; i >= 0; i--) {
-      DateTime monthDate = DateTime(now.year, now.month - i, 1);
-      String label = DateFormat("MMM").format(monthDate);
-      monthlyLabels.add(label);
-
-      int count = apiRequests.where((req) {
-        DateTime d = DateTime.parse(req["createdAt"]);
-        return d.year == monthDate.year && d.month == monthDate.month;
-      }).length;
-
-      monthlyValues.add(count.toDouble());
-    }
-
-    print("📅 MONTHLY LABELS → $monthlyLabels");
-    print("📊 MONTHLY VALUES → $monthlyValues");
-  }
-
-  // ----------------- FILTER for leads (unchanged) -----------------
-  void filterDataByLeadType() {
-    DateTime now = DateTime.now();
-    DateTime start = DateTime(now.year, now.month, now.day);
-    DateTime end = now;
-
-    if (selectedLeadTypes.contains("This Week")) {
-      start = now.subtract(Duration(days: now.weekday - 1));
-      end = start.add(const Duration(days: 6));
-    } else if (selectedLeadTypes.contains("This Month")) {
-      start = DateTime(now.year, now.month, 1);
-      end = DateTime(now.year, now.month + 1, 0);
-    } else if (selectedLeadTypes.contains("Last Month")) {
-      DateTime lastMonthStart = (now.month == 1)
-          ? DateTime(now.year - 1, 12, 1)
-          : DateTime(now.year, now.month - 1, 1);
-      DateTime lastMonthEnd =
-      DateTime(lastMonthStart.year, lastMonthStart.month + 1, 0);
-      start = lastMonthStart;
-      end = lastMonthEnd;
-      print("📅 Last Month Range (Leads): $start → $end");
-    }
-
-    List<dynamic> filtered = apiRequests.where((req) {
-      DateTime created = DateTime.parse(req["createdAt"]);
-      return (created.isAfter(start) || created.isAtSameMomentAs(start)) &&
-          (created.isBefore(end) || created.isAtSameMomentAs(end));
-    }).toList();
-
-    if (selectedRange == "Daily") {
-      generateDailyFrom(filtered);
-    } else if (selectedRange == "Weekly") {
-      generateWeeklyFrom(filtered);
-    } else {
-      generateMonthlyFrom(filtered);
-    }
-
-    setState(() {});
-    _controller.forward(from: 0);
-  }
-
-  void generateDailyFrom(List<dynamic> filtered) {
-    dailyLabels.clear();
-    dailyValues.clear();
-
-    List<DateTime> last7days =
-    List.generate(7, (i) => DateTime.now().subtract(Duration(days: i))).reversed.toList();
-
-    for (var day in last7days) {
-      String label = DateFormat("dd MMM").format(day);
-      int count = filtered.where((req) {
-        DateTime d = DateTime.parse(req["createdAt"]);
-        return d.year == day.year && d.month == day.month && d.day == day.day;
-      }).length;
-      dailyLabels.add(label);
-      dailyValues.add(count.toDouble());
+      print("Error: $e");
+    } finally {
+      setState(() => isLoading = false);
+      _controller.forward();
     }
   }
 
-  void generateWeeklyFrom(List<dynamic> filtered) {
-    weeklyLabels.clear();
-    weeklyValues.clear();
-    DateTime now = DateTime.now();
-    DateTime currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
-
-    for (int i = 0; i < 6; i++) {
-      DateTime weekStart = currentWeekStart.subtract(Duration(days: 7 * i));
-      DateTime weekEnd = weekStart.add(const Duration(days: 6));
-      String label =
-          "${DateFormat('MMM d').format(weekStart)}-${DateFormat('d').format(weekEnd)}";
-      weeklyLabels.insert(0, label);
-      int count = filtered.where((req) {
-        DateTime d = DateTime.parse(req["createdAt"]);
-        return (d.isAfter(weekStart) || d.isAtSameMomentAs(weekStart)) &&
-            (d.isBefore(weekEnd) || d.isAtSameMomentAs(weekEnd));
-      }).length;
-      weeklyValues.insert(0, count.toDouble());
-    }
-  }
-
-  void generateMonthlyFrom(List<dynamic> filtered) {
-    monthlyLabels.clear();
-    monthlyValues.clear();
-    DateTime now = DateTime.now();
-    for (int i = 5; i >= 0; i--) {
-      DateTime monthDate = DateTime(now.year, now.month - i, 1);
-      String label = DateFormat("MMM").format(monthDate);
-      monthlyLabels.add(label);
-      int count = filtered.where((req) {
-        DateTime d = DateTime.parse(req["createdAt"]);
-        return d.year == monthDate.year && d.month == monthDate.month;
-      }).length;
-      monthlyValues.add(count.toDouble());
-    }
-  }
-
-  // ----------------- PROFILE VIEWS generators (new) -----------------
-  void generateProfileDaily() {
-    pvDailyLabels.clear();
-    pvDailyValues.clear();
-
-    List<DateTime> last7days =
-    List.generate(7, (i) => DateTime.now().subtract(Duration(days: i))).reversed.toList();
-
-    for (var day in last7days) {
-      String label = DateFormat("dd MMM").format(day);
-      int count = profileViews.where((v) {
-        DateTime d = DateTime.parse(v["addedAt"]);
-        return d.year == day.year && d.month == day.month && d.day == day.day;
-      }).length;
-      pvDailyLabels.add(label);
-      pvDailyValues.add(count.toDouble());
-    }
-
-    print("👁 PROFILE DAILY LABELS → $pvDailyLabels");
-    print("👁 PROFILE DAILY VALUES → $pvDailyValues");
-  }
-
-  void generateProfileWeekly() {
-    pvWeeklyLabels.clear();
-    pvWeeklyValues.clear();
-
-    DateTime now = DateTime.now();
-    DateTime currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
-
-    for (int i = 0; i < 6; i++) {
-      DateTime weekStart = currentWeekStart.subtract(Duration(days: 7 * i));
-      DateTime weekEnd = weekStart.add(const Duration(days: 6));
-
-      String label =
-          "${DateFormat('MMM d').format(weekStart)}-${DateFormat('d').format(weekEnd)}";
-      pvWeeklyLabels.insert(0, label);
-
-      int count = profileViews.where((v) {
-        DateTime d = DateTime.parse(v["addedAt"]);
-        return (d.isAfter(weekStart) || d.isAtSameMomentAs(weekStart)) &&
-            (d.isBefore(weekEnd) || d.isAtSameMomentAs(weekEnd));
-      }).length;
-
-      pvWeeklyValues.insert(0, count.toDouble());
-    }
-
-    print("👁 PROFILE WEEKLY LABELS → $pvWeeklyLabels");
-    print("👁 PROFILE WEEKLY VALUES → $pvWeeklyValues");
-  }
-
-  void generateProfileMonthly() {
-    pvMonthlyLabels.clear();
-    pvMonthlyValues.clear();
-
-    DateTime now = DateTime.now();
-    for (int i = 5; i >= 0; i--) {
-      DateTime monthDate = DateTime(now.year, now.month - i, 1);
-      String label = DateFormat("MMM").format(monthDate);
-      pvMonthlyLabels.add(label);
-
-      int count = profileViews.where((v) {
-        DateTime d = DateTime.parse(v["addedAt"]);
-        return d.year == monthDate.year && d.month == monthDate.month;
-      }).length;
-
-      pvMonthlyValues.add(count.toDouble());
-    }
-
-    print("👁 PROFILE MONTHLY LABELS → $pvMonthlyLabels");
-    print("👁 PROFILE MONTHLY VALUES → $pvMonthlyValues");
-  }
-
-  // Profile views filter (works similarly if you want a bottom-sheet filter later)
-  void filterProfileViewsByType(String type) {
-    // placeholder in case you want separate leadTypes for profile views later
-    // currently we don't use this, but left here for parity/extension
-    if (type == "This Week") {
-      pvSelectedRange = "Weekly";
-    } else if (type == "This Month") {
-      pvSelectedRange = "Monthly";
-    }
-    setState(() {});
-  }
-
-  // ----------------- UI -----------------
+  // ==================== UI ====================
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final bool isCustomRange = selectedPeriod == "Custom Range";
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Statistics"),
-        backgroundColor: const Color(0xFF00509D),
-        foregroundColor: Colors.white,
+      backgroundColor: Colors.white,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(70),
+        child: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [Color(0xFF003F88), Color(0xFF00509D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight),
+              boxShadow: [
+                BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3))
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 30, 16, 10),
+            alignment: Alignment.bottomLeft,
+            child: const Text("Statistics",
+                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700)),
+          ),
+        ),
       ),
-      body: FadeTransition(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : FadeTransition(
         opacity: _fadeAnim,
-        child: SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
-              .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut)),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ---------- Leads (unchanged UI) ----------
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 30),
+                _topStatsCards(),
+                const SizedBox(height: 20),
+                _sharedRangeDropdown(),
+                const SizedBox(height: 25),
+
+                if (!isCustomRange) ...[
                   _sectionHeader("Leads"),
                   const SizedBox(height: 10),
-                  _leadTypeDropdown(),
-                  const SizedBox(height: 10),
-                  _rangeSelectorForLeads(),
-                  const SizedBox(height: 10),
                   _animatedChartForLeads(),
-
                   const SizedBox(height: 30),
 
-                  // ---------- Profile Views (new section) ----------
                   _sectionHeader("Impressions"),
                   const SizedBox(height: 10),
-                  _rangeSelectorForProfileViews(),
-                  const SizedBox(height: 10),
-                  _animatedChartForProfileViews(),
-
+                  _animatedChartForImpressions(),
                   const SizedBox(height: 30),
 
                   _sectionHeader("Profile Views"),
                   const SizedBox(height: 10),
-                  _rangeSelectorForProfileViews2(),
-                  const SizedBox(height: 10),
-                  _animatedChartForProfileViews2(),
+                  _animatedChartForProfileViews(),
+                  const SizedBox(height: 20),
                 ],
-              ),
+
+                // Custom Range mein kuch nahi dikhega yahan (PDF already open ho chuka hoga)
+              ],
             ),
           ),
         ),
@@ -605,201 +468,187 @@ class _StatsPageState extends State<StatsPage>
     );
   }
 
-  Widget _sectionHeader(String title) => Text(title,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold));
-
-  // ---------- Leads widgets (unchanged look/behaviour) ----------
-  Widget _leadTypeDropdown() => Row(
-    mainAxisAlignment: MainAxisAlignment.end,
-    children: [
-      GestureDetector(
-        onTap: _openLeadTypePopup,
-        child: Row(
-          children: const [
-            Text("Lead Type",
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  color: const Color(0xFF00509D), // WedMeGood blue
-                )),
-            SizedBox(width: 4),
-            Icon(Icons.keyboard_arrow_down_rounded, color: const Color(0xFF00BCD4)),
-
-          ],
-        ),
-      )
-    ],
-  );
-
-  Widget _rangeSelectorForLeads() {
+  Widget _sharedRangeDropdown() {
     return Row(
-      children: ranges.map((range) {
-        bool isSelected = selectedRange == range;
-        return Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedRange = range;
-                if (selectedRange == "Daily") generateDaily();
-                else if (selectedRange == "Weekly") generateWeekly();
-                else generateMonthly();
-                _controller.forward(from: 0);
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? Color(0xFF4682B4) : Colors.white, // changed from sky blue to steel azure
-                border: Border.all(color: Colors.grey.shade300),
-                boxShadow: isSelected
-                    ? [BoxShadow(color: Colors.pinkAccent.withOpacity(0.3), blurRadius: 6)]
-                    : [],
-              ),
-
-              child: Center(
-                child: Text(
-                  range.toUpperCase(),
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedPeriod,
+              icon: const Icon(Icons.keyboard_arrow_down),
+              items: periods
+                  .map((e) => DropdownMenuItem(
+                value: e,
+                child: Text(e, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ))
+                  .toList(),
+              onChanged: (value) async {
+                if (value == null) return;
+                if (value == "Custom Range") {
+                  await _openCustomRangePicker();
+                } else {
+                  setState(() => selectedPeriod = value);
+                  _regenerateAllCharts(value);
+                  _controller.forward(from: 0);
+                }
+              },
             ),
           ),
-        );
-      }).toList(),
+        ),
+      ],
+    );
+  }
+
+  List<dynamic> _getFilteredLeads() {
+    // Same as before...
+    // (unchanged - for leads list screen)
+    if (selectedPeriod == "Custom Range" && customStartDate != null && customEndDate != null) {
+      return apiRequests.where((req) {
+        DateTime d = DateTime.parse(req["createdAt"]);
+        return !d.isBefore(customStartDate!) && !d.isAfter(customEndDate!);
+      }).toList();
+    }
+    // ... rest same
+    DateTime now = DateTime.now();
+    late DateTime start, end;
+    if (selectedPeriod == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (selectedPeriod == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (selectedPeriod == "Last Month") {
+      start = now.month == 1 ? DateTime(now.year - 1, 12, 1) : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1 ? DateTime(now.year - 1, 12, 31) : DateTime(now.year, now.month, 0);
+    } else {
+      return apiRequests;
+    }
+    return apiRequests.where((req) {
+      DateTime d = DateTime.parse(req["createdAt"]);
+      return !d.isBefore(start) && !d.isAfter(end);
+    }).toList();
+  }
+
+  Widget _sectionHeader(String title) =>
+      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold));
+
+  Widget _topStatsCards() {
+    return Row(
+      children: [
+        Expanded(
+          child: _statCard(
+            title: "TOTAL LEADS",
+            value: visibleLeadCount.toString(),
+            icon: Icons.group,
+            iconBg: const Color(0xFFE8F5E9),
+            iconColor: const Color(0xFF2E7D32),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => LeadsListScreen(leads: _getFilteredLeads())),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _statCard(
+            title: "PROFILE VIEWS",
+            value: visibleProfileViewCount.toString(),
+            icon: Icons.remove_red_eye,
+            iconBg: const Color(0xFFE3F2FD),
+            iconColor: const Color(0xFF1565C0),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _statCard(
+            title: "IMPRESSIONS",
+            value: visibleImpressionCount.toString(),
+            icon: Icons.favorite,
+            iconBg: const Color(0xFFFCE4EC),
+            iconColor: const Color(0xFFC2185B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(title, style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            Container(
+              height: 42,
+              width: 42,
+              decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _animatedChartForLeads() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 700),
-      transitionBuilder: (child, anim) =>
-          FadeTransition(opacity: anim, child: SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
-                .animate(anim),
-            child: child,
-          )),
-      child: _chartContainer(xLabels, yValues, key: ValueKey("leads_$selectedRange")),
+      child: _chartContainer(dailyLabels, dailyValues, key: ValueKey("leads_$selectedPeriod")),
     );
   }
 
-  // ---------- Profile Views (New third section) ----------
-  Widget _rangeSelectorForProfileViews2() {
-    return Row(
-      children: ranges.map((range) {
-        bool isSelected = pvSelectedRange == range; // reuse same variable (since static data)
-        return Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                pvSelectedRange = range;
-                _controller.forward(from: 0);
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? Color(0xFF4682B4) : Colors.white,
-                border: Border.all(color: Colors.grey.shade300),
-                boxShadow: isSelected
-                    ? [BoxShadow(color: Colors.pinkAccent.withOpacity(0.3), blurRadius: 6)]
-                    : [],
-              ),
-
-              child: Center(
-                child: Text(
-                  range.toUpperCase(),
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _animatedChartForProfileViews2() {
-    List<String> labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    List<double> values = List.generate(labels.length, (_) => profileViewsTotal.toDouble());
-
+  Widget _animatedChartForImpressions() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 700),
-      transitionBuilder: (child, anim) =>
-          FadeTransition(opacity: anim, child: SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
-                .animate(anim),
-            child: child,
-          )),
-      child: _chartContainer(labels, values, key: const ValueKey("profileViews")),
-    );
-  }
-
-  // ---------- Profile Views widgets (new, independent) ----------
-  Widget _rangeSelectorForProfileViews() {
-    return Row(
-      children: ranges.map((range) {
-        bool isSelected = pvSelectedRange == range;
-        return Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                pvSelectedRange = range;
-                if (pvSelectedRange == "Daily") generateProfileDaily();
-                else if (pvSelectedRange == "Weekly") generateProfileWeekly();
-                else generateProfileMonthly();
-                _controller.forward(from: 0);
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? Color(0xFF4682B4)  : Colors.white,
-                border: Border.all(color: Colors.grey.shade300),
-                boxShadow: isSelected
-                    ? [BoxShadow(color: Colors.pinkAccent.withOpacity(0.3), blurRadius: 6)]
-                    : [],
-              ),
-
-              child: Center(
-                child: Text(
-                  range.toUpperCase(),
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
+      child: _chartContainer(impressionDailyLabels, impressionDailyValues,
+          key: ValueKey("impressions_$selectedPeriod")),
     );
   }
 
   Widget _animatedChartForProfileViews() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 700),
-      transitionBuilder: (child, anim) =>
-          FadeTransition(opacity: anim, child: SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
-                .animate(anim),
-            child: child,
-          )),
-      child: _chartContainer(pvXLabels, pvYValues, key: ValueKey("pv_$pvSelectedRange")),
+      child: _chartContainer(profileViewLabels, profileViewValues,
+          key: ValueKey("profile_$selectedPeriod")),
     );
   }
 
-  // Generic chart container reused for both sections
   Widget _chartContainer(List<String> labels, List<double> values, {Key? key}) {
+    const double pointWidth = 55;
     return Container(
       key: key,
       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -807,147 +656,86 @@ class _StatsPageState extends State<StatsPage>
         border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: SizedBox(
-        height: 260,
-        child: LineChart(
-          LineChartData(
-            maxY: (values.isNotEmpty ? values.reduce((a, b) => a > b ? a : b) : 0) + 5,
-            minY: 0,
-            lineBarsData: [
-              LineChartBarData(
-                isCurved: true,
-                curveSmoothness: 0.25,
-                spots: List.generate(values.length, (i) => FlSpot(i.toDouble(), values[i])),
-                color: const Color(0xFF4682B4),
-
-              dotData: FlDotData(show: true),
-                barWidth: 2.5,
-                belowBarData: BarAreaData(
-                  show: true,
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0xFF4682B4).withOpacity(0.35), // top, slightly stronger
-                      Color(0xFF4682B4).withOpacity(0.05), // bottom, very faint
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: labels.length * pointWidth,
+          height: 260,
+          child: LineChart(
+            LineChartData(
+              maxY: values.isEmpty ? 5 : values.reduce((a, b) => a > b ? a : b) + 5,
+              minY: 0,
+              lineBarsData: [
+                LineChartBarData(
+                  isCurved: true,
+                  curveSmoothness: 0.25,
+                  spots: List.generate(values.length, (i) => FlSpot(i.toDouble(), values[i])),
+                  color: const Color(0xFF4682B4),
+                  dotData: const FlDotData(show: true),
+                  barWidth: 2.5,
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF4682B4).withOpacity(0.35),
+                        const Color(0xFF4682B4).withOpacity(0.05),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                   ),
-
-
                 ),
-              ),
-            ],
-            titlesData: FlTitlesData(
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  interval: 1,
-                  reservedSize: 60,
-                  getTitlesWidget: (value, meta) {
-                    int index = value.toInt();
-                    if (index >= 0 && index < labels.length) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Transform.rotate(
-                          angle: -0.7,
+              ],
+              titlesData: FlTitlesData(
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: 1,
+                    reservedSize: 60,
+                    getTitlesWidget: (value, meta) {
+                      final index = value.toInt();
+                      if (index >= 0 && index < labels.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 10),
                           child: Text(labels[index], style: const TextStyle(fontSize: 11)),
-                        ),
-                      );
-                    }
-                    return const SizedBox();
-                  },
+                        );
+                      }
+                      return const SizedBox();
+                    },
+                  ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 10)),
+                  ),
+                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              gridData: FlGridData(
+                show: true,
+                horizontalInterval: 5,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (v) => FlLine(color: Colors.grey.shade300, strokeWidth: 0.8),
+              ),
+              borderData: FlBorderData(show: false),
+              lineTouchData: LineTouchData(
+                handleBuiltInTouches: true,
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipItems: (spots) => spots.map((spot) {
+                    final idx = spot.x.toInt();
+                    final label = idx >= 0 && idx < labels.length ? labels[idx] : "";
+                    return LineTooltipItem("$label\n${spot.y.toInt()}",
+                        const TextStyle(color: Colors.black, fontWeight: FontWeight.bold));
+                  }).toList(),
                 ),
               ),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 30,
-                  getTitlesWidget: (value, meta) => Text(value.toInt().toString(), style: const TextStyle(fontSize: 10)),
-                ),
-              ),
-              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-            gridData: FlGridData(show: true, horizontalInterval: 5, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: Colors.grey.shade300, strokeWidth: 0.8)),
-            borderData: FlBorderData(show: false),
-            lineTouchData: LineTouchData(
-              handleBuiltInTouches: true,
-              touchTooltipData: LineTouchTooltipData(getTooltipItems: (touchedSpots) {
-                return touchedSpots.map((spot) {
-                  final idx = spot.x.toInt();
-                  final label = (idx >= 0 && idx < labels.length) ? labels[idx] : "";
-                  return LineTooltipItem("$label\n${spot.y.toInt()}",
-                      const TextStyle(color: Colors.black, fontWeight: FontWeight.bold));
-                }).toList();
-              }),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  // ---------- Lead type bottom sheet (unchanged) ----------
-  void _openLeadTypePopup() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(15))),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateSheet) {
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              height: MediaQuery.of(context).size.height * 0.55,
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("Select Lead Type", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          filterDataByLeadType();
-                        },
-                        child: const Text("OK", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF00BCD4),
-                        )),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: leadTypes.length,
-                      itemBuilder: (context, index) {
-                        String type = leadTypes[index];
-                        bool isSelected = selectedLeadTypes.contains(type);
-                        return CheckboxListTile(
-                          activeColor: const Color(0xFF00BCD4),
-
-                          controlAffinity: ListTileControlAffinity.leading,
-                          value: isSelected,
-                          title: Text(type),
-                          onChanged: (bool? val) {
-                            setStateSheet(() {
-                              selectedLeadTypes.clear();
-                              if (val == true) selectedLeadTypes.add(type);
-                            });
-                            setState(() {});
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }

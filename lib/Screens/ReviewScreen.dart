@@ -193,33 +193,81 @@ class _ReviewsPageState extends State<ReviewsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.pink))
-          : _reviews.isEmpty
-          ? const Center(
-        child: Text(
-          'No reviews available',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-      )
-          : CustomScrollView(
+      body: CustomScrollView(
         slivers: [
           _buildHeader(),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-                  (context, i) {
-                final r = _reviews[i];
-                print('🧾 Building Review Card for ID: ${r['id']}');
-                return _buildReviewCard(r);
-              },
-              childCount: _reviews.length,
+
+          // 🔹 LOADER BELOW APP BAR
+          if (_isLoading)
+             SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.only(top: 350),
+                child: Center(
+                  child: CircularProgressIndicator(color: Colors.blue.shade700),
+                ),
+              ),
+            )
+
+          // 🔹 EMPTY STATE
+          else if (_reviews.isEmpty)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.only(top: 360),
+                child: Center(
+                  child: Text(
+                    'No reviews available',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                ),
+              ),
+            )
+
+          // 🔹 REVIEWS LIST
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                  final r = _reviews[i];
+                  return _buildReviewCard(r);
+                },
+                childCount: _reviews.length,
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 
+  // Widget build(BuildContext context) {
+  //   return Scaffold(
+  //     backgroundColor: Colors.white,
+  //     body: _isLoading
+  //         ? const Center(child: CircularProgressIndicator(color: Colors.pink))
+  //         : _reviews.isEmpty
+  //         ? const Center(
+  //       child: Text(
+  //         'No reviews available',
+  //         style: TextStyle(fontSize: 16, color: Colors.grey),
+  //       ),
+  //     )
+  //         : CustomScrollView(
+  //       slivers: [
+  //         _buildHeader(),
+  //         SliverList(
+  //           delegate: SliverChildBuilderDelegate(
+  //                 (context, i) {
+  //               final r = _reviews[i];
+  //               print('🧾 Building Review Card for ID: ${r['id']}');
+  //               return _buildReviewCard(r);
+  //             },
+  //             childCount: _reviews.length,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+  //
 // ✅ MODERN HEADER
   Widget _buildHeader() {
     final topPad = MediaQuery.of(context).padding.top;
@@ -253,7 +301,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
           'My Reviews',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 26,
+            fontSize: 24,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
           ),
@@ -420,7 +468,5 @@ class _ReviewsPageState extends State<ReviewsPage> {
       ),
     );
   }
-
-
 
 }

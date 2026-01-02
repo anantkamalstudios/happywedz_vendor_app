@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../FAQs/ProfileScreen.dart';
+import '../FAQs/storefront_percentage_bar.dart';
 
 class AlbumsPage extends StatefulWidget {
   @override
@@ -89,7 +89,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
       await _saveAlbums();
 
 
-      await ProfileCompletionController.markDone(ProfileCompletionController.keyAlbum);
+      // await ProfileCompletionController.markDone(ProfileCompletionController.keyAlbum);
 
     }
   }

@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'Login.dart';
 import 'HomeScreen.dart';
 
@@ -221,9 +220,6 @@ class _SignUpState extends State<SignUp> {
           });
 
         }
-        // else {
-        //   _showSnack(data["message"] ?? "Registration failed, please try again");
-        // }
       }  else {
         _showSnack("User already exists with this email or phone number.");
       }
@@ -391,8 +387,8 @@ class _SignUpState extends State<SignUp> {
                           obscureText: _isPasswordHidden,
                           suffixIcon: IconButton(
                             icon: Icon(_isPasswordHidden
-                                ? Icons.visibility
-                                : Icons.visibility_off),
+                                ? Icons.visibility_off
+                                : Icons.visibility),
                             onPressed: () {
                               setState(() {
                                 _isPasswordHidden = !_isPasswordHidden;

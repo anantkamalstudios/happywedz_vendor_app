@@ -1,7 +1,6 @@
-
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/common_app_bar.dart';
 import 'BasicInfo.dart';
 import 'BusinessDetailScreen.dart';
 import 'ContactDetailsScreen.dart';
@@ -26,10 +25,9 @@ import 'PoliciesPage.dart';
 import 'PrefferedVendiors.dart';
 import 'PricingPage.dart';
 import 'PromotionsPage.dart';
-import 'SlotsPage.dart';
+import 'Availability&SlotsPage.dart';
 import 'SocialNetwork.dart';
-import 'VediosScreen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'VideosScreen.dart';
 
 class Storefront extends StatefulWidget {
   final int vendorId;
@@ -40,74 +38,59 @@ class Storefront extends StatefulWidget {
 }
 
 class _StorefrontState extends State<Storefront> {
-  Map<String, dynamic>? vendorData;
   bool isLoading = true;
-  int? vendorSubcategoryId;
+  int? vendorTypeId;
+  bool get canShowMenus => vendorTypeId == 2 || vendorTypeId == 7;
+
 
   static const Color steelAzure = Color(0xFF4682B4);
 
   @override
   void initState() {
     super.initState();
-    fetchVendorApi();
+    _loadVendorType();
   }
 
-  Future<void> fetchVendorApi() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('authToken');
+  Future<void> _loadVendorType() async {
+    final prefs = await SharedPreferences.getInstance();
+    vendorTypeId = prefs.getInt('vendorTypeId');
 
-      final response = await http.post(
-        Uri.parse("https://happywedz.com/api/vendor-services"),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) "Authorization": "Bearer $token"
-        },
-        body: jsonEncode({"vendor_id": widget.vendorId}),
-      );
+    debugPrint("📌 Storefront vendorTypeId = $vendorTypeId");
 
-      if (response.statusCode == 200) {
-        final decode = jsonDecode(response.body);
-        final data = decode["data"][0];
-        setState(() {
-          vendorData = data["attributes"] ?? {};
-          vendorSubcategoryId = data["vendor_subcategory_id"];
-          isLoading = false;
-        });
-      } else {
-        print("Error Fetching");
-        setState(() => isLoading = false);
-      }
-    } catch (e) {
-      print("Error Fetching");
-      setState(() => isLoading = false);
-    }
+    setState(() => isLoading = false);
   }
 
-  final Map<String, Widget Function()> faqScreens = {
-    "photographers": () => const PhotographerFaqScreen(),
-    "venues": () => const VenueFaqScreen(),
-    "makeup": () => const BridalMakeupFaqScreen(),
-    "planning and decor": () => DecoratorFaqScreen(),
-    "caterers": () => CatererFaqScreen(),
-    "invites and gifts": () => GiftsScreen(),
-    "florists": () => FloristFaqScreen(),
-    "pandits": () => PanditsFaqScreen(),
-    "bridal": () => BridalwearFaqScreen(),
-    "groom": () => GroomwearScreen(),
-    "jewellery and accessories": () => JewelleryFaqScreen(),
-    "mehndi": () => MehendiArtistsScreen(),
-    "music and dance": () => WeddingDjScreen(),
+  /// 🔥 VendorTypeId → FAQ Screen mapping
+  final Map<int, Widget Function()> faqByVendorTypeId = {
+    1: () => const PhotographerFaqScreen(),
+    2: () => const VenueFaqScreen(),
+    3: () => const BridalMakeupFaqScreen(),
+    4: () => DecoratorFaqScreen(),
+    5: () => MehendiArtistsScreen(),
+    6: () => JewelleryFaqScreen(),
+    7: () => CatererFaqScreen(),
+    8: () => WeddingDjScreen(),
+    9: () => GiftsScreen(),
+    10: () => BridalwearFaqScreen(),
+    11: () => GroomwearScreen(),
+    13: () => FloristFaqScreen(),
+    14: () => PanditsFaqScreen(),
   };
 
   void openFaq(BuildContext context) {
-    String type = vendorData?["vendor_type"]?.toLowerCase().trim() ?? "";
-    final page = faqScreens[type];
+    debugPrint("👉 Opening FAQ for vendorTypeId = $vendorTypeId");
+
+    final page = faqByVendorTypeId[vendorTypeId];
+
     if (page != null) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => page()));
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => page()),
+      );
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("FAQ not available")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("FAQ not available for this vendor")),
+      );
     }
   }
 
@@ -135,6 +118,7 @@ class _StorefrontState extends State<Storefront> {
         "title": "Contact Details",
         "icon": Icons.call_outlined,
         "page": ContactDetailsPage(),
+
       },
       {
         "title": "Location & Service Areas",
@@ -166,11 +150,14 @@ class _StorefrontState extends State<Storefront> {
         "icon": Icons.widgets_outlined,
         "page": FacilitiesPage()
       },
-      {
-        "title": "Menus",
-        "icon": Icons.restaurant_menu,
-        "page": MenusPage()
-      },
+
+      if (canShowMenus)
+        {
+          "title": "Menus",
+          "icon": Icons.restaurant_menu,
+          "page": MenusPage()
+        },
+
       {
         "title": "Promotions",
         "icon": Icons.local_offer_outlined,
@@ -195,15 +182,8 @@ class _StorefrontState extends State<Storefront> {
 
     return Scaffold(
       backgroundColor: const Color(0xffF7F8FA),
-      appBar: AppBar(
-        backgroundColor: Color(0xFF00509D),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          "Storefront",
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
-        ),
+      appBar: CommonAppBar(
+        title: "Storefront",
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(14),
@@ -218,10 +198,13 @@ class _StorefrontState extends State<Storefront> {
             ),
             child: ListTile(
               leading: Icon(item["icon"], color: steelAzure, size: 26),
-              title: Text(item["title"],
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-              trailing:
-              const Icon(Icons.arrow_forward_ios, color: steelAzure, size: 18),
+              title: Text(
+                item["title"],
+                style:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios,
+                  color: steelAzure, size: 18),
               onTap: () {
                 if (item["page"] == "faq") {
                   openFaq(context);

@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../api_services/api_service_vendor.dart';
+import '../api_services/storefront_completion_service.dart';
+import '../utils/common_app_bar.dart';
 
 class PoliciesPage extends StatefulWidget {
   const PoliciesPage({super.key});
@@ -23,6 +26,8 @@ class _PoliciesPageState extends State<PoliciesPage> {
   int? serviceId;
   int? vendorSubcategoryId;
   String? token;
+  final VendorServiceApi _vendorApi = VendorServiceApi();
+
 
   @override
   void initState() {
@@ -104,57 +109,27 @@ class _PoliciesPageState extends State<PoliciesPage> {
   }
 
   Future<void> _fetchVendorServiceAndPopulate() async {
-    print("📡 Fetching vendor-services for vendorId=$vendorId");
     try {
-      final response = await http.get(
-        Uri.parse("https://happywedz.com/api/vendor-services/vendor/$vendorId"),
-        headers: {
-          if (token != null) "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
+      final data = await _vendorApi.getByVendorId(
+        vendorId: vendorId!,
+        token: token!,
       );
 
-      print("📩 fetchVendorService response: ${response.statusCode} | ${response.body}");
+      if (data == null) return;
 
-      if (response.statusCode == 200) {
-        final List<dynamic> list = jsonDecode(response.body);
-        if (list.isNotEmpty) {
-          final service = list[0];
-          // Extract service id (coerce to int)
-          try {
-            final rawId = service['id'];
-            final intId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
-            if (intId != null) {
-              serviceId = intId;
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setInt('serviceId', serviceId!);
-              print("💾 Stored/updated serviceId=$serviceId in SharedPreferences");
-            } else {
-              print("⚠ service.id missing or not int: $rawId");
-            }
-          } catch (e) {
-            print("⚠ Error parsing service id: $e");
-          }
+      // save serviceId
+      serviceId = data["id"];
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt("serviceId", serviceId!);
 
-          final attributes = service['attributes'] ?? {};
-          if (attributes != null && (attributes is Map)) {
-            print("📦 Service attributes: $attributes");
-            _setFieldsFromMap({'attributes': attributes});
-            // persist locally
-            await _saveLocallyFromControllers();
-          } else {
-            print("ℹ️ No attributes present for service");
-          }
-        } else {
-          print("ℹ️ vendor-services returned empty list");
-        }
-      } else {
-        print("❌ fetch vendor-services failed: ${response.statusCode}");
-      }
+      final attributes = Map<String, dynamic>.from(data["attributes"] ?? {});
+      _setFieldsFromMap({"attributes": attributes});
+      await _saveLocallyFromControllers();
     } catch (e) {
-      print("❌ Error fetching vendor-service: $e");
+      debugPrint("❌ fetch policies error: $e");
     }
   }
+
 
   Future<void> _autosaveLocally() async {
     // Called on every change; keep lightweight and quick
@@ -174,74 +149,61 @@ class _PoliciesPageState extends State<PoliciesPage> {
   }
 
   Future<void> _savePoliciesToServer() async {
-    print("💾 Attempting to save policies to server...");
-
-    if (vendorId == null || token == null) {
-      print("❌ Missing vendorId or token; cannot save. vendorId=$vendorId token=${token != null}");
+    if (vendorId == null || token == null || serviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please login and complete Basic Info first.")),
-      );
-      return;
-    }
-
-    if (serviceId == null) {
-      print("❌ serviceId is null. Basic Info root screen must be saved first (which creates serviceId).");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please complete Basic Info (root) to create serviceId first.")),
+        const SnackBar(content: Text("Please complete Basic Info first.")),
       );
       return;
     }
 
     setState(() => saving = true);
 
-    final requestBody = {
+    // 🔥 Fetch latest attributes first
+    final latest = await _vendorApi.getByServiceId(
+      serviceId: serviceId!,
+      token: token!,
+    );
+
+    Map<String, dynamic> attributes =
+    Map<String, dynamic>.from(latest?["attributes"] ?? {});
+
+    // ✅ Update ONLY policy-related keys
+    attributes.addAll({
+      "cancellation_policy": _cancellationController.text.trim(),
+      "refund_policy": _refundController.text.trim(),
+      "payment_terms": _paymentController.text.trim(),
+      "tnc": _tncController.text.trim(),
+    });
+
+    final body = {
       "vendor_id": vendorId,
       "vendor_subcategory_id": vendorSubcategoryId,
-      "attributes": {
-        "cancellation_policy": _cancellationController.text.trim(),
-        "refund_policy": _refundController.text.trim(),
-        "payment_terms": _paymentController.text.trim(),
-        "tnc": _tncController.text.trim(),
-      }
+      "attributes": attributes,
     };
 
-    print("📦 PUT request body: $requestBody");
+    final success = await _vendorApi.updateService(
+      serviceId: serviceId!,
+      token: token!,
+      body: body,
+    );
 
-    try {
-      final response = await http.put(
-        Uri.parse("https://happywedz.com/api/vendor-services/$serviceId"),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
-        },
-        body: jsonEncode(requestBody),
+    if (success) {
+      await StorefrontCompletionService.refreshCompletion(
+        serviceId: serviceId!,
       );
-
-      print("📩 Save response: ${response.statusCode} | ${response.body}");
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // success -> update local copy as well
-        await _saveLocallyFromControllers();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Policies saved successfully.")));
-        print("✅ Policies saved successfully on server.");
-      } else {
-        String msg = "Failed to save policies";
-        try {
-          final Map<String, dynamic> parsed = jsonDecode(response.body);
-          msg = parsed['error'] ?? parsed['message'] ?? msg;
-        } catch (e) {
-          print("⚠ Failed to parse error body: $e");
-        }
-        print("❌ Save failed: $msg");
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      }
-    } catch (e) {
-      print("❌ Error while saving policies: $e");
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error saving policies")));
-    } finally {
-      setState(() => saving = false);
+      await _saveLocallyFromControllers();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Policies saved successfully")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to save policies")),
+      );
     }
+
+    setState(() => saving = false);
   }
+
 
   void _resetForm() async {
     print("♻️ Reset: clearing controllers and removing local storage");
@@ -286,13 +248,8 @@ class _PoliciesPageState extends State<PoliciesPage> {
   Widget build(BuildContext context) {
     // UI consistent with Basic Info screen
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Policies & Terms", style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF0072BB),
-        iconTheme: const IconThemeData(color: Colors.black),
-        elevation: 1,
-      ),
-      backgroundColor: const Color(0xffF2F2F2),
+      backgroundColor: Colors.white,
+      appBar: CommonAppBar(title: 'Policies & Terms'),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -329,7 +286,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
                   ),
                   child: saving
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("Save Policies", style: TextStyle(fontSize: 16)),
+                      : const Text("Save Policies", style: TextStyle(fontSize: 16,color: Colors.white)),
                 ),
               ),
 
