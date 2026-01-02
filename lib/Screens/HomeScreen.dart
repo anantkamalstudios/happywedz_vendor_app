@@ -1198,6 +1198,26 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   @override
+  void didPopNext() {
+    // 🔥 Called when returning from another page
+    _refreshProfileProgress();
+  }
+
+  Future<void> _refreshProfileProgress() async {
+    if (_serviceId == null) return;
+
+    final progress = await ProfileCompletionService.fetchCompletion(
+      serviceId: _serviceId!,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _progress = progress;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
@@ -1248,7 +1268,10 @@ class _HomeTabState extends State<HomeTab> {
                     builder: (_) => Storefront(vendorId: vendorId),
                   ),
                 );
+                await _refreshProfileProgress();
               },
+
+
             ),
             const SizedBox(height: 15),
             if (_unreadCount > 0) _queriesCard(context),

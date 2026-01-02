@@ -465,6 +465,9 @@ class _StorefrontState extends State<Storefront> {
       backgroundColor: const Color(0xffF7F8FA),
       appBar: CommonAppBar(
         title: "Storefront",
+        onBack: () {
+          Navigator.pop(context, true); // 🔥 notify refresh
+        },
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(14),
@@ -503,3 +506,5 @@ class _StorefrontState extends State<Storefront> {
     );
   }
 }
+
+

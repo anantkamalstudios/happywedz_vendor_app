@@ -401,11 +401,14 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
   File? profileImage;
   bool showPasswordSection = false;
   bool isSaving = false;
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
     loadData();
+    _loadBusinessDetails();
+
   }
 
   // ---------------- LOAD DATA ----------------
@@ -437,6 +440,16 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
         profileImageUrl = data["profileImage"];
       });
     }
+  }
+
+
+  Future<void> _loadBusinessDetails() async {
+    setState(() => isLoading = true);
+
+    // 🔹 fetch data here
+    await Future.delayed(const Duration(seconds: 1)); // example
+
+    setState(() => isLoading = false);
   }
 
   // ---------------- PICK IMAGE ----------------
@@ -588,7 +601,19 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
     return Scaffold(
       backgroundColor: Color(0xffF2F2F2),
       appBar: CommonAppBar(title: 'Business Details'),
-      body: Column(
+      body:isLoading
+          ? const Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 3,
+        ),
+      )
+          :
+
+
+
+
+
+      Column(
         children: [
           Expanded(
             child: SingleChildScrollView(

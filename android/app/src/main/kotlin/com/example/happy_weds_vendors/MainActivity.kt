@@ -1,4 +1,4 @@
-package com.example.happy_weds_vendors
+package com.happy.happy_weds_vendors
 
 import io.flutter.embedding.android.FlutterActivity
 

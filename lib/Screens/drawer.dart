@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -25,6 +27,11 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
   int leadCount = 0;
   int viewsCount = 0;
   int? vendorId;
+
+
+
+  bool loadingLink = false;
+  String? reviewLink;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -259,17 +266,48 @@ Future<void> _loadVendorId() async {
                       );
                     },
                   ),
-
                   ListTile(
-                    leading: const Icon(Icons.reviews,
-                        color: Color(0xFF4682B4)),
+                    leading: const Icon(
+                      Icons.reviews,
+                      color: Color(0xFF4682B4),
+                    ),
                     title: const Text("Get Client Review to You"),
+                    trailing: loadingLink
+                        ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                        : null,
                     onTap: () async {
+                      await _generateReviewLinkOnce();
+
+                      if (reviewLink == null || reviewLink!.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Unable to generate review link")),
+                        );
+                        return;
+                      }
+
                       await Share.share(
-                        "Hey! Please share your review about my work 😊",
+                        "Hey! 😊\n\n"
+                            "Please take a moment to share your review about my work:\n\n"
+                            "$reviewLink\n\n"
+                            "Thank you so much! 🙏",
                       );
                     },
                   ),
+
+                  // ListTile(
+                  //   leading: const Icon(Icons.reviews,
+                  //       color: Color(0xFF4682B4)),
+                  //   title: const Text("Get Client Review to You"),
+                  //   onTap: () async {
+                  //     await Share.share(
+                  //       "Hey! Please share your review about my work 😊",
+                  //     );
+                  //   },
+                  // ),
 
                   // ListTile(
                   //   leading: const Icon(Icons.support_agent,
@@ -280,13 +318,21 @@ Future<void> _loadVendorId() async {
                   //     _contactSupport();
                   //   },
                   // ),
-
                   ListTile(
-                    leading: const Icon(Icons.star_rate,
-                        color: Color(0xFF4682B4)),
+                    leading: const Icon(
+                      Icons.star_rate,
+                      color: Color(0xFF4682B4),
+                    ),
                     title: const Text("Rate on Playstore"),
-                    onTap: () => _showRateDialog(context),
+                    onTap: _rateOnPlayStore,
                   ),
+
+                  // ListTile(
+                  //   leading: const Icon(Icons.star_rate,
+                  //       color: Color(0xFF4682B4)),
+                  //   title: const Text("Rate on Playstore"),
+                  //   onTap: () => _showRateDialog(context),
+                  // ),
                 ],
               ),
             ),
@@ -319,6 +365,68 @@ Future<void> _loadVendorId() async {
         ],
       ),
     );
+  }
+
+
+  void _rateOnPlayStore() async {
+    const playStoreUrl =
+        "https://play.google.com/store/apps/details?id=com.happy.happy_weds_vendors";
+
+    final uri = Uri.parse(playStoreUrl);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication, // 🔥 opens Play Store app
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Unable to open Play Store")),
+      );
+    }
+  }
+
+
+  // ================= GET VENDOR SERVICE ID =================
+  Future<int?> _getVendorServiceId(int vendorId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) return null;
+
+    final res = await http.get(
+      Uri.parse(
+          "https://happywedz.com/api/vendor-services/vendor/$vendorId"),
+      headers: {
+        "Authorization": "Bearer $token",
+      },
+    );
+
+    if (res.statusCode == 200) {
+      final List data = json.decode(res.body);
+      if (data.isNotEmpty) {
+        return data[0]['id'];
+      }
+    }
+    return null;
+  }
+
+  Future<void> _generateReviewLinkOnce() async {
+    if (reviewLink != null && reviewLink!.isNotEmpty) return; // 🔥 generate once
+
+    final prefs = await SharedPreferences.getInstance();
+    final vendorId = prefs.getInt("vendorId");
+    if (vendorId == null) return;
+
+    setState(() => loadingLink = true);
+
+    final serviceId = await _getVendorServiceId(vendorId);
+
+    setState(() {
+      loadingLink = false;
+      reviewLink = serviceId != null
+          ? "https://happywedz.com/write-review/$serviceId"
+          : null;
+    });
   }
 
   /// Stat Item
