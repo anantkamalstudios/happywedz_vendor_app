@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
@@ -71,7 +70,7 @@ class _StatsPageState extends State<StatsPage>
     super.dispose();
   }
 
-  // Token se vendor ID extract
+  // Extract vendor ID from token
   int? _resolveVendorIdFromPrefsOrToken(SharedPreferences prefs, String? token) {
     final int? vid = prefs.getInt("vendor_id");
     if (vid != null) return vid;
@@ -121,11 +120,27 @@ class _StatsPageState extends State<StatsPage>
 
     Map<String, int> getCountByDate(List<dynamic> list, String dateKey) {
       final map = <String, int>{};
+      final DateTime rangeStart = DateTime(
+        customStartDate!.year,
+        customStartDate!.month,
+        customStartDate!.day,
+      );
+
+      final DateTime rangeEnd = DateTime(
+        customEndDate!.year,
+        customEndDate!.month,
+        customEndDate!.day,
+        23,
+        59,
+        59,
+        999,
+      );
       for (var item in list) {
         final dateStr = item[dateKey];
         if (dateStr == null) continue;
         final date = DateTime.parse(dateStr);
-        if (date.isBefore(customStartDate!) || date.isAfter(customEndDate!)) continue;
+        // if (date.isBefore(customStartDate!) || date.isAfter(customEndDate!)) continue;
+        if (date.isBefore(rangeStart) || date.isAfter(rangeEnd)) continue;
 
         final formatted = DateFormat("dd MMM yyyy").format(date);
         map[formatted] = (map[formatted] ?? 0) + 1;
@@ -196,8 +211,16 @@ class _StatsPageState extends State<StatsPage>
       ),
     );
 
-    // Direct PDF preview (print/share option bhi aayega)
     await Printing.layoutPdf(onLayout: (_) => pdf.save());
+
+    setState(() {
+      selectedPeriod = "This Week";
+      customStartDate = null;
+      customEndDate = null;
+    });
+
+    _regenerateAllCharts("This Week");
+    _controller.forward(from: 0);
   }
 
   // ==================== Chart Regeneration ====================
@@ -458,8 +481,6 @@ class _StatsPageState extends State<StatsPage>
                   _animatedChartForProfileViews(),
                   const SizedBox(height: 20),
                 ],
-
-                // Custom Range mein kuch nahi dikhega yahan (PDF already open ho chuka hoga)
               ],
             ),
           ),
@@ -505,18 +526,35 @@ class _StatsPageState extends State<StatsPage>
     );
   }
 
+
   List<dynamic> _getFilteredLeads() {
-    // Same as before...
-    // (unchanged - for leads list screen)
-    if (selectedPeriod == "Custom Range" && customStartDate != null && customEndDate != null) {
+    // ✅ Custom Range ONLY when selected
+    if (selectedPeriod == "Custom Range" &&
+        customStartDate != null &&
+        customEndDate != null) {
+
+      final DateTime start = DateTime(
+        customStartDate!.year,
+        customStartDate!.month,
+        customStartDate!.day,
+      );
+
+      final DateTime end = DateTime(
+        customEndDate!.year,
+        customEndDate!.month,
+        customEndDate!.day,
+        23, 59, 59, 999,
+      );
+
       return apiRequests.where((req) {
-        DateTime d = DateTime.parse(req["createdAt"]);
-        return !d.isBefore(customStartDate!) && !d.isAfter(customEndDate!);
+        final DateTime d = DateTime.parse(req["createdAt"]);
+        return !d.isBefore(start) && !d.isAfter(end);
       }).toList();
     }
-    // ... rest same
+
     DateTime now = DateTime.now();
     late DateTime start, end;
+
     if (selectedPeriod == "This Week") {
       start = now.subtract(Duration(days: now.weekday - 1));
       end = start.add(const Duration(days: 6));
@@ -524,13 +562,21 @@ class _StatsPageState extends State<StatsPage>
       start = DateTime(now.year, now.month, 1);
       end = DateTime(now.year, now.month + 1, 0);
     } else if (selectedPeriod == "Last Month") {
-      start = now.month == 1 ? DateTime(now.year - 1, 12, 1) : DateTime(now.year, now.month - 1, 1);
-      end = now.month == 1 ? DateTime(now.year - 1, 12, 31) : DateTime(now.year, now.month, 0);
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
     } else {
       return apiRequests;
     }
+
+    start = DateTime(start.year, start.month, start.day);
+    end = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+
     return apiRequests.where((req) {
-      DateTime d = DateTime.parse(req["createdAt"]);
+      final DateTime d = DateTime.parse(req["createdAt"]);
       return !d.isBefore(start) && !d.isAfter(end);
     }).toList();
   }
@@ -597,32 +643,58 @@ class _StatsPageState extends State<StatsPage>
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade300),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            )
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(title, style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600)),
-                ],
-              ),
+            // 🔝 VALUE + ICON ROW
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+              ],
             ),
-            Container(
-              height: 42,
-              width: 42,
-              decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-              child: Icon(icon, color: iconColor, size: 22),
+
+            const SizedBox(height: 10),
+
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
 
   Widget _animatedChartForLeads() {
     return AnimatedSwitcher(

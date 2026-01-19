@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'SignUp.dart';
 import 'HomeScreen.dart';
+import 'new_screens/forget_password_screen.dart';
 
 class Login extends StatefulWidget {
   const Login({Key? key}) : super(key: key);
@@ -214,20 +215,41 @@ class _LoginState extends State<Login> {
                             },
                           ),
                         ),
-
-                        const SizedBox(height: 8),
-                        Row(
+                        SizedBox(height: 4,),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Checkbox(
-                              value: _rememberMe,
-                              onChanged: (val) =>
-                                  setState(() => _rememberMe = val!),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ForgotPasswordScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                "Forgot Password?",
+                                style: TextStyle(
+                                  color: Color(0xFF00509D),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                            const Text("Remember me"),
-                            const Spacer(),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _rememberMe,
+                                  onChanged: (val) =>
+                                      setState(() => _rememberMe = val!),
+                                ),
+                                const Text("Remember me"),
+                              ],
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
