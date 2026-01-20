@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import '../Storefront/PhotosScreen.dart';
 import '../Storefront/StoreFront.dart';
 import '../api_services/api_service_vendor.dart';
+import '../movments_plus/bottom_bar.dart';
+import '../movments_plus/dashboard_screen.dart';
 import 'FAQs/Florists.dart';
 import 'FAQs/Makeup.dart';
 import 'FAQs/Pandits.dart';
@@ -28,6 +30,7 @@ import 'FAQs/WeddingDj.dart';
 import 'FAQs/WeddingGift.dart';
 import 'new_screens/review_collector.dart';
 
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -38,24 +41,37 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _defaultPages = [
-    const HomeTab(),     // 0 - Home
-    const LeadsPage(),   // 1 - Leads
-    const ReviewsPage(), // 2 - Reviews
-    const StatsPage(),   // 3 - stats
+  int? vendorTypeId;
+  bool isLoadingVendor = true;
+
+  final List<Widget> _pages = const [
+    HomeTab(),     // 0
+    LeadsPage(),   // 1
+    ReviewsPage(), // 2
+    StatsPage(),   // 3
   ];
 
-
-  late List<Widget> _pages;
+  /// ✅ Photographer check
+  bool get isPhotographer => vendorTypeId == 1;
 
   @override
   void initState() {
     super.initState();
-    _pages = List.from(_defaultPages);
+    _loadVendorType();
+  }
+
+  Future<void> _loadVendorType() async {
+    final prefs = await SharedPreferences.getInstance();
+    vendorTypeId = prefs.getInt('vendorTypeId');
+
+    debugPrint("🏷 HomeScreen vendorTypeId = $vendorTypeId");
+
+    setState(() {
+      isLoadingVendor = false;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -66,67 +82,233 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoadingVendor) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       body: _pages[_selectedIndex],
 
+      /// 🔥 FLOATING + ONLY FOR PHOTOGRAPHER
+      floatingActionButton: isPhotographer
+          ? SizedBox(
+        height: 50,
+        width: 50,
+        child: FloatingActionButton(
+          backgroundColor: const Color(0xFF00509D),
+          shape: const CircleBorder(),
+          elevation: 4,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MainHomeScreen(),
+              ),
+            );
 
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.white,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: const Color(0xFF00509D),
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
+          },
+          child: const Icon(
+            Icons.add,
+            size: 32,
+            color: Colors.white,
+          ),
+        ),
+      )
+          : null,
 
-        items: [
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              "assets/icons/home.png",
-              height: 24,
-              color: _selectedIndex == 0
-                  ? const Color(0xFF00509D)
-                  : Colors.grey,
-            ),
-            label: "Home",
+      floatingActionButtonLocation: isPhotographer
+          ? FloatingActionButtonLocation.centerDocked
+          : null,
+
+      /// 🔹 BOTTOM BAR
+      bottomNavigationBar: BottomAppBar(
+        color: Colors.white,
+        elevation: 10,
+        shape: isPhotographer
+            ? const CircularNotchedRectangle()
+            : null,
+        notchMargin: isPhotographer ? 8 : 0,
+        child: SizedBox(
+          height: 64,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _bottomItem(
+                index: 0,
+                icon: "assets/icons/home.png",
+                label: "Home",
+              ),
+              _bottomItem(
+                index: 1,
+                icon: "assets/icons/leads.png",
+                label: "Enquirys",
+              ),
+
+              if (isPhotographer) const SizedBox(width: 40),
+
+              _bottomItem(
+                index: 2,
+                icon: "assets/icons/reviews.png",
+                label: "Reviews",
+              ),
+              _bottomItem(
+                index: 3,
+                icon: "assets/icons/statistics.png",
+                label: "Statistics",
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              "assets/icons/leads.png",
-              height: 24,
-              color: _selectedIndex == 1
-                  ? const Color(0xFF00509D)
-                  : Colors.grey,
-            ),
-            label: "Enquirys",
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              "assets/icons/reviews.png",
-              height: 24,
-              color: _selectedIndex == 2
-                  ? const Color(0xFF00509D)
-                  : Colors.grey,
-            ),
-            label: "Reviews",
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              "assets/icons/statistics.png",
-              height: 24,
-              color: _selectedIndex == 3
-                  ? const Color(0xFF00509D)
-                  : Colors.grey,
-            ),
-            label: "Statistics",
-          ),
-        ],
+        ),
       ),
-
     );
   }
-  }
 
-//---------------- Home Tab ----------------
+  /// 🔹 BOTTOM ITEM WIDGET
+  Widget _bottomItem({
+    required int index,
+    required String icon,
+    required String label,
+  }) {
+    final bool isSelected = _selectedIndex == index;
+
+    return InkWell(
+      onTap: () => _onItemTapped(index),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              icon,
+              height: 24,
+              color: isSelected
+                  ? const Color(0xFF00509D)
+                  : Colors.grey,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight:
+                isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected
+                    ? const Color(0xFF00509D)
+                    : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+//
+// class HomeScreen extends StatefulWidget {
+//   const HomeScreen({super.key});
+//
+//   static _HomeScreenState? of(BuildContext context) =>
+//       context.findAncestorStateOfType<_HomeScreenState>();
+//
+//   @override
+//   State<HomeScreen> createState() => _HomeScreenState();
+// }
+//
+//
+// class _HomeScreenState extends State<HomeScreen> {
+//   int _selectedIndex = 0;
+//
+//   final List<Widget> _defaultPages = [
+//     const HomeTab(),     // 0 - Home
+//     const LeadsPage(),   // 1 - Leads
+//     const ReviewsPage(), // 2 - Reviews
+//     const StatsPage(),   // 3 - stats
+//   ];
+//
+//
+//   late List<Widget> _pages;
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     _pages = List.from(_defaultPages);
+//   }
+//
+//   void _onItemTapped(int index) {
+//     setState(() {
+//       _selectedIndex = index;
+//     });
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       body: _pages[_selectedIndex],
+//
+//
+//       bottomNavigationBar: BottomNavigationBar(
+//         backgroundColor: Colors.white,
+//         currentIndex: _selectedIndex,
+//         onTap: _onItemTapped,
+//         selectedItemColor: const Color(0xFF00509D),
+//         unselectedItemColor: Colors.grey,
+//         type: BottomNavigationBarType.fixed,
+//
+//         items: [
+//           BottomNavigationBarItem(
+//             icon: Image.asset(
+//               "assets/icons/home.png",
+//               height: 24,
+//               color: _selectedIndex == 0
+//                   ? const Color(0xFF00509D)
+//                   : Colors.grey,
+//             ),
+//             label: "Home",
+//           ),
+//           BottomNavigationBarItem(
+//             icon: Image.asset(
+//               "assets/icons/leads.png",
+//               height: 24,
+//               color: _selectedIndex == 1
+//                   ? const Color(0xFF00509D)
+//                   : Colors.grey,
+//             ),
+//             label: "Enquirys",
+//           ),
+//           BottomNavigationBarItem(
+//             icon: Image.asset(
+//               "assets/icons/reviews.png",
+//               height: 24,
+//               color: _selectedIndex == 2
+//                   ? const Color(0xFF00509D)
+//                   : Colors.grey,
+//             ),
+//             label: "Reviews",
+//           ),
+//           BottomNavigationBarItem(
+//             icon: Image.asset(
+//               "assets/icons/statistics.png",
+//               height: 24,
+//               color: _selectedIndex == 3
+//                   ? const Color(0xFF00509D)
+//                   : Colors.grey,
+//             ),
+//             label: "Statistics",
+//           ),
+//         ],
+//       ),
+//
+//     );
+//   }
+//   }
+//
+// ---------------- Home Tab ----------------
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
 
