@@ -1,101 +1,207 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 
-class AnalyticsScreen extends StatelessWidget {
+
+// ======================= SERVICE =======================
+
+class AnalyticsService {
+  static const String _url =
+      "https://happywedz.com/api/vendor/dashboard/analytics";
+
+  static Future<Map<String, dynamic>> fetchAnalytics() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+    if (token == null || token.isEmpty) {
+      throw Exception("Auth token not found");
+    }
+
+    final response = await http.get(
+      Uri.parse(_url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception("Analytics API failed");
+    }
+  }
+}
+
+
+// ======================= COLORS (WEB MATCH) =======================
+
+// Media by Collection
+const Map<String, Color> collectionColors = {
+  'Haldi': Color(0xFF36A2EB),
+  'Engagement': Color(0xFFFF6384),
+  'test': Color(0xFFFFCE56),
+  'wedding': Color(0xFF4BC0C0),
+};
+
+// Media Visibility
+const Map<String, Color> visibilityColors = {
+  'private': Color(0xFF4BC0C0),
+  'public': Color(0xFFFF6384),
+};
+
+// Tokens by Type
+const Map<String, Color> tokenColors = {
+  'private': Color(0xFFFFCE56),
+  'public': Color(0xFF36A2EB),
+};
+
+
+// ======================= SCREEN =======================
+
+class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
+
+  @override
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  late Future<Map<String, dynamic>> analyticsFuture;
+
+  // 🔥 Separate selection state per chart
+  final Map<String, int?> touchedIndexMap = {
+    'collection': null,
+    'visibility': null,
+    'token': null,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    analyticsFuture = AnalyticsService.fetchAnalytics();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: CommonAppBar(title: 'Analytics'),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: analyticsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _storageCard(),
-            const SizedBox(height: 16),
-            _statsRow(),
-            const SizedBox(height: 20),
-            _chartCard(
-              title: "Media by Collection",
-              chart: _donutChart([
-                PieChartSectionData(
-                    value: 40, color: Colors.blue),
-                PieChartSectionData(
-                    value: 30, color: Colors.pink),
-                PieChartSectionData(
-                    value: 20, color: Colors.teal),
-                PieChartSectionData(
-                    value: 10, color: Colors.amber),
-              ]),
+          if (snapshot.hasError) {
+            return Center(child: Text(snapshot.error.toString()));
+          }
+
+          final data = snapshot.data!;
+          final package = data['package'];
+          final media = data['media'];
+          final tokens = data['tokens'];
+          final activity = data['activity'];
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _storageCard(package),
+                const SizedBox(height: 16),
+                _statsRow(media, tokens),
+                const SizedBox(height: 20),
+
+                _chartCard(
+                  title: "Media by Collection",
+                  chart: _donutChartWithLegend(
+                    list: media['byCollection'],
+                    labelKey: 'collection',
+                    chartKey: 'collection',
+                    colorMap: collectionColors,
+                  ),
+                ),
+
+                _chartCard(
+                  title: "Media Visibility",
+                  chart: _donutChartWithLegend(
+                    list: media['visibility'],
+                    labelKey: 'visibility',
+                    chartKey: 'visibility',
+                    colorMap: visibilityColors,
+                  ),
+                ),
+
+                _chartCard(
+                  title: "Tokens by Type",
+                  chart: _donutChartWithLegend(
+                    list: tokens['byType'],
+                    labelKey: 'type',
+                    chartKey: 'token',
+                    colorMap: tokenColors,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+                _recentActivity(activity),
+              ],
             ),
-            _chartCard(
-              title: "Media Visibility",
-              chart: _donutChart([
-                PieChartSectionData(
-                    value: 65, color: Colors.pink),
-                PieChartSectionData(
-                    value: 35, color: Colors.teal),
-              ]),
-            ),
-            _chartCard(
-              title: "Tokens by Type",
-              chart: _donutChart([
-                PieChartSectionData(
-                    value: 70, color: Colors.amber),
-                PieChartSectionData(
-                    value: 30, color: Colors.blue),
-              ]),
-            ),
-            const SizedBox(height: 20),
-            _recentActivity(),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  // 🔹 STORAGE CARD
-  Widget _storageCard() {
+  // ======================= STORAGE =======================
+
+  Widget _storageCard(dynamic package) {
+    final double used = package['usedMB'].toDouble();
+    final double limit = package['limitMB'].toDouble();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Storage Usage (Premium)",
-            style: TextStyle(fontWeight: FontWeight.w600),
+          Text(
+            "Storage Usage (${package['name']})",
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
           LinearProgressIndicator(
-            value: 0.03,
+            value: used / limit,
             minHeight: 8,
             backgroundColor: Colors.grey.shade200,
             valueColor:
             const AlwaysStoppedAnimation(Color(0xFF00509D)),
           ),
           const SizedBox(height: 8),
-          const Text(
-            "32.49 MB of 10 GB used",
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+          Text(
+            "${used.toStringAsFixed(2)} MB of ${(limit / 1024).toStringAsFixed(0)} GB used",
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
       ),
     );
   }
 
-  // 🔹 STATS ROW
-  Widget _statsRow() {
+  // ======================= STATS =======================
+
+  Widget _statsRow(dynamic media, dynamic tokens) {
     return Row(
       children: [
-        _statCard("Media", "22", Icons.photo_library),
+        _statCard("Media", media['total'].toString(), Icons.photo_library),
         const SizedBox(width: 12),
-        _statCard("Tokens", "6 / 7", Icons.vpn_key),
+        _statCard(
+          "Tokens",
+          "${tokens['active']} / ${tokens['total']}",
+          Icons.vpn_key,
+        ),
         const SizedBox(width: 12),
         _statCard("Views", "0", Icons.remove_red_eye),
       ],
@@ -118,17 +224,15 @@ class AnalyticsScreen extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12),
-            ),
+            Text(title, style: const TextStyle(fontSize: 12)),
           ],
         ),
       ),
     );
   }
 
-  // 🔹 CHART CARD
+  // ======================= CHART CARD =======================
+
   Widget _chartCard({required String title, required Widget chart}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -137,62 +241,170 @@ class AnalyticsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style:
-            const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
-          SizedBox(height: 180, child: chart),
+          SizedBox(height: 240, child: chart),
         ],
       ),
     );
   }
 
-  // 🔹 DONUT CHART
-  Widget _donutChart(List<PieChartSectionData> sections) {
-    return PieChart(
-      PieChartData(
-        sectionsSpace: 4,
-        centerSpaceRadius: 45,
-        sections: sections.map((e) {
-          return e.copyWith(
-            radius: 40,
-            title: '',
-          );
-        }).toList(),
-      ),
+  // ======================= DONUT + CENTER TEXT + LEGEND =======================
+
+  Widget _donutChartWithLegend({
+    required List list,
+    required String labelKey,
+    required String chartKey,
+    required Map<String, Color> colorMap,
+  }) {
+    final int? rawIndex = touchedIndexMap[chartKey];
+    final int? selectedIndex =
+    (rawIndex != null && rawIndex >= 0 && rawIndex < list.length)
+        ? rawIndex
+        : null;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 190,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              PieChart(
+                PieChartData(
+                  centerSpaceRadius: 60,
+                  sectionsSpace: 3,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (event, response) {
+                      setState(() {
+                        if (response == null ||
+                            response.touchedSection == null) {
+                          touchedIndexMap[chartKey] = null;
+                        } else {
+                          touchedIndexMap[chartKey] =
+                              response.touchedSection!.touchedSectionIndex;
+                        }
+                      });
+                    },
+                  ),
+                  sections: List.generate(list.length, (i) {
+                    final value =
+                    double.parse(list[i]['count'].toString());
+                    final label = list[i][labelKey];
+                    final isSelected = i == selectedIndex;
+
+                    return PieChartSectionData(
+                      value: value,
+                      radius: isSelected ? 48 : 40,
+                      color: colorMap[label] ?? Colors.grey,
+                      title: '',
+                    );
+                  }),
+                ),
+              ),
+
+              // 🔥 CENTER TEXT (Professional & Safe)
+              if (selectedIndex != null)
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      list[selectedIndex][labelKey],
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      list[selectedIndex]['count'].toString(),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        Wrap(
+          spacing: 14,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: List.generate(list.length, (i) {
+            final label = list[i][labelKey];
+            final isSelected = i == selectedIndex;
+
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  touchedIndexMap[chartKey] = i;
+                });
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: colorMap[label],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                      isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 
-  // 🔹 RECENT ACTIVITY
-  Widget _recentActivity() {
+  // ======================= ACTIVITY =======================
+
+  Widget _recentActivity(dynamic activity) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
+        children: [
+          const Text(
             "Recent Activity",
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           ListTile(
-            leading: Icon(Icons.cloud_upload),
-            title: Text("Last Upload"),
-            subtitle: Text("19/01/2026 • 11:49 AM"),
+            leading: const Icon(Icons.cloud_upload),
+            title: const Text("Last Upload"),
+            subtitle: Text(activity['lastUploadAt']),
           ),
-          Divider(),
+          const Divider(),
           ListTile(
-            leading: Icon(Icons.vpn_key),
-            title: Text("Token Created"),
-            subtitle: Text("19/01/2026 • 01:27 PM"),
+            leading: const Icon(Icons.vpn_key),
+            title: const Text("Token Created"),
+            subtitle: Text(activity['lastTokenCreatedAt']),
           ),
         ],
       ),
     );
   }
+
+  // ======================= DECORATION =======================
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
@@ -208,3 +420,4 @@ class AnalyticsScreen extends StatelessWidget {
     );
   }
 }
+
