@@ -1,5 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
+import 'package:shimmer/shimmer.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -9,17 +13,98 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  Map<String, dynamic>? data;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDashboard();
+  }
+
+  // ======================= API =======================
+
+  Future<void> _fetchDashboard() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (token == null) throw Exception("Auth token missing");
+
+      final response = await http.get(
+        Uri.parse('https://happywedz.com/api/vendor/dashboard/analytics'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      final res = jsonDecode(response.body);
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          res['success'] == true) {
+        setState(() {
+          data = res;
+          isLoading = false;
+        });
+      } else {
+        throw Exception("Failed to load dashboard");
+      }
+    } catch (e) {
+      isLoading = false;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  // ======================= HELPERS =======================
+
+  int toInt(dynamic v) => int.tryParse(v.toString()) ?? 0;
+
+  String timeAgo(String isoDate) {
+    final date = DateTime.parse(isoDate);
+    final diff = DateTime.now().difference(date);
+
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  // ======================= UI =======================
+
   @override
   Widget build(BuildContext context) {
+    // if (isLoading) {
+    //   return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    // }
+    if (isLoading) {
+      return const DashboardShimmer();
+    }
+
+
+    final package = data!['package'];
+    final media = data!['media'];
+    final tokens = data!['tokens'];
+    final reach = data!['reach'];
+    final activity = data!['activity'];
+
+    final publicTokens = toInt(
+      tokens['byType'].firstWhere((e) => e['type'] == 'public')['count'],
+    );
+    final privateTokens = toInt(
+      tokens['byType'].firstWhere((e) => e['type'] == 'private')['count'],
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-    appBar: CommonAppBar(title: "Dashboard"),
+      appBar: CommonAppBar(title: "Movments Plus"),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status Row
+            // ================= STATUS =================
             Row(
               children: [
                 Container(
@@ -33,11 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   child: const Row(
                     children: [
-                      Icon(
-                        Icons.circle,
-                        size: 8,
-                        color: Color(0xFF10B981),
-                      ),
+                      Icon(Icons.circle, size: 8, color: Color(0xFF10B981)),
                       SizedBox(width: 6),
                       Text(
                         "Online",
@@ -53,24 +134,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 12),
                 Text(
                   "Last updated: Just now",
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
                 ),
               ],
             ),
 
             const SizedBox(height: 24),
 
-            // Premium Package Banner
+            // ================= PACKAGE =================
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF00509D), Color(0xFF0066CC)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
@@ -87,9 +163,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          "Premium Plan",
-                          style: TextStyle(
+                        Text(
+                          "${package['name']} Plan",
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -97,7 +173,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "10.0 GB Storage Available",
+                          "${(package['limitMB'] / 1024).toStringAsFixed(1)} GB Storage Available",
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 14,
@@ -106,9 +182,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            const Text(
-                              "32 MB",
-                              style: TextStyle(
+                            Text(
+                              "${package['usedMB']} MB",
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
@@ -145,13 +221,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 24),
 
-            // Stats Overview
+            // ================= STATS =================
             Row(
               children: [
                 Expanded(
                   child: _buildMiniStatCard(
                     icon: Icons.photo_library,
-                    value: "22",
+                    value: media['total'].toString(),
                     label: "Media Files",
                     color: const Color(0xFF10B981),
                   ),
@@ -160,7 +236,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: _buildMiniStatCard(
                     icon: Icons.visibility,
-                    value: "0",
+                    value: reach['totalViews'].toString(),
                     label: "Views",
                     color: const Color(0xFF8B5CF6),
                   ),
@@ -169,7 +245,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: _buildMiniStatCard(
                     icon: Icons.key,
-                    value: "7",
+                    value: tokens['total'].toString(),
                     label: "Tokens",
                     color: const Color(0xFF00509D),
                   ),
@@ -179,7 +255,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 28),
 
-            // Collections Section
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -206,56 +282,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             SizedBox(
               height: 140,
-              child: ListView(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                children: [
-                  _buildCollectionCard("Wedding", 10, 0xFF00509D),
-                  _buildCollectionCard("Portrait", 6, 0xFF00509D),
-                  _buildCollectionCard("Events", 4, 0xFF00509D),
-                  _buildCollectionCard("Commercial", 2, 0xFF00509D),
-                ],
+                itemCount: media['byCollection'].length,
+                itemBuilder: (_, i) {
+                  final c = media['byCollection'][i];
+                  return _buildCollectionCard(
+                    c['collection'],
+                    toInt(c['count']),
+                    0xFF00509D,
+                  );
+                },
               ),
             ),
 
             const SizedBox(height: 28),
 
-            // Activity Feed
+            // ================= RECENT ACTIVITY =================
             const Text(
               "Recent Activity",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 12),
 
-            _buildActivityTile(
-              icon: Icons.cloud_upload,
-              title: "Media Upload",
-              subtitle: "6 photos uploaded successfully",
-              time: "4h ago",
-              iconBg: const Color(0xFF10B981),
-            ),
-            _buildActivityTile(
-              icon: Icons.vpn_key,
-              title: "Token Generated",
-              subtitle: "New access token created",
-              time: "2h ago",
-              iconBg: const Color(0xFF00509D),
-            ),
-            _buildActivityTile(
-              icon: Icons.remove_red_eye,
-              title: "Gallery Viewed",
-              subtitle: "Portfolio viewed by client",
-              time: "2 hours ago",
-              iconBg: const Color(0xFF8B5CF6),
-            ),
+            if (activity['lastUploadAt'] != null)
+              _buildActivityTile(
+                icon: Icons.cloud_upload,
+                title: "Media Upload",
+                subtitle: "Media uploaded successfully",
+                time: timeAgo(activity['lastUploadAt']),
+                iconBg: const Color(0xFF10B981),
+              ),
+
+            if (activity['lastTokenCreatedAt'] != null)
+              _buildActivityTile(
+                icon: Icons.vpn_key,
+                title: "Token Generated",
+                subtitle: "New access token created",
+                time: timeAgo(activity['lastTokenCreatedAt']),
+                iconBg: const Color(0xFF00509D),
+              ),
 
             const SizedBox(height: 28),
 
-            // Token Distribution
+            // ================= TOKEN DISTRIBUTION =================
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -274,83 +344,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.pie_chart,
-                          color: Color(0xFF00509D), size: 20),
-                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.pie_chart,
+                        color: Color(0xFF00509D),
+                        size: 20,
+                      ),
+                      SizedBox(width: 8,),
                       const Text(
                         "Token Distribution",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
                   _buildDistributionRow(
                     "Public Tokens",
-                    2,
-                    7,
+                    publicTokens,
+                    tokens['total'],
                     const Color(0xFF10B981),
                   ),
                   const SizedBox(height: 16),
                   _buildDistributionRow(
                     "Private Tokens",
-                    5,
-                    7,
+                    privateTokens,
+                    tokens['total'],
                     const Color(0xFF00509D),
                   ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 28),
-
-            // Quick Actions Grid
-            const Text(
-              "Quick Actions",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _buildActionChip(
-                  icon: Icons.upload_file,
-                  label: "Upload",
-                  color: const Color(0xFF00509D),
-                ),
-                _buildActionChip(
-                  icon: Icons.create_new_folder,
-                  label: "New Collection",
-                  color: const Color(0xFF00509D),
-                ),
-                _buildActionChip(
-                  icon: Icons.vpn_key,
-                  label: "Generate Token",
-                  color: const Color(0xFF00509D),
-                ),
-                _buildActionChip(
-                  icon: Icons.analytics,
-                  label: "Analytics",
-                  color: const Color(0xFF00509D),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
+
+  // ======================= UI HELPERS =======================
 
   Widget _buildMiniStatCard({
     required IconData icon,
@@ -393,10 +422,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
         ],
@@ -411,11 +437,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color, color.withOpacity(0.7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: LinearGradient(colors: [color, color.withOpacity(0.7)]),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -435,11 +457,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: Colors.white.withOpacity(0.3),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
-              Icons.folder,
-              color: Colors.white,
-              size: 24,
-            ),
+            child: const Icon(Icons.folder, color: Colors.white, size: 24),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,49 +531,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                 ),
               ],
             ),
           ),
-          Text(
-            time,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
-            ),
-          ),
+          Text(time, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
         ],
       ),
     );
   }
 
   Widget _buildDistributionRow(
-      String label, int count, int total, Color color) {
-    final percentage = (count / total);
+    String label,
+    int count,
+    int total,
+    Color color,
+  ) {
+    final percentage = count / total;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            Text(label),
             Text(
               "$count / $total",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, color: color),
             ),
           ],
         ),
@@ -572,36 +575,133 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
+}
 
-  Widget _buildActionChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+
+class DashboardShimmer extends StatelessWidget {
+  const DashboardShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
+            _shimmerBox(height: 20, width: 120),
+            const SizedBox(height: 24),
+
+            // Premium Banner
+            _shimmerBox(height: 140, radius: 20),
+            const SizedBox(height: 24),
+
+            // Stats
+            Row(
+              children: [
+                Expanded(child: _shimmerBox(height: 110, radius: 16)),
+                const SizedBox(width: 12),
+                Expanded(child: _shimmerBox(height: 110, radius: 16)),
+                const SizedBox(width: 12),
+                Expanded(child: _shimmerBox(height: 110, radius: 16)),
+              ],
+            ),
+
+            const SizedBox(height: 28),
+
+            // Collections
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _shimmerBox(height: 20, width: 120),
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: 140,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemBuilder: (_, __) =>
+                    _shimmerBox(width: 120, height: 140, radius: 16),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemCount: 4,
               ),
             ),
+
+            const SizedBox(height: 28),
+
+            // Activity
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _shimmerBox(height: 20, width: 150),
+            ),
+            const SizedBox(height: 12),
+            _activityShimmer(),
+            _activityShimmer(),
+
+            const SizedBox(height: 28),
+
+            // Token Distribution
+            _shimmerBox(height: 160, radius: 16),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _shimmerBox({
+    double height = 20,
+    double width = double.infinity,
+    double radius = 12,
+  }) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      ),
+    );
+  }
+
+  Widget _activityShimmer() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey.shade300,
+        highlightColor: Colors.grey.shade100,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Container(
+                height: 40,
+                width: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(height: 14, width: 120, color: Colors.white),
+                    const SizedBox(height: 8),
+                    Container(height: 12, width: 180, color: Colors.white),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

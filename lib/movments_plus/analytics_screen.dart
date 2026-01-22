@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
+import 'package:shimmer/shimmer.dart';
 
 
 // ======================= SERVICE =======================
@@ -35,7 +36,6 @@ class AnalyticsService {
     }
   }
 }
-
 
 // ======================= COLORS (WEB MATCH) =======================
 
@@ -93,9 +93,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       body: FutureBuilder<Map<String, dynamic>>(
         future: analyticsFuture,
         builder: (context, snapshot) {
+          // if (snapshot.connectionState == ConnectionState.waiting) {
+          //   return const Center(child: CircularProgressIndicator());
+          // }
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const AnalyticsShimmer();
           }
+
 
           if (snapshot.hasError) {
             return Center(child: Text(snapshot.error.toString()));
@@ -421,3 +425,98 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 }
 
+
+class AnalyticsShimmer extends StatelessWidget {
+  const AnalyticsShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _card(height: 90), // Storage
+            const SizedBox(height: 16),
+
+            Row(
+              children: [
+                Expanded(child: _card(height: 90)),
+                const SizedBox(width: 12),
+                Expanded(child: _card(height: 90)),
+                const SizedBox(width: 12),
+                Expanded(child: _card(height: 90)),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            _card(height: 260), // Collection chart
+            _card(height: 260), // Visibility chart
+            _card(height: 260), // Token chart
+
+            const SizedBox(height: 20),
+
+            _activityShimmer(),
+            _activityShimmer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _card({double height = 120}) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        height: height,
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+  }
+
+  Widget _activityShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 14, width: 120, color: Colors.white),
+                  const SizedBox(height: 8),
+                  Container(height: 12, width: 180, color: Colors.white),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
