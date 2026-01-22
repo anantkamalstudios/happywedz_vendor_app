@@ -81,6 +81,7 @@ class ProfileCompletionBar extends StatelessWidget {
   }
 }
 
+
 class ProfileCompletionService {
   static Future<double> fetchCompletion({
     required int serviceId,

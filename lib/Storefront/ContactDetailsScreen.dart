@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
@@ -20,6 +21,8 @@ class ContactDetailsPage extends StatefulWidget {
 }
 
 class _ContactDetailsPageState extends State<ContactDetailsPage> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   final TextEditingController contactPersonController = TextEditingController();
   final TextEditingController primaryPhoneController = TextEditingController();
   final TextEditingController alternativePhoneController = TextEditingController();
@@ -110,6 +113,9 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
   }
 
   Future<void> saveContactDetails() async {
+    if (!_formKey.currentState!.validate()) {
+      return; // ❌ stop if validation fails
+    }
     if (token == null || serviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Missing Token or Service ID please fill your basic info details ")),
@@ -162,33 +168,118 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
     setState(() => isSaving = false);
   }
 
+  Widget field(
+      String label,
+      TextEditingController controller, {
+        bool required = false,
+        TextInputType keyboardType = TextInputType.text,
+      }) {
+    final isPhone = keyboardType == TextInputType.phone;
+    final isName = label.toLowerCase().contains("contact person");
 
-  Widget field(String label, TextEditingController controller,
-      {bool required = false, TextInputType keyboardType = TextInputType.text}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label + (required ? " *" : ""), style: TextStyle(fontWeight: FontWeight.w600)),
-        SizedBox(height: 5),
+        Text(
+          label + (required ? " *" : ""),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 5),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              )
+            ],
           ),
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
-            decoration: InputDecoration(
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+
+            // 🔥 INPUT RESTRICTIONS
+            inputFormatters: isPhone
+                ? [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(10),
+            ]
+                : isName
+                ? [
+              FilteringTextInputFormatter.allow(
+                RegExp(r"[a-zA-Z\s]"),
+              ),
+            ]
+                : null,
+
+            // 🔥 LIVE VALIDATION
+            validator: (value) {
+              final text = value?.trim() ?? "";
+
+              if (required && text.isEmpty) {
+                return "$label is required";
+              }
+
+              if (isName && text.isNotEmpty) {
+                if (text.length < 3) {
+                  return "Name must be at least 3 characters";
+                }
+                if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(text)) {
+                  return "Only letters allowed";
+                }
+              }
+
+              if (isPhone && text.isNotEmpty) {
+                if (text.length < 10) {
+                  return "Enter 10-digit number";
+                }
+              }
+
+              return null;
+            },
+
+            decoration: const InputDecoration(
+              contentPadding:
+              EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: InputBorder.none,
             ),
           ),
         ),
-        SizedBox(height: 14),
+        const SizedBox(height: 14),
       ],
     );
   }
+
+
+  // Widget field(String label, TextEditingController controller,
+  //     {bool required = false, TextInputType keyboardType = TextInputType.text}) {
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.start,
+  //     children: [
+  //       Text(label + (required ? " *" : ""), style: TextStyle(fontWeight: FontWeight.w600)),
+  //       SizedBox(height: 5),
+  //       Container(
+  //         decoration: BoxDecoration(
+  //           color: Colors.white,
+  //           borderRadius: BorderRadius.circular(10),
+  //           boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+  //         ),
+  //         child: TextFormField(
+  //           controller: controller,
+  //           keyboardType: keyboardType,
+  //           decoration: InputDecoration(
+  //             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  //             border: InputBorder.none,
+  //           ),
+  //         ),
+  //       ),
+  //       SizedBox(height: 14),
+  //     ],
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -210,17 +301,22 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3))],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    field("Contact Person", contactPersonController, required: true),
-                    field("Primary Phone", primaryPhoneController, required: true, keyboardType: TextInputType.phone),
-                    field("Alternative Phone", alternativePhoneController, keyboardType: TextInputType.phone),
-                    field("WhatsApp Number", whatsappController, keyboardType: TextInputType.phone),
+                child: Form(
+                  key: _formKey,
+                  autovalidateMode: AutovalidateMode.onUserInteraction, // 🔥 LIVE validation
 
-                    SizedBox(height: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      field("Contact Person Name             ", contactPersonController, required: true),
+                      field("Primary Phone", primaryPhoneController, required: true, keyboardType: TextInputType.phone),
+                      field("Alternative Phone", alternativePhoneController, keyboardType: TextInputType.phone),
+                      field("WhatsApp Number", whatsappController, keyboardType: TextInputType.phone),
 
-                  ],
+                      SizedBox(height: 20),
+
+                    ],
+                  ),
                 ),
                         ),
                       ),

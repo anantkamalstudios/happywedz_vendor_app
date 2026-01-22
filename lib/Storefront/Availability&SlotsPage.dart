@@ -47,26 +47,34 @@ class _SlotsPageState extends State<SlotsPage>
 
   // ---------------- MONTH DAYS ----------------
 
-  Set<DateTime> _generateTotalMonthDays() => {
-    for (int i = 1; i <= _lastDay.day; i++)
-      DateTime(_focusedDay.year, _focusedDay.month, i)
-  };
+  // Set<DateTime> _generateTotalMonthDays() => {
+  //   for (int i = 1; i <= _lastDay.day; i++)
+  //     DateTime(_focusedDay.year, _focusedDay.month, i)
+  // };
+  Set<DateTime> _generateMonthDays() {
+    final first = DateTime(_focusedDay.year, _focusedDay.month, 1);
+    final last = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+
+    return {
+      for (int i = 0; i < last.day; i++)
+        _normalize(DateTime(first.year, first.month, first.day + i))
+    };
+  }
 
   // 🔥 ONLY TODAY + FUTURE DAYS
-  Set<DateTime> _validDays() {
-    return _generateTotalMonthDays()
-        .where((d) => !_isPastDay(d))
-        .toSet();
-  }
+  Set<DateTime> get validDays =>
+      _generateMonthDays().where((d) => !d.isBefore(todayDate)).toSet();
+
 
   // ---------------- COUNTS ----------------
 
-  int get availableCount => availableDays.length;
+  int get availableCount =>
+      availableDays.where((d) => validDays.contains(d)).length;
 
   int get unavailableCount =>
-      _validDays().where((d) => !_isAvailable(d)).length;
+      validDays.length - availableCount;
 
-  int get totalValidDays => availableCount + unavailableCount;
+  int get totalValidDays => validDays.length;
 
   // ---------------- LIFECYCLE ----------------
 
@@ -267,6 +275,12 @@ class _SlotsPageState extends State<SlotsPage>
                     child: Padding(
                       padding: const EdgeInsets.all(36),
                       child: TableCalendar(
+                        onPageChanged: (focusedDay) {
+                          setState(() {
+                            _focusedDay = focusedDay;
+                          });
+                        },
+
                         firstDay: _firstDay,
                         lastDay: _lastDay,
                         focusedDay: _focusedDay,

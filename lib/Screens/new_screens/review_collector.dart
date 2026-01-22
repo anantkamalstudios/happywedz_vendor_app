@@ -667,7 +667,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
               "${request['firstName']} ${request['lastName']}";
               emailCtrl.text = request['email'] ?? "";
               messageCtrl.text =
-              //"Hi ${nameCtrl.text},\n\n"
+              // "Hi ${nameCtrl.text},\n\n"
                   "Thank you for choosing our services for your event on ${request['eventDate']}.\n"
                   "We would love to hear your feedback!\n\n"
                   "Thanks & Regards";
