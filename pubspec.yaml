@@ -41,6 +41,7 @@ dependencies:
   shimmer: ^3.0.0
   pdf:
   printing:
+  connectivity_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
@@ -58,6 +59,7 @@ flutter:
     - assets/icons/leads.png
     - assets/icons/statistics.png
     - assets/icons/reviews.png
+    - assets/images/
 
 
 

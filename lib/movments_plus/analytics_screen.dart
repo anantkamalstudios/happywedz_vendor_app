@@ -120,9 +120,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 _statsRow(media, tokens),
                 const SizedBox(height: 20),
 
+                // _chartCard(
+                //   title: "Media by Collection",
+                //   chart: _donutChartWithLegend(
+                //     list: media['byCollection'],
+                //     labelKey: 'collection',
+                //     chartKey: 'collection',
+                //     colorMap: collectionColors,
+                //   ),
+                // ),
                 _chartCard(
                   title: "Media by Collection",
-                  chart: _donutChartWithLegend(
+                  chart: media['byCollection'].isEmpty
+                      ? _emptyChart("No media uploaded")
+                      : _donutChartWithLegend(
                     list: media['byCollection'],
                     labelKey: 'collection',
                     chartKey: 'collection',
@@ -130,9 +141,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   ),
                 ),
 
+
+                // _chartCard(
+                //   title: "Media Visibility",
+                //   chart: _donutChartWithLegend(
+                //     list: media['visibility'],
+                //     labelKey: 'visibility',
+                //     chartKey: 'visibility',
+                //     colorMap: visibilityColors,
+                //   ),
+                // ),
                 _chartCard(
                   title: "Media Visibility",
-                  chart: _donutChartWithLegend(
+                  chart: (media['visibility'] == null || media['visibility'].isEmpty)
+                      ? _emptyChart("No visibility data available")
+                      : _donutChartWithLegend(
                     list: media['visibility'],
                     labelKey: 'visibility',
                     chartKey: 'visibility',
@@ -140,15 +163,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   ),
                 ),
 
+
+                // _chartCard(
+                //   title: "Tokens by Type",
+                //   chart: _donutChartWithLegend(
+                //     list: tokens['byType'],
+                //     labelKey: 'type',
+                //     chartKey: 'token',
+                //     colorMap: tokenColors,
+                //   ),
+                // ),
                 _chartCard(
                   title: "Tokens by Type",
-                  chart: _donutChartWithLegend(
+                  chart: (tokens['byType'] == null || tokens['byType'].isEmpty)
+                      ? _emptyChart("No tokens created yet")
+                      : _donutChartWithLegend(
                     list: tokens['byType'],
                     labelKey: 'type',
                     chartKey: 'token',
                     colorMap: tokenColors,
                   ),
                 ),
+
 
                 const SizedBox(height: 20),
                 _recentActivity(activity),
@@ -165,6 +201,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Widget _storageCard(dynamic package) {
     final double used = package['usedMB'].toDouble();
     final double limit = package['limitMB'].toDouble();
+    final double progress = limit == 0 ? 0 : used / limit;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -177,8 +214,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
+
           LinearProgressIndicator(
-            value: used / limit,
+            // value: used / limit,
+            value: progress,
             minHeight: 8,
             backgroundColor: Colors.grey.shade200,
             valueColor:
@@ -236,6 +275,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   // ======================= CHART CARD =======================
+  Widget _emptyChart(String text) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history, size: 42, color: Colors.grey[400]),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _chartCard({required String title, required Widget chart}) {
     return Container(
@@ -379,8 +433,39 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   // ======================= ACTIVITY =======================
-
   Widget _recentActivity(dynamic activity) {
+    final lastUpload = activity['lastUploadAt'];
+    final lastToken = activity['lastTokenCreatedAt'];
+
+    // 🔥 EMPTY STATE
+    if (lastUpload == null && lastToken == null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: _cardDecoration(),
+        child: Column(
+          children: [
+            Icon(Icons.history, size: 42, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(
+              "No recent activity",
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "Uploads and token activity will appear here",
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ✅ NORMAL STATE
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -392,21 +477,54 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 12),
-          ListTile(
-            leading: const Icon(Icons.cloud_upload),
-            title: const Text("Last Upload"),
-            subtitle: Text(activity['lastUploadAt']),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.vpn_key),
-            title: const Text("Token Created"),
-            subtitle: Text(activity['lastTokenCreatedAt']),
-          ),
+
+          if (lastUpload != null)
+            ListTile(
+              leading: const Icon(Icons.cloud_upload),
+              title: const Text("Last Upload"),
+              subtitle: Text(lastUpload.toString()),
+            ),
+
+          if (lastToken != null) ...[
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.vpn_key),
+              title: const Text("Token Created"),
+              subtitle: Text(lastToken.toString()),
+            ),
+          ],
         ],
       ),
     );
   }
+
+  // Widget _recentActivity(dynamic activity) {
+  //   return Container(
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: _cardDecoration(),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         const Text(
+  //           "Recent Activity",
+  //           style: TextStyle(fontWeight: FontWeight.w600),
+  //         ),
+  //         const SizedBox(height: 12),
+  //         ListTile(
+  //           leading: const Icon(Icons.cloud_upload),
+  //           title: const Text("Last Upload"),
+  //           subtitle: Text(activity['lastUploadAt']),
+  //         ),
+  //         const Divider(),
+  //         ListTile(
+  //           leading: const Icon(Icons.vpn_key),
+  //           title: const Text("Token Created"),
+  //           subtitle: Text(activity['lastTokenCreatedAt']),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // ======================= DECORATION =======================
 

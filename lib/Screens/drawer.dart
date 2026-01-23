@@ -343,25 +343,64 @@ Future<void> _loadVendorId() async {
           ),
 
           /// Logout
+          // Container(
+          //   color: Colors.white,
+          //   child: ListTile(
+          //     leading: const Icon(Icons.logout,  color: Color(0xFF4682B4)),
+          //     title: const Text('Logout'),
+          //     onTap: () async {
+          //       SharedPreferences prefs =
+          //       await SharedPreferences.getInstance();
+          //       await prefs.clear();
+          //
+          //       Navigator.pushReplacement(
+          //         context,
+          //         MaterialPageRoute(
+          //           builder: (_) => Login(), // Login Page
+          //         ),
+          //       );
+          //     },
+          //   ),
+          // ),
           Container(
             color: Colors.white,
             child: ListTile(
-              leading: const Icon(Icons.logout,  color: Color(0xFF4682B4)),
+              leading: const Icon(Icons.logout, color: Color(0xFF4682B4)),
               title: const Text('Logout'),
               onTap: () async {
-                SharedPreferences prefs =
-                await SharedPreferences.getInstance();
-                await prefs.clear();
+                final prefs = await SharedPreferences.getInstance();
+
+                // 🔐 Check if Remember Me was enabled
+                final rememberMe =
+                    prefs.getString('savedPassword') != null &&
+                        prefs.getString('email') != null;
+
+                // ❌ Clear session data only
+                await prefs.remove('isLoggedIn');
+                await prefs.remove('authToken');
+                await prefs.remove('token');
+                await prefs.remove('vendorId');
+                await prefs.remove('vendorTypeId');
+                await prefs.remove('businessName');
+                await prefs.remove('phone');
+                await prefs.remove('profileImage');
+                await prefs.remove('profileCompleted');
+                await prefs.remove('vendorTypeName');
+
+                // ❌ Clear credentials ONLY if remember me was OFF
+                if (!rememberMe) {
+                  await prefs.remove('email');
+                  await prefs.remove('savedPassword');
+                }
 
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => Login(), // Login Page
-                  ),
+                  MaterialPageRoute(builder: (_) => const Login()),
                 );
               },
             ),
           ),
+
         ],
       ),
     );

@@ -94,7 +94,16 @@ class _LoginState extends State<Login> {
         await prefs.setInt('vendorId', vendorData['id']);
         await prefs.setInt('vendorTypeId', vendorData['vendor_type_id']);
         await prefs.setString('businessName', vendorData['businessName'] ?? "");
-        await prefs.setString('email', vendorData['email'] ?? "");
+        // ================= REMEMBER ME =================
+        if (_rememberMe) {
+          await prefs.setString('email', _emailC.text.trim());
+          await prefs.setString('savedPassword', _passwordC.text.trim());
+        } else {
+          await prefs.remove('email');
+          await prefs.remove('savedPassword');
+        }
+
+        // await prefs.setString('email', vendorData['email'] ?? "");
         await prefs.setString('phone', vendorData['phone'] ?? "");
         await prefs.setString('profileImage', vendorData['profileImage'] ?? "");
         await prefs.setBool(
@@ -239,11 +248,26 @@ class _LoginState extends State<Login> {
                             const SizedBox(height: 2),
                             Row(
                               children: [
+                                // Checkbox(
+                                //   value: _rememberMe,
+                                //   onChanged: (val) =>
+                                //       setState(() => _rememberMe = val!),
+                                // ),
                                 Checkbox(
                                   value: _rememberMe,
-                                  onChanged: (val) =>
-                                      setState(() => _rememberMe = val!),
+                                  onChanged: (val) async {
+                                    setState(() => _rememberMe = val!);
+
+                                    final prefs = await SharedPreferences.getInstance();
+
+                                    if (!_rememberMe) {
+                                      // ❌ If unchecked → clear saved password
+                                      await prefs.remove('savedPassword');
+                                      await prefs.remove('email');
+                                    }
+                                  },
                                 ),
+
                                 const Text("Remember me"),
                               ],
                             ),

@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:shimmer/shimmer.dart';
+
+import '../utils/network_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,6 +18,9 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? data;
   bool isLoading = true;
+  bool hasInternetError = false;
+
+
 
   @override
   void initState() {
@@ -23,9 +29,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ======================= API =======================
-
   Future<void> _fetchDashboard() async {
     try {
+      setState(() {
+        isLoading = true;
+        hasInternetError = false;
+      });
+
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? prefs.getString('authToken');
 
@@ -48,15 +58,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
           isLoading = false;
         });
       } else {
-        throw Exception("Failed to load dashboard");
+        throw Exception("Server error");
       }
+    } on SocketException {
+      setState(() {
+        isLoading = false;
+        hasInternetError = true;
+      });
     } catch (e) {
-      isLoading = false;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Something went wrong")),
+      );
     }
   }
+
+  // Future<void> _fetchDashboard() async {
+  //   try {
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final token = prefs.getString('token') ?? prefs.getString('authToken');
+  //
+  //     if (token == null) throw Exception("Auth token missing");
+  //
+  //     final response = await http.get(
+  //       Uri.parse('https://happywedz.com/api/vendor/dashboard/analytics'),
+  //       headers: {
+  //         'Authorization': 'Bearer $token',
+  //         'Accept': 'application/json',
+  //       },
+  //     );
+  //
+  //     final res = jsonDecode(response.body);
+  //
+  //     if ((response.statusCode == 200 || response.statusCode == 201) &&
+  //         res['success'] == true) {
+  //       setState(() {
+  //         data = res;
+  //         isLoading = false;
+  //       });
+  //     } else {
+  //       throw Exception("Failed to load dashboard");
+  //     }
+  //   } catch (e) {
+  //     isLoading = false;
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text(e.toString())));
+  //   }
+  // }
 
   // ======================= HELPERS =======================
 
@@ -71,6 +123,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '${diff.inDays}d ago';
   }
 
+  int getTokenCountByType(Map<String, dynamic> tokens, String type) {
+    final list = (tokens['byType'] ?? []) as List;
+
+    final item = list.firstWhere(
+          (e) => e['type'] == type,
+      orElse: () => {'count': 0},
+    );
+
+    return toInt(item['count']);
+  }
   // ======================= UI =======================
 
   @override
@@ -82,6 +144,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const DashboardShimmer();
     }
 
+    if (hasInternetError) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: CommonAppBar(title: "Movments Plus"),
+        body: NoInternetView(
+          onRetry: _fetchDashboard,
+        ),
+      );
+    }
 
     final package = data!['package'];
     final media = data!['media'];
@@ -89,12 +160,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final reach = data!['reach'];
     final activity = data!['activity'];
 
-    final publicTokens = toInt(
-      tokens['byType'].firstWhere((e) => e['type'] == 'public')['count'],
-    );
-    final privateTokens = toInt(
-      tokens['byType'].firstWhere((e) => e['type'] == 'private')['count'],
-    );
+    // final publicTokens = toInt(
+    //   tokens['byType'].firstWhere((e) => e['type'] == 'public')['count'],
+    // );
+    // final privateTokens = toInt(
+    //   tokens['byType'].firstWhere((e) => e['type'] == 'private')['count'],
+    // );
+    final publicTokens = getTokenCountByType(tokens, 'public');
+    final privateTokens = getTokenCountByType(tokens, 'private');
+
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -280,48 +354,141 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 12),
 
-            SizedBox(
-              height: 140,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: media['byCollection'].length,
-                itemBuilder: (_, i) {
-                  final c = media['byCollection'][i];
-                  return _buildCollectionCard(
-                    c['collection'],
-                    toInt(c['count']),
-                    0xFF00509D,
-                  );
-                },
+            // SizedBox(
+            //   height: 140,
+            //   child: ListView.builder(
+            //     scrollDirection: Axis.horizontal,
+            //     itemCount: media['byCollection'].length,
+            //     itemBuilder: (_, i) {
+            //       final c = media['byCollection'][i];
+            //       return _buildCollectionCard(
+            //         c['collection'],
+            //         toInt(c['count']),
+            //         0xFF00509D,
+            //       );
+            //     },
+            //   ),
+            // ),
+            if (media['byCollection'].isEmpty)
+              Container(
+                height: 140,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.folder_open, size: 40, color: Colors.grey[400]),
+                    const SizedBox(height: 8),
+                    Text(
+                      "No collections created yet",
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    SizedBox(height: 12,),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // TODO: Navigate to Create Collection Screen
+                        // Navigator.push(context, MaterialPageRoute(builder: (_) => CreateCollectionScreen()));
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text("Create Collection"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00509D),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              SizedBox(
+                height: 140,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: media['byCollection'].length,
+                  itemBuilder: (_, i) {
+                    final c = media['byCollection'][i];
+                    return _buildCollectionCard(
+                      c['collection'],
+                      toInt(c['count']),
+                      0xFF00509D,
+                    );
+                  },
+                ),
               ),
-            ),
+
 
             const SizedBox(height: 28),
 
             // ================= RECENT ACTIVITY =================
+            // const Text(
+            //   "Recent Activity",
+            //   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            // ),
+            // const SizedBox(height: 12),
+            //
+            // if (activity['lastUploadAt'] != null)
+            //   _buildActivityTile(
+            //     icon: Icons.cloud_upload,
+            //     title: "Media Upload",
+            //     subtitle: "Media uploaded successfully",
+            //     time: timeAgo(activity['lastUploadAt']),
+            //     iconBg: const Color(0xFF10B981),
+            //   ),
+            //
+            // if (activity['lastTokenCreatedAt'] != null)
+            //   _buildActivityTile(
+            //     icon: Icons.vpn_key,
+            //     title: "Token Generated",
+            //     subtitle: "New access token created",
+            //     time: timeAgo(activity['lastTokenCreatedAt']),
+            //     iconBg: const Color(0xFF00509D),
+            //   ),
+// ================= RECENT ACTIVITY =================
             const Text(
               "Recent Activity",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            if (activity['lastUploadAt'] != null)
-              _buildActivityTile(
-                icon: Icons.cloud_upload,
-                title: "Media Upload",
-                subtitle: "Media uploaded successfully",
-                time: timeAgo(activity['lastUploadAt']),
-                iconBg: const Color(0xFF10B981),
-              ),
+            if (activity['lastUploadAt'] == null &&
+                activity['lastTokenCreatedAt'] == null)
+              _buildNoRecentActivity()
+            else ...[
+              if (activity['lastUploadAt'] != null)
+                _buildActivityTile(
+                  icon: Icons.cloud_upload,
+                  title: "Media Upload",
+                  subtitle: "Media uploaded successfully",
+                  time: timeAgo(activity['lastUploadAt']),
+                  iconBg: const Color(0xFF10B981),
+                ),
 
-            if (activity['lastTokenCreatedAt'] != null)
-              _buildActivityTile(
-                icon: Icons.vpn_key,
-                title: "Token Generated",
-                subtitle: "New access token created",
-                time: timeAgo(activity['lastTokenCreatedAt']),
-                iconBg: const Color(0xFF00509D),
-              ),
+              if (activity['lastTokenCreatedAt'] != null)
+                _buildActivityTile(
+                  icon: Icons.vpn_key,
+                  title: "Token Generated",
+                  subtitle: "New access token created",
+                  time: timeAgo(activity['lastTokenCreatedAt']),
+                  iconBg: const Color(0xFF00509D),
+                ),
+            ],
 
             const SizedBox(height: 28),
 
@@ -375,6 +542,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+
+  Widget _buildNoRecentActivity() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.history,
+            size: 42,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            "No recent activity",
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Your recent uploads and actions will appear here",
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -542,13 +755,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // Widget _buildDistributionRow(
+  //   String label,
+  //   int count,
+  //   int total,
+  //   Color color,
+  // ) {
+  //   final percentage = count / total;
   Widget _buildDistributionRow(
-    String label,
-    int count,
-    int total,
-    Color color,
-  ) {
-    final percentage = count / total;
+      String label,
+      int count,
+      int total,
+      Color color,
+      ) {
+    final percentage = total == 0 ? 0.0 : count / total;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

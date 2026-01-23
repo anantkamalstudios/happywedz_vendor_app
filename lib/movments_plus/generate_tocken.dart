@@ -57,7 +57,7 @@ class _TokenGeneratorPageState extends State<TokenGeneratorPage> {
             duration: Duration(seconds: 2),
           ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       } else {
         throw Exception('Failed to generate token');
       }

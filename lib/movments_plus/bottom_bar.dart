@@ -4,6 +4,7 @@ import 'package:happy_weds_vendors/movments_plus/upload_screen.dart';
 import 'analytics_screen.dart';
 import 'dashboard_screen.dart';
 import 'gallery_screen.dart';
+import 'more_screen.dart';
 
 class MainHomeScreen extends StatefulWidget {
   const MainHomeScreen({super.key});
@@ -20,7 +21,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     TokensSharingScreen(),   // 1 - Token Sharing
     UploadMediaScreen(),         // 2 - Upload
     GalleryScreen(),        // 3 - Gallery
-    AnalyticsScreen(),      // 4 - Analytics
+    MoreScreen(),      // 4 - Analytics
   ];
 
   void _onItemTapped(int index) {
@@ -83,12 +84,12 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
             ),
             BottomNavigationBarItem(
               icon: Icon(
-                Icons.analytics,
+                Icons.menu,
                 color: _selectedIndex == 4
                     ? const Color(0xFF00509D)
                     : Colors.grey,
               ),
-              label: "Analytics",
+              label: "More",
             ),
           ],
         ),
