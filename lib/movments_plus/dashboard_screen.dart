@@ -19,8 +19,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool isLoading = true;
   bool hasInternetError = false;
 
-
-
   @override
   void initState() {
     super.initState();

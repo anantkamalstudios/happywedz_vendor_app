@@ -1,14 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import '../utils/network_service.dart';
 import 'generate_tocken.dart';
 import 'package:shimmer/shimmer.dart';
-
-/// ======================= SERVICE =======================
 import 'dart:io';
+
 
 class TokensService {
   static Future<List<dynamic>> fetchTokens() async {
@@ -39,34 +39,104 @@ class TokensService {
       throw Exception("NO_INTERNET");
     }
   }
-}
 
-// class TokensService {
-//   static Future<List<dynamic>> fetchTokens() async {
-//     final prefs = await SharedPreferences.getInstance();
-//     final token = prefs.getString('token') ?? prefs.getString('authToken');
-//     final vendorId = prefs.getInt('vendorId');
-//
-//     if (token == null || vendorId == null) {
-//       throw Exception("Auth data missing");
-//     }
-//
-//     final response = await http.get(
-//       Uri.parse('https://happywedz.com/api/token/vendor/$vendorId'),
-//       headers: {
-//         'Authorization': 'Bearer $token',
-//         'Accept': 'application/json',
-//       },
-//     );
-//
-//     if (response.statusCode == 200) {
-//       final data = json.decode(response.body);
-//       return data['tokens'] ?? [];
-//     } else {
-//       throw Exception("Failed to load tokens");
-//     }
-//   }
-// }
+  static Future<void> disableToken(int tokenId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (token == null) {
+        print("❌ AUTH TOKEN NULL");
+        throw Exception("Auth data missing");
+      }
+
+      final url = 'https://happywedz.com/api/token/$tokenId/disable';
+      print("➡️ Disable Token API HIT: $url");
+
+      final response = await http.put(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      print("📡 STATUS CODE: ${response.statusCode}");
+      print("📦 RESPONSE BODY: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+
+        if (body['success'] == true) {
+          print("✅ TOKEN DISABLED SUCCESSFULLY");
+          return;
+        } else {
+          print("❌ API SUCCESS = FALSE");
+          print("❌ MESSAGE: ${body['message']}");
+          throw Exception(body['message'] ?? "Disable failed");
+        }
+      } else {
+        print("❌ INVALID STATUS CODE");
+        throw Exception("Server error: ${response.statusCode}");
+      }
+    } on SocketException {
+      print("❌ NO INTERNET");
+      throw Exception("NO_INTERNET");
+    } catch (e) {
+      print("❌ EXCEPTION: $e");
+      rethrow;
+    }
+  }
+
+  static Future<void> shareTokenByEmail({
+    required String tokenValue,
+    required List<String> emails,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final authToken =
+          prefs.getString('token') ?? prefs.getString('authToken');
+
+      if (authToken == null) {
+        throw Exception("Auth token missing");
+      }
+
+      final url = 'https://happywedz.com/api/token/share-email';
+      print("➡️ SHARE API HIT: $url");
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $authToken', // ✅ MUST
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          "token": tokenValue,
+          "emails": emails,
+        }),
+      );
+
+      print("📡 SHARE STATUS: ${response.statusCode}");
+      print("📦 SHARE BODY: ${response.body}");
+
+      final body = json.decode(response.body);
+
+      if (response.statusCode == 200 && body['success'] == true) {
+        print("✅ SHARE EMAIL SUCCESS");
+        return;
+      } else {
+        throw Exception(body['message'] ?? "Share failed");
+      }
+    } on SocketException {
+      throw Exception("NO_INTERNET");
+    } catch (e) {
+      print("❌ SHARE EXCEPTION: $e");
+      rethrow;
+    }
+  }
+
+}
 
 /// ======================= SCREEN =======================
 
@@ -361,109 +431,354 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
   }
 
   /// ======================= TOKEN CARD =======================
-
   Widget _buildTokenCard(dynamic token) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+
+          /// ================= TOP ROW =================
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              /// LEFT ICON
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.key,
+                  color: Color(0xFF00509D),
+                  size: 28,
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              /// TOKEN + BADGES
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      token['token'],
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildTypeBadge(token['type']),
+                        const SizedBox(width: 8),
+                        _buildStatusBadge(token['status']),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              /// MENU
+              _buildTokenMenu(token),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          /// ================= EVENT ROW =================
+          Row(
+            children: [
+              const Icon(Icons.event, size: 18, color: Colors.grey),
+              const SizedBox(width: 6),
+              Text(
+                'Event #${token['event_id']}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  const Icon(Icons.visibility, size: 18, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text('${token['view_count']}'),
+                  const SizedBox(width: 14),
+                  const Icon(Icons.email, size: 18, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text('${token['email_sent_count']}'),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          /// ================= DATE BOX =================
+          // Container(
+          //   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          //   decoration: BoxDecoration(
+          //     color: const Color(0xFFF8F9FA),
+          //     borderRadius: BorderRadius.circular(14),
+          //   ),
+          //   child: Row(
+          //     children: [
+          //       const Icon(Icons.access_time, size: 14, color: Colors.grey),
+          //       const SizedBox(width: 4),
+          //
+          //       /// CREATED DATE (with time)
+          //       Expanded(
+          //         child: Text(
+          //           _formatCreatedDate(token['created_at']),
+          //           maxLines: 1,
+          //           overflow: TextOverflow.ellipsis,
+          //           style: TextStyle(color: Colors.grey[700]),
+          //         ),
+          //       ),
+          //
+          //       if (token['expires_at'] != null) ...[
+          //         const SizedBox(width: 12),
+          //         const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+          //         /// EXPIRE DATE (NO TIME)
+          //         Expanded(
+          //           child: Text(
+          //             _formatExpireDate(token['expires_at']),
+          //             maxLines: 1,
+          //             overflow: TextOverflow.ellipsis,
+          //             textAlign: TextAlign.right,
+          //             style: TextStyle(color: Colors.grey[700]),
+          //           ),
+          //         ),
+          //       ],
+          //     ],
+          //   ),
+          // )
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FA),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.vpn_key,
-                        size: 16, color: Color(0xFF00509D)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        token['token'],
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 16,),
-                    _buildTypeBadge(token['type']),
-                    const SizedBox(width: 8),
-                    _buildStatusBadge(token['status']),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildInfoColumn(
-                        Icons.event,
-                        'Event',
-                        'Event #${token['event_id']}',
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildInfoColumn(
-                        Icons.calendar_today,
-                        'Created',
-                        token['created_at'].toString().substring(0, 10),
-                      ),
-                    ),
-                  ],
-                ),
 
-                const SizedBox(height: 16),
-
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8F9FA),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                /// CREATED DATE
+                Expanded(
                   child: Row(
                     children: [
-                      Expanded(
-                        child: _buildMetricItem(
-                          Icons.visibility,
-                          '${token['view_count']}',
-                          'Views',
-                          const Color(0xFF8B5CF6),
-                        ),
+                      const Icon(
+                        Icons.access_time,
+                        size: 12,
+                        color: Colors.grey,
                       ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey[300],
-                      ),
+                      const SizedBox(width: 4),
                       Expanded(
-                        child: _buildMetricItem(
-                          Icons.email,
-                          '${token['email_sent_count']}',
-                          'Emails',
-                          const Color(0xFF00509D),
+                        child: Text(
+                          _formatCreatedDate(token['created_at']),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
+
+                const SizedBox(width: 12),
+
+                /// EXPIRE DATE
+                if (token['expires_at'] != null)
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        const Icon(
+                          Icons.event_available,
+                          size: 12,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatExpireDate(token['expires_at']),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
-          ),
+          )
+
         ],
       ),
     );
   }
+  String _formatCreatedDate(dynamic date) {
+    if (date == null || date.toString().isEmpty) return "-";
+
+    final dt = DateTime.parse(date.toString()).toLocal();
+    return "${dt.day} ${_month(dt.month)}, ${dt.year}, "
+        "${dt.hour}:${dt.minute.toString().padLeft(2, '0')}";
+  }
+
+  String _formatExpireDate(dynamic date) {
+    if (date == null || date.toString().isEmpty) return "-";
+
+    final dt = DateTime.parse(date.toString()).toLocal();
+    return "${dt.day} ${_month(dt.month)}, ${dt.year}";
+  }
+
+
+
+  String _month(int m) {
+    const months = [
+      "Jan","Feb","Mar","Apr","May","Jun",
+      "Jul","Aug","Sep","Oct","Nov","Dec"
+    ];
+    return months[m - 1];
+  }
+
+  // Widget _buildTokenCard(dynamic token) {
+  //   return Container(
+  //     margin: const EdgeInsets.only(bottom: 16),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(16),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withOpacity(0.05),
+  //           blurRadius: 10,
+  //           offset: const Offset(0, 2),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Padding(
+  //           padding: const EdgeInsets.all(16),
+  //           child: Column(
+  //             children: [
+  //               Row(
+  //                 children: [
+  //                   const Icon(Icons.vpn_key,
+  //                       size: 16, color: Color(0xFF00509D)),
+  //                   const SizedBox(width: 8),
+  //                   Expanded(
+  //                     child: Text(
+  //                       token['token'],
+  //                       style: const TextStyle(
+  //                         fontFamily: 'monospace',
+  //                         fontWeight: FontWeight.w600,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                   SizedBox(width: 16,),
+  //                   _buildTypeBadge(token['type']),
+  //                   const SizedBox(width: 8),
+  //                   // _buildStatusBadge(token['status']),
+  //                   Row(
+  //                     mainAxisSize: MainAxisSize.min,
+  //                     children: [
+  //                       _buildStatusBadge(token['status']),
+  //                       const SizedBox(width: 4),
+  //                       _buildTokenMenu(token),
+  //                     ],
+  //                   ),
+  //
+  //                 ],
+  //               ),
+  //               const SizedBox(height: 16),
+  //               Row(
+  //                 children: [
+  //                   Expanded(
+  //                     child: _buildInfoColumn(
+  //                       Icons.event,
+  //                       'Event',
+  //                       'Event #${token['event_id']}',
+  //                     ),
+  //                   ),
+  //                   Expanded(
+  //                     child: _buildInfoColumn(
+  //                       Icons.calendar_today,
+  //                       'Created',
+  //                       token['created_at'].toString().substring(0, 10),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //
+  //               const SizedBox(height: 16),
+  //
+  //               Container(
+  //                 padding: const EdgeInsets.all(8),
+  //                 decoration: BoxDecoration(
+  //                   color: const Color(0xFFF8F9FA),
+  //                   borderRadius: BorderRadius.circular(12),
+  //                 ),
+  //                 child: Row(
+  //                   children: [
+  //                     Expanded(
+  //                       child: _buildMetricItem(
+  //                         Icons.visibility,
+  //                         '${token['view_count']}',
+  //                         'Views',
+  //                         const Color(0xFF8B5CF6),
+  //                       ),
+  //                     ),
+  //                     Container(
+  //                       width: 1,
+  //                       height: 40,
+  //                       color: Colors.grey[300],
+  //                     ),
+  //                     Expanded(
+  //                       child: _buildMetricItem(
+  //                         Icons.email,
+  //                         '${token['email_sent_count']}',
+  //                         'Emails',
+  //                         const Color(0xFF00509D),
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   /// ======================= HELPERS =======================
 
@@ -499,12 +814,12 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
   Widget _buildTypeBadge(String type) {
     final isPublic = type == 'public';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: isPublic
             ? const Color(0xFF00509D).withOpacity(0.1)
             : Colors.orange.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(60),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Row(
         children: [
@@ -517,8 +832,8 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
           Text(
             type.toUpperCase(),
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
               color:
               isPublic ? const Color(0xFF00509D) : Colors.orange,
             ),
@@ -528,18 +843,118 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
     );
   }
 
+  Widget _buildTokenMenu(dynamic token) {
+    return PopupMenuButton<String>(
+      color: Colors.white,
+      icon: const Icon(Icons.more_vert, size: 18),
+      onSelected: (value) async {
+        if (value == 'copy') {
+          Clipboard.setData(ClipboardData(text: token['token']));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Token copied")),
+          );
+        }
+
+        if (value == 'share') {
+          openShareDialog(context, token);
+        }
+
+        if (value == 'disable') {
+          _confirmDisableToken(token);
+        }
+      },
+      itemBuilder: (context) => [
+        if (token['status'] == 'active')
+          const PopupMenuItem(
+            value: 'disable',
+            child: Row(
+              children: [
+                Icon(Icons.block, size: 16, color: Colors.red),
+                SizedBox(width: 8),
+                Text("Disable Token"),
+              ],
+            ),
+          ),
+        const PopupMenuItem(
+          value: 'copy',
+          child: Row(
+            children: [
+              Icon(Icons.copy, size: 16),
+              SizedBox(width: 8),
+              Text("Copy Token"),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'share',
+          child: Row(
+            children: [
+              Icon(Icons.share, size: 16),
+              SizedBox(width: 8),
+              Text("Share"),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  void _confirmDisableToken(dynamic token) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text("Disable Token"),
+        content: const Text("Are you sure you want to disable this token?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(context);
+
+              try {
+                await TokensService.disableToken(token['id']);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Token disabled successfully"),
+                  ),
+                );
+
+                // 🔄 Refresh list
+                setState(() {
+                  tokensFuture = TokensService.fetchTokens();
+                });
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Failed to disable token")),
+                );
+              }
+            },
+            child: const Text("Disable", style: TextStyle(color: Colors.white),),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   Widget _buildStatusBadge(String status) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: const Color(0xFF10B981).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(60),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Row(
         children: [
           Container(
-            width: 6,
-            height: 6,
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.only(right: 3),
             decoration: const BoxDecoration(
               color: Color(0xFF10B981),
               shape: BoxShape.circle,
@@ -549,8 +964,8 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
           Text(
             status.toUpperCase(),
             style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
               color: Color(0xFF10B981),
             ),
           ),
@@ -611,7 +1026,284 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
     );
   }
 }
+void openShareDialog(BuildContext context, dynamic token) {
+  final TextEditingController emailController = TextEditingController();
+  final List<String> emails = [];
 
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setModalState) {
+          void addEmail(String value) {
+            final email = value.trim();
+            if (email.isNotEmpty && !emails.contains(email)) {
+              setModalState(() => emails.add(email));
+            }
+            emailController.clear();
+          }
+
+          return Dialog(
+            insetPadding: const EdgeInsets.all(16),
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    /// ================= HEADER =================
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Share this project",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(dialogContext),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Invite people to view this gallery",
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    /// ================= EMAIL INPUT =================
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: const Color(0xFF00509D).withOpacity(0.5),
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.white,
+                      ),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          ...emails.map(
+                                (e) => Chip(
+                              label: Text(
+                                e,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              backgroundColor:
+                              const Color(0xFFEFF6FF),
+                              deleteIcon:
+                              const Icon(Icons.close, size: 16),
+                              onDeleted: () {
+                                setModalState(() => emails.remove(e));
+                              },
+                            ),
+                          ),
+
+                          /// 🔥 FIXED TEXTFIELD
+                          SizedBox(
+                            width: 160,
+                            child: TextField(
+                              controller: emailController,
+                              decoration: const InputDecoration(
+                                hintText: "Enter email",
+                                isDense: true,
+                                border: InputBorder.none,
+
+                                // 🔥 MAIN FIX
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              onSubmitted: addEmail,
+                              onChanged: (value) {
+                                if (value.endsWith(',')) {
+                                  addEmail(
+                                      value.replaceAll(',', ''));
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+                    const Text(
+                      "Press Enter or comma to add multiple emails",
+                      style:
+                      TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    /// ================= SEND BUTTON =================
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.pinkAccent,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: emails.isEmpty
+                            ? null
+                            : () async {
+                          Navigator.pop(dialogContext);
+
+                          try {
+                            await TokensService.shareTokenByEmail(
+                              tokenValue: token['token'],
+                              emails: emails,
+                            );
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Gallery invitation sent successfully"),
+                              ),
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.toString())),
+                            );
+                          }
+                        },
+
+                        child: Text(
+                          "Send invitations (${emails.length})",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    /// ================= GENERAL ACCESS =================
+                    const Text(
+                      "General access",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    /// Anyone with link
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.link,
+                              size: 18, color: Color(0xFF00509D)),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Anyone with the link",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  "Anyone on the Internet with the link can view",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    /// ================= COPY LINK BOX =================
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                        Border.all(color: Colors.grey.shade300),
+                        color: Colors.white,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "https://happywedz.com/gallery/${token['token']}",
+                              style: const TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              Clipboard.setData(
+                                ClipboardData(
+                                  text:
+                                  "https://happywedz.com/gallery/${token['token']}",
+                                ),
+                              );
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(
+                                const SnackBar(
+                                    content: Text("Link copied")),
+                              );
+                            },
+                            icon:
+                            const Icon(Icons.copy, size: 16),
+                            label: const Text("Copy link"),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
 
 
 class TokensShimmer extends StatelessWidget {
