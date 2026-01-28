@@ -107,7 +107,7 @@ class TokensService {
       final response = await http.post(
         Uri.parse(url),
         headers: {
-          'Authorization': 'Bearer $authToken', // ✅ MUST
+          'Authorization': 'Bearer $authToken',
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
@@ -149,7 +149,7 @@ class TokensSharingScreen extends StatefulWidget {
 
 class _TokensSharingScreenState extends State<TokensSharingScreen> {
   int _selectedFilter = 0;
-  final List<String> _filters = ['All Tokens', 'Public', 'Private', 'Active'];
+  final List<String> _filters = ['All Tokens', 'Public', 'Private', 'Active' , 'Disabled'];
 
   late Future<List<dynamic>> tokensFuture;
   void _retryFetch() {
@@ -169,35 +169,6 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: CommonAppBar(title: "Tokens & Sharing"),
-      // body: FutureBuilder<List<dynamic>>(
-      //   future: tokensFuture,
-      //   builder: (context, snapshot) {
-      //     if (snapshot.connectionState == ConnectionState.waiting) {
-      //       return const TokensShimmer();
-      //     }
-      //
-      //     if (snapshot.hasError) {
-      //       return Center(child: Text(snapshot.error.toString()));
-      //     }
-      //
-      //     final tokens = snapshot.data!;
-      //     final filteredTokens = _applyFilter(tokens);
-      //
-      //     return Column(
-      //       children: [
-      //         _buildStatsSection(tokens),
-      //         _buildFilterChips(),
-      //
-      //         Expanded(
-      //           child: filteredTokens.isEmpty
-      //               ? _buildNoTokens()
-      //               : _buildTokensList(filteredTokens),
-      //         ),
-      //       ],
-      //     );
-      //
-      //   },
-      // ),
       body: FutureBuilder<List<dynamic>>(
         future: tokensFuture,
         builder: (context, snapshot) {
@@ -274,6 +245,8 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
         return tokens.where((t) => t['type'] == 'private').toList();
       case 3:
         return tokens.where((t) => t['status'] == 'active').toList();
+      case 4:
+        return tokens.where((t) => t['status'] == 'disabled').toList();
       default:
         return tokens;
     }
@@ -534,44 +507,6 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
           const SizedBox(height: 14),
 
           /// ================= DATE BOX =================
-          // Container(
-          //   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          //   decoration: BoxDecoration(
-          //     color: const Color(0xFFF8F9FA),
-          //     borderRadius: BorderRadius.circular(14),
-          //   ),
-          //   child: Row(
-          //     children: [
-          //       const Icon(Icons.access_time, size: 14, color: Colors.grey),
-          //       const SizedBox(width: 4),
-          //
-          //       /// CREATED DATE (with time)
-          //       Expanded(
-          //         child: Text(
-          //           _formatCreatedDate(token['created_at']),
-          //           maxLines: 1,
-          //           overflow: TextOverflow.ellipsis,
-          //           style: TextStyle(color: Colors.grey[700]),
-          //         ),
-          //       ),
-          //
-          //       if (token['expires_at'] != null) ...[
-          //         const SizedBox(width: 12),
-          //         const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
-          //         /// EXPIRE DATE (NO TIME)
-          //         Expanded(
-          //           child: Text(
-          //             _formatExpireDate(token['expires_at']),
-          //             maxLines: 1,
-          //             overflow: TextOverflow.ellipsis,
-          //             textAlign: TextAlign.right,
-          //             style: TextStyle(color: Colors.grey[700]),
-          //           ),
-          //         ),
-          //       ],
-          //     ],
-          //   ),
-          // )
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -667,118 +602,6 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
     ];
     return months[m - 1];
   }
-
-  // Widget _buildTokenCard(dynamic token) {
-  //   return Container(
-  //     margin: const EdgeInsets.only(bottom: 16),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       borderRadius: BorderRadius.circular(16),
-  //       boxShadow: [
-  //         BoxShadow(
-  //           color: Colors.black.withOpacity(0.05),
-  //           blurRadius: 10,
-  //           offset: const Offset(0, 2),
-  //         ),
-  //       ],
-  //     ),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         Padding(
-  //           padding: const EdgeInsets.all(16),
-  //           child: Column(
-  //             children: [
-  //               Row(
-  //                 children: [
-  //                   const Icon(Icons.vpn_key,
-  //                       size: 16, color: Color(0xFF00509D)),
-  //                   const SizedBox(width: 8),
-  //                   Expanded(
-  //                     child: Text(
-  //                       token['token'],
-  //                       style: const TextStyle(
-  //                         fontFamily: 'monospace',
-  //                         fontWeight: FontWeight.w600,
-  //                       ),
-  //                     ),
-  //                   ),
-  //                   SizedBox(width: 16,),
-  //                   _buildTypeBadge(token['type']),
-  //                   const SizedBox(width: 8),
-  //                   // _buildStatusBadge(token['status']),
-  //                   Row(
-  //                     mainAxisSize: MainAxisSize.min,
-  //                     children: [
-  //                       _buildStatusBadge(token['status']),
-  //                       const SizedBox(width: 4),
-  //                       _buildTokenMenu(token),
-  //                     ],
-  //                   ),
-  //
-  //                 ],
-  //               ),
-  //               const SizedBox(height: 16),
-  //               Row(
-  //                 children: [
-  //                   Expanded(
-  //                     child: _buildInfoColumn(
-  //                       Icons.event,
-  //                       'Event',
-  //                       'Event #${token['event_id']}',
-  //                     ),
-  //                   ),
-  //                   Expanded(
-  //                     child: _buildInfoColumn(
-  //                       Icons.calendar_today,
-  //                       'Created',
-  //                       token['created_at'].toString().substring(0, 10),
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //
-  //               const SizedBox(height: 16),
-  //
-  //               Container(
-  //                 padding: const EdgeInsets.all(8),
-  //                 decoration: BoxDecoration(
-  //                   color: const Color(0xFFF8F9FA),
-  //                   borderRadius: BorderRadius.circular(12),
-  //                 ),
-  //                 child: Row(
-  //                   children: [
-  //                     Expanded(
-  //                       child: _buildMetricItem(
-  //                         Icons.visibility,
-  //                         '${token['view_count']}',
-  //                         'Views',
-  //                         const Color(0xFF8B5CF6),
-  //                       ),
-  //                     ),
-  //                     Container(
-  //                       width: 1,
-  //                       height: 40,
-  //                       color: Colors.grey[300],
-  //                     ),
-  //                     Expanded(
-  //                       child: _buildMetricItem(
-  //                         Icons.email,
-  //                         '${token['email_sent_count']}',
-  //                         'Emails',
-  //                         const Color(0xFF00509D),
-  //                       ),
-  //                     ),
-  //                   ],
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   /// ======================= HELPERS =======================
 
@@ -885,16 +708,17 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
             ],
           ),
         ),
-        const PopupMenuItem(
-          value: 'share',
-          child: Row(
-            children: [
-              Icon(Icons.share, size: 16),
-              SizedBox(width: 8),
-              Text("Share"),
-            ],
+        if (token['status'] == 'active')
+          const PopupMenuItem(
+            value: 'share',
+            child: Row(
+              children: [
+                Icon(Icons.share, size: 16),
+                SizedBox(width: 8),
+                Text("Share"),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -940,13 +764,15 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
       ),
     );
   }
-
-
   Widget _buildStatusBadge(String status) {
+    final isDisabled = status == 'disabled';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFF10B981).withOpacity(0.1),
+        color: isDisabled
+            ? Colors.red.withOpacity(0.1)
+            : const Color(0xFF10B981).withOpacity(0.1),
         borderRadius: BorderRadius.circular(5),
       ),
       child: Row(
@@ -955,78 +781,27 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
             width: 5,
             height: 5,
             margin: const EdgeInsets.only(right: 3),
-            decoration: const BoxDecoration(
-              color: Color(0xFF10B981),
+            decoration: BoxDecoration(
+              color: isDisabled ? Colors.red : const Color(0xFF10B981),
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 4),
           Text(
             status.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF10B981),
+              color: isDisabled ? Colors.red : const Color(0xFF10B981),
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildInfoColumn(
-      IconData icon, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: Colors.grey[500]),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetricItem(
-      IconData icon, String value, String label, Color color) {
-    return Column(
-      children: [
-        Icon(icon, size: 15, color: color),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color),
-        ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-        ),
-      ],
-    );
-  }
 }
 void openShareDialog(BuildContext context, dynamic token) {
+  final scaffoldContext = context;
   final TextEditingController emailController = TextEditingController();
   final List<String> emails = [];
 
@@ -1035,7 +810,7 @@ void openShareDialog(BuildContext context, dynamic token) {
     barrierDismissible: false,
     builder: (dialogContext) {
       return StatefulBuilder(
-        builder: (context, setModalState) {
+        builder: (dialogInnerContext, setModalState) {
           void addEmail(String value) {
             final email = value.trim();
             if (email.isNotEmpty && !emails.contains(email)) {
@@ -1044,21 +819,25 @@ void openShareDialog(BuildContext context, dynamic token) {
             emailController.clear();
           }
 
-          return Dialog(
-            insetPadding: const EdgeInsets.all(16),
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          return Center(
+              child: Material(
+                  color: Colors.white,
+                  elevation: 24,
+                  borderRadius: BorderRadius.circular(16),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 320,
+                    ),
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).viewInsets.bottom,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
                     /// ================= HEADER =================
@@ -1120,29 +899,29 @@ void openShareDialog(BuildContext context, dynamic token) {
                             ),
                           ),
 
-                          /// 🔥 FIXED TEXTFIELD
-                          SizedBox(
+                          Container(
                             width: 160,
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
                             child: TextField(
                               controller: emailController,
                               decoration: const InputDecoration(
                                 hintText: "Enter email",
                                 isDense: true,
                                 border: InputBorder.none,
-
-                                // 🔥 MAIN FIX
-                                filled: true,
-                                fillColor: Colors.white,
                               ),
                               onSubmitted: addEmail,
                               onChanged: (value) {
                                 if (value.endsWith(',')) {
-                                  addEmail(
-                                      value.replaceAll(',', ''));
+                                  addEmail(value.replaceAll(',', ''));
                                 }
                               },
                             ),
                           ),
+
                         ],
                       ),
                     ),
@@ -1168,6 +947,7 @@ void openShareDialog(BuildContext context, dynamic token) {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
+
                         onPressed: emails.isEmpty
                             ? null
                             : () async {
@@ -1179,18 +959,21 @@ void openShareDialog(BuildContext context, dynamic token) {
                               emails: emails,
                             );
 
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                               const SnackBar(
                                 content: Text("Gallery invitation sent successfully"),
+                                behavior: SnackBarBehavior.floating,
                               ),
                             );
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(e.toString())),
+                            ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                              SnackBar(
+                                content: Text(e.toString()),
+                                behavior: SnackBarBehavior.floating,
+                              ),
                             );
                           }
                         },
-
                         child: Text(
                           "Send invitations (${emails.length})",
                           style: const TextStyle(
@@ -1298,6 +1081,7 @@ void openShareDialog(BuildContext context, dynamic token) {
                 ),
               ),
             ),
+          ),          )
           );
         },
       );

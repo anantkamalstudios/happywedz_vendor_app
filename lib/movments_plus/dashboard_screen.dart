@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:shimmer/shimmer.dart';
@@ -23,6 +24,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _fetchDashboard();
+  }
+  String getCurrentDateTime() {
+    final now = DateTime.now();
+    return DateFormat('hh:mm:ss a  EEEE, MMMM dd, yyyy').format(now);
   }
 
   // ======================= API =======================
@@ -73,41 +78,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Future<void> _fetchDashboard() async {
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final token = prefs.getString('token') ?? prefs.getString('authToken');
-  //
-  //     if (token == null) throw Exception("Auth token missing");
-  //
-  //     final response = await http.get(
-  //       Uri.parse('https://happywedz.com/api/vendor/dashboard/analytics'),
-  //       headers: {
-  //         'Authorization': 'Bearer $token',
-  //         'Accept': 'application/json',
-  //       },
-  //     );
-  //
-  //     final res = jsonDecode(response.body);
-  //
-  //     if ((response.statusCode == 200 || response.statusCode == 201) &&
-  //         res['success'] == true) {
-  //       setState(() {
-  //         data = res;
-  //         isLoading = false;
-  //       });
-  //     } else {
-  //       throw Exception("Failed to load dashboard");
-  //     }
-  //   } catch (e) {
-  //     isLoading = false;
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(SnackBar(content: Text(e.toString())));
-  //   }
-  // }
-
-  // ======================= HELPERS =======================
 
   int toInt(dynamic v) => int.tryParse(v.toString()) ?? 0;
 
@@ -134,9 +104,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // if (isLoading) {
-    //   return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    // }
     if (isLoading) {
       return const DashboardShimmer();
     }
@@ -156,13 +123,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final tokens = data!['tokens'];
     final reach = data!['reach'];
     final activity = data!['activity'];
-
-    // final publicTokens = toInt(
-    //   tokens['byType'].firstWhere((e) => e['type'] == 'public')['count'],
-    // );
-    // final privateTokens = toInt(
-    //   tokens['byType'].firstWhere((e) => e['type'] == 'private')['count'],
-    // );
     final publicTokens = getTokenCountByType(tokens, 'public');
     final privateTokens = getTokenCountByType(tokens, 'private');
 
@@ -204,9 +164,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  "Last updated: Just now",
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  getCurrentDateTime(),
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
+
               ],
             ),
 

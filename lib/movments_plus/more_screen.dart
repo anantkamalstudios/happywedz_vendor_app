@@ -1,116 +1,6 @@
-// import 'package:flutter/cupertino.dart';
-// import 'package:flutter/material.dart';
-// import 'package:happy_weds_vendors/movments_plus/token_sharing.dart';
-// import 'package:happy_weds_vendors/utils/common_app_bar.dart';
-//
-// import 'analytics_screen.dart';
-// import 'event.dart';
-//
-// class MoreScreen extends StatelessWidget {
-//   const MoreScreen({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color(0xFFF8F9FA),
-//      appBar: CommonAppBar(title: 'More Screens'),
-//       body: ListView(
-//         padding: const EdgeInsets.all(16),
-//         children: [
-//           _sectionTitle("Management"),
-//           _menuTile(
-//             icon: Icons.analytics,
-//             title: "Analytics",
-//             onTap: () {
-//               Navigator.push(
-//                 context,
-//                 MaterialPageRoute(
-//                   builder: (_) => const AnalyticsScreen(),
-//                 ),
-//               );
-//             },
-//           ),
-//           _menuTile(
-//             icon: Icons.storage,
-//             title: "Packages & Storage",
-//             onTap: () {
-//               // Navigator.push(
-//               //   context,
-//               //   MaterialPageRoute(
-//               //     builder: (_) => const PackagesScreen(),
-//               //   ),
-//               // );
-//             },
-//           ),
-//           _menuTile(
-//             icon: Icons.event,
-//             title: "My Events",
-//             onTap: () {
-//               Navigator.push(
-//                 context,
-//                 MaterialPageRoute(
-//                   builder: (_) => const EventsManagementPage(),
-//                 ),
-//               );
-//             },
-//           ),
-//
-//         ],
-//       ),
-//     );
-//   }
-//
-//   // ======================= UI HELPERS =======================
-//
-//   Widget _sectionTitle(String title) {
-//     return Padding(
-//       padding: const EdgeInsets.only(bottom: 8),
-//       child: Text(
-//         title.toUpperCase(),
-//         style: TextStyle(
-//           fontSize: 12,
-//           fontWeight: FontWeight.w600,
-//           color: Colors.grey[600],
-//           letterSpacing: 1,
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _menuTile({
-//     required IconData icon,
-//     required String title,
-//     required VoidCallback onTap,
-//     Color iconColor = const Color(0xFF00509D),
-//   }) {
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 12),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(14),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.05),
-//             blurRadius: 8,
-//             offset: const Offset(0, 2),
-//           ),
-//         ],
-//       ),
-//       child: ListTile(
-//         leading: Icon(icon, color: iconColor),
-//         title: Text(
-//           title,
-//           style: const TextStyle(fontWeight: FontWeight.w600),
-//         ),
-//         trailing: const Icon(Icons.chevron_right),
-//         onTap: onTap,
-//       ),
-//     );
-//   }
-// }
 import 'package:flutter/material.dart';
+import 'package:happy_weds_vendors/movments_plus/package_page.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
-
 import 'analytics_screen.dart';
 import 'event.dart';
 
@@ -145,7 +35,7 @@ class MoreScreen extends StatelessWidget {
             title: "Packages & Storage",
             subtitle: "Manage plan & storage usage",
             onTap: () {
-              // TODO: Navigate to Packages screen
+              Navigator.push(context, MaterialPageRoute(builder: (context)=> PackageStoragePage()));
             },
           ),
 

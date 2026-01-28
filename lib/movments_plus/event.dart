@@ -1,10 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 
+/// ======================= MODEL =======================
 class Event {
-  final String id;
+  final int id;
   final String name;
   final DateTime date;
   final String venue;
@@ -17,7 +21,80 @@ class Event {
     required this.venue,
     this.hasMedia = false,
   });
+
+  factory Event.fromJson(Map<String, dynamic> json) {
+    return Event(
+      id: json['id'],
+      name: json['name'],
+      date: DateTime.parse(json['event_date']),
+      venue: json['venue'],
+    );
+  }
 }
+
+/// ======================= SERVICE =======================
+
+class EventsService {
+  static const _url = 'https://happywedz.com/api/events';
+
+  static Future<List<Event>> fetchEvents() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+    final res = await http.get(
+      Uri.parse(_url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+    );
+
+    final body = jsonDecode(res.body);
+
+    if (res.statusCode == 200 && body['success'] == true) {
+      return (body['events'] as List)
+          .map((e) => Event.fromJson(e))
+          .toList();
+    } else {
+      throw Exception("Failed to load events");
+    }
+  }
+
+  static Future<void> createEvent({
+    required String name,
+    required DateTime date,
+    required String venue,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? prefs.getString('authToken');
+    print("📤 CREATE EVENT API CALLED");
+    print("🔑 Token: $token");
+
+    final res = await http.post(
+      Uri.parse(_url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        "name": name,
+        "event_date": date.toIso8601String().split('T').first,
+        "venue": venue,
+      }),
+    );
+
+    print("📥 Status Code: ${res.statusCode}");
+    print("📥 Raw Response: ${res.body}");
+    final body = jsonDecode(res.body);
+    print("📥 Parsed Response: $body");
+
+    if ((res.statusCode != 200 && res.statusCode != 201) || body['success'] != true) {
+      throw Exception(body['message'] ?? "Create failed");
+    }
+  }
+}
+
+/// ======================= PAGE =======================
 
 class EventsManagementPage extends StatefulWidget {
   const EventsManagementPage({Key? key}) : super(key: key);
@@ -30,38 +107,38 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
   int _selectedFilter = 0;
   final List<String> _filters = ['All Events', 'Upcoming', 'Past', 'This Month'];
 
-  List<Event> events = [
-    Event(
-      id: '#3',
-      name: 'sample',
-      date: DateTime(2026, 1, 28),
-      venue: 'Express NN',
-    ),
-    Event(
-      id: '#2',
-      name: 'rimesh wedz disha',
-      date: DateTime(2026, 1, 19),
-      venue: 'Taj Palace',
-    ),
-    Event(
-      id: '#1',
-      name: 'prathames wedz disha patani',
-      date: DateTime(2026, 1, 19),
-      venue: 'Taj Palace',
-    ),
-  ];
+  List<Event> events = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents();
+  }
+
+  Future<void> _loadEvents() async {
+    try {
+      final data = await EventsService.fetchEvents();
+      setState(() {
+        events = data;
+        loading = false;
+      });
+    } catch (e) {
+      loading = false;
+    }
+  }
 
   List<Event> get filteredEvents {
     final now = DateTime.now();
     switch (_selectedFilter) {
-      case 1: // Upcoming
+      case 1:
         return events.where((e) => e.date.isAfter(now)).toList();
-      case 2: // Past
+      case 2:
         return events.where((e) => e.date.isBefore(now)).toList();
-      case 3: // This Month
-        return events.where((e) =>
-        e.date.year == now.year && e.date.month == now.month
-        ).toList();
+      case 3:
+        return events
+            .where((e) => e.date.year == now.year && e.date.month == now.month)
+            .toList();
       default:
         return events;
     }
@@ -70,34 +147,35 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
   void _showCreateEventDialog() {
     showDialog(
       context: context,
-      builder: (context) => CreateEventDialog(
-        onEventCreated: (event) {
-          setState(() {
-            events.insert(0, event);
-          });
-        },
-      ),
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return CreateEventDialog(
+          onEventCreated: _loadEvents,
+        );
+      },
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    final displayEvents = filteredEvents;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: CommonAppBar(title: 'Events Management'),
-      body: Column(
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
         children: [
-          _buildStatsSection(isMobile),
+          _buildStatsSection(),
           _buildFilterChips(),
           Expanded(
-            child: displayEvents.isEmpty
+            child: filteredEvents.isEmpty
                 ? _buildNoEvents()
                 : (isMobile
-                ? _buildMobileLayout(displayEvents)
-                : _buildDesktopLayout(displayEvents)),
+                ? _buildMobileLayout(filteredEvents)
+                : _buildDesktopLayout(filteredEvents)),
           ),
         ],
       ),
@@ -105,22 +183,18 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
         onPressed: _showCreateEventDialog,
         backgroundColor: const Color(0xFF00509D),
         icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-        label: Text(
-          isMobile ? 'Create' : 'Create Event',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
+        label: const Text(
+          'Create Event',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 
-  Widget _buildStatsSection(bool isMobile) {
-    final totalEvents = events.length;
-    final upcomingEvents = events.where((e) => e.date.isAfter(DateTime.now())).length;
-    final withMedia = events.where((e) => e.hasMedia).length;
+  /// ======================= UI (UNCHANGED) =======================
 
+  Widget _buildStatsSection() {
+    final now = DateTime.now();
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(20),
@@ -128,47 +202,31 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
         children: [
           Row(
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Total Events',
-                  totalEvents.toString(),
-                  Icons.event,
-                  const Color(0xFF00509D),
-                ),
-              ),
+              _stat('Total Events', events.length, Icons.event, const Color(0xFF00509D)),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Upcoming',
-                  upcomingEvents.toString(),
-                  Icons.calendar_today,
-                  const Color(0xFF10B981),
-                ),
+              _stat(
+                'Upcoming',
+                events.where((e) => e.date.isAfter(now)).length,
+                Icons.calendar_today,
+                const Color(0xFF10B981),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  'With Media',
-                  withMedia.toString(),
-                  Icons.photo_library,
-                  const Color(0xFF8B5CF6),
-                ),
+              _stat(
+                'With Media',
+                events.where((e) => e.hasMedia).length,
+                Icons.photo_library,
+                const Color(0xFF8B5CF6),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'This Month',
-                  events.where((e) {
-                    final now = DateTime.now();
-                    return e.date.year == now.year && e.date.month == now.month;
-                  }).length.toString(),
-                  Icons.date_range,
-                  const Color(0xFF00509D),
-                ),
+              _stat(
+                'This Month',
+                events.where((e) => e.date.month == now.month).length,
+                Icons.date_range,
+                const Color(0xFF00509D),
               ),
             ],
           ),
@@ -177,39 +235,30 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.1)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
-        ],
+  Widget _stat(String label, int value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F9FA),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$value',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+                Text(label, style: const TextStyle(fontSize: 11)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -223,194 +272,54 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _filters.length,
-        itemBuilder: (context, index) {
-          final isSelected = _selectedFilter == index;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(_filters[index]),
-              selected: isSelected,
-              onSelected: (_) => setState(() => _selectedFilter = index),
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF00509D),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              backgroundColor: Colors.white,
-              selectedColor: const Color(0xFF00509D),
-              side: BorderSide(
-                color: isSelected
-                    ? const Color(0xFF00509D)
-                    : const Color(0xFF00509D).withOpacity(0.3),
-              ),
+        itemBuilder: (_, i) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FilterChip(
+            label: Text(_filters[i]),
+            selected: _selectedFilter == i,
+            onSelected: (_) => setState(() => _selectedFilter = i),
+            labelStyle: TextStyle(
+              color: _selectedFilter == i ? Colors.white : const Color(0xFF00509D),
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
-          );
-        },
+            selectedColor: const Color(0xFF00509D),
+            backgroundColor: Colors.white,
+            side: BorderSide(color: const Color(0xFF00509D).withOpacity(0.3)),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildNoEvents() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.event_busy,
-            size: 48,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "No events found",
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "Create an event to get started",
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[500],
-            ),
-          ),
-        ],
-      ),
-    );
+    return const Center(child: Text("No events found"));
   }
 
-  Widget _buildMobileLayout(List<Event> displayEvents) {
+  Widget _buildMobileLayout(List<Event> list) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: displayEvents.length,
-      itemBuilder: (context, index) {
-        return _buildMobileEventCard(displayEvents[index]);
-      },
+      itemCount: list.length,
+      itemBuilder: (_, i) => _eventCard(list[i]),
     );
   }
 
-  Widget _buildDesktopLayout(List<Event> displayEvents) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Wrap(
-          spacing: 20,
-          runSpacing: 20,
-          children: displayEvents.map((event) => _buildDesktopEventCard(event)).toList(),
-        ),
+  Widget _buildDesktopLayout(List<Event> list) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Wrap(
+        spacing: 20,
+        runSpacing: 20,
+        children: list.map(_eventCard).toList(),
       ),
     );
   }
 
-  Widget _buildMobileEventCard(Event event) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    event.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00509D).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(60),
-                  ),
-                  child: Text(
-                    event.id,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF00509D),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 14, color: Colors.grey[500]),
-                const SizedBox(width: 6),
-                Text(
-                  DateFormat('MMMM dd, yyyy').format(event.date),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.location_on, size: 14, color: Colors.grey[500]),
-                const SizedBox(width: 6),
-                Text(
-                  event.venue,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.upload, size: 18),
-                label: const Text('Upload Media'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF00509D),
-                  side: const BorderSide(color: Color(0xFF00509D)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDesktopEventCard(Event event) {
+  Widget _eventCard(Event e) {
     return SizedBox(
       width: 350,
       child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -423,16 +332,17 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              /// ================= HEADER =================
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Text(
-                      event.name,
+                      e.name,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -441,13 +351,14 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFF00509D).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(60),
                     ),
                     child: Text(
-                      event.id,
+                      '#${e.id}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: Color(0xFF00509D),
@@ -457,37 +368,48 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
                   ),
                 ],
               ),
+
+              const SizedBox(height: 12),
+
+              /// ================= DATE =================
+              Row(
+                children: [
+                  Icon(Icons.calendar_today,
+                      size: 14, color: Colors.grey[500]),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('MMMM dd, yyyy').format(e.date),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              /// ================= VENUE =================
+              Row(
+                children: [
+                  Icon(Icons.location_on,
+                      size: 14, color: Colors.grey[500]),
+                  const SizedBox(width: 6),
+                  Text(
+                    e.venue,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 14, color: Colors.grey[500]),
-                  const SizedBox(width: 6),
-                  Text(
-                    DateFormat('MMMM dd, yyyy').format(event.date),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Icons.location_on, size: 14, color: Colors.grey[500]),
-                  const SizedBox(width: 6),
-                  Text(
-                    event.venue,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+
+              /// ================= BUTTON =================
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -497,7 +419,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF00509D),
                     side: const BorderSide(color: Color(0xFF00509D)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -510,10 +432,12 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
       ),
     );
   }
+
 }
 
+/// ======================= CREATE DIALOG (DICTO UI) =======================
 class CreateEventDialog extends StatefulWidget {
-  final void Function(Event event) onEventCreated;
+  final VoidCallback onEventCreated;
 
   const CreateEventDialog({
     super.key,
@@ -527,16 +451,15 @@ class CreateEventDialog extends StatefulWidget {
 class _CreateEventDialogState extends State<CreateEventDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  final _eventNameController = TextEditingController();
+  final _nameController = TextEditingController();
   final _venueController = TextEditingController();
-
   DateTime? _selectedDate;
+  bool _submitting = false; // ✅ NEW
 
-  // ======================= LIFECYCLE =======================
 
   @override
   void dispose() {
-    _eventNameController.dispose();
+    _nameController.dispose();
     _venueController.dispose();
     super.dispose();
   }
@@ -566,9 +489,10 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
     }
   }
 
-  // ======================= CREATE EVENT =======================
+ // ======================= SUBMIT =======================
+   Future<void> _submit() async {
+    if (_submitting) return;
 
-  void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedDate == null) {
@@ -578,50 +502,71 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
       return;
     }
 
-    final event = Event(
-      id: '#${DateTime.now().millisecondsSinceEpoch % 10000}',
-      name: _eventNameController.text.trim(),
-      date: _selectedDate!,
-      venue: _venueController.text.trim(),
-    );
+    setState(() => _submitting = true);
 
-    widget.onEventCreated(event);
-    Navigator.pop(context);
+    try {
+      await EventsService.createEvent(
+        name: _nameController.text.trim(),
+        date: _selectedDate!,
+        venue: _venueController.text.trim(),
+      );
+
+      if (!mounted) return;
+      widget.onEventCreated();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Event created successfully"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context, rootNavigator: true).pop();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
-
-  // ======================= UI =======================
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _header(),
-                  const SizedBox(height: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+        clipBehavior: Clip.antiAlias, // 🔥 IMPORTANT
+        backgroundColor: Colors.white,
+        elevation: 20, // 🔥 IMPORTANT
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Material( // 🔥 WRAP WITH MATERIAL
+          color: Colors.white,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).viewInsets.bottom,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _header(),
+                      const SizedBox(height: 24),
 
                   _label("Event Name *"),
                   _textField(
-                    controller: _eventNameController,
-                    hint: "e.g. Rimesh weds Disha",
+                    controller: _nameController,
+                    hint: "e.g. pratham weds Diksha",
                   ),
 
                   const SizedBox(height: 20),
@@ -644,9 +589,9 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
               ),
             ),
           ),
-
         ),
       ),
+        )
     );
   }
 
@@ -738,7 +683,7 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _submitting ? null : () => Navigator.pop(context),
           child: const Text(
             "Cancel",
             style: TextStyle(
@@ -749,7 +694,7 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
         ),
         const SizedBox(width: 12),
         ElevatedButton(
-          onPressed: _submit,
+          onPressed: _submitting ? null : _submit,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF00509D),
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
@@ -757,7 +702,16 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
               borderRadius: BorderRadius.circular(8),
             ),
           ),
-          child: const Text(
+          child: _submitting
+              ? const SizedBox(
+            height: 18,
+            width: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+              : const Text(
             "Create Event",
             style: TextStyle(
               fontSize: 15,
@@ -769,8 +723,6 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
       ],
     );
   }
-
-  // ======================= STYLES =======================
 
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
@@ -790,3 +742,5 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
     );
   }
 }
+
+
