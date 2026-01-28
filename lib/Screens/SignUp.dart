@@ -637,6 +637,7 @@ class _SearchDelegate extends SearchDelegate<String> {
     return ListView.builder(
       itemCount: suggestions.length,
       itemBuilder: (_, i) => ListTile(
+        tileColor: Colors.white,
         title: Text(suggestions[i]),
         onTap: () => close(context, suggestions[i]),
       ),
