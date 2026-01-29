@@ -301,7 +301,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         children: [
           Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
-          SizedBox(height: 240, child: chart),
+          chart,
+          //SizedBox(height: 240, child: chart),
         ],
       ),
     );

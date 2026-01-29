@@ -631,7 +631,6 @@ import 'package:mime/mime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http_parser/http_parser.dart';
 
-
 /// ======================= EVENT MODEL =======================
 class Event {
   final int id;
@@ -717,11 +716,34 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   String? selectedToken;
   String collectionName = '';
   String visibility = 'Public';
+  double usedMB = 0;
+  double limitMB = 0;
+  double freeMB = 0;
+  double incomingMB = 0;
+  String packageName = '';
+  double remainingMB = 0;
+  int usagePercent = 0;
+  bool canUpload = true;
+  bool storageWarning = false;
+  bool isAnalyticsLoading = false;
+
+
 
   bool isUploading = false;
 
   late Future<List<Event>> eventsFuture;
   late Future<List<dynamic>> tokensFuture;
+  List<dynamic> _filterTokensByVisibility(List<dynamic> tokens) {
+    final selected = visibility.toLowerCase(); // public / private
+
+    return tokens.where((t) {
+      final v1 = t['visibility']?.toString().toLowerCase();
+      final v2 = t['type']?.toString().toLowerCase();
+
+      return v1 == selected || v2 == selected;
+    }).toList();
+  }
+
 
   List<Map<String, dynamic>> selectedFiles = [];
 
@@ -730,6 +752,43 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
     super.initState();
     eventsFuture = EventsService.fetchEvents();
     tokensFuture = TokensService.fetchTokens();
+    fetchDashboardAnalytics();
+  }
+
+
+  Future<void> fetchDashboardAnalytics() async {
+    setState(() => isAnalyticsLoading = true);
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+    final res = await http.get(
+      Uri.parse(
+          'https://happywedz.com/api/vendor/dashboard/analytics'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+    );
+
+    if (res.statusCode == 200) {
+      final body = jsonDecode(res.body);
+
+      final pkg = body['package'];
+      final usage = body['usage'];
+
+      setState(() {
+        packageName = pkg['name'];
+        limitMB = (pkg['limitMB'] as num).toDouble();
+        usedMB = (pkg['usedMB'] as num).toDouble();
+        remainingMB = (pkg['remainingMB'] as num).toDouble();
+        usagePercent = pkg['usagePercent'];
+        canUpload = usage['canUpload'];
+        storageWarning = usage['storageWarning'];
+      });
+    }
+
+    setState(() => isAnalyticsLoading = false);
   }
 
   /// ================= FILE PICKER =================
@@ -784,49 +843,51 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
 
         request.files.add(
           await http.MultipartFile.fromPath(
-            'files', // ✅ EXACT same as Postman
+            'files',
             f['file'].path,
             contentType: MediaType.parse(mimeType!),
           ),
         );
       }
 
-      // for (var f in selectedFiles) {
-      //   final mimeType = lookupMimeType(f['file'].path);
-      //
-      //   print("📸 File: ${f['file'].path}");
-      //   print("🧪 MIME: $mimeType");
-      //
-      //   if (mimeType == null ||
-      //       (!mimeType.startsWith('image/') &&
-      //           !mimeType.startsWith('video/'))) {
-      //     throw Exception("Only image/video allowed");
-      //   }
-      //
-      //   request.files.add(
-      //     await http.MultipartFile.fromPath(
-      //       'files[]',
-      //       f['file'].path,
-      //       contentType: MediaType.parse(mimeType),
-      //     ),
-      //   );
-      // }
-
       final streamedResponse = await request.send();
       final responseBody =
       await streamedResponse.stream.bytesToString();
-
-      print("📥 STATUS: ${streamedResponse.statusCode}");
-      print("📥 BODY: $responseBody");
+      //
+      // print("📥 STATUS: ${streamedResponse.statusCode}");
+      // print("📥 BODY: $responseBody");
+      //
+      // if (streamedResponse.statusCode == 200 ||
+      //     streamedResponse.statusCode == 201) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //         content: Text('Media uploaded successfully')),
+      //   );
+      //   setState(() => selectedFiles.clear());
+      // }
+      final data = jsonDecode(responseBody);
 
       if (streamedResponse.statusCode == 200 ||
           streamedResponse.statusCode == 201) {
+        await fetchDashboardAnalytics();
+        final storage = data['storageInfo'];
+
+        setState(() {
+          usedMB = (storage['usedMB'] as num).toDouble();
+          incomingMB = (storage['incomingMB'] as num).toDouble();
+          limitMB = (storage['limitMB'] as num).toDouble();
+          freeMB = limitMB - usedMB;
+          packageName = storage['packageName'];
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Media uploaded successfully')),
+          const SnackBar(content: Text('Media uploaded successfully')),
         );
+
         setState(() => selectedFiles.clear());
-      } else {
+      }
+
+      else {
         throw Exception(responseBody);
       }
     } catch (e) {
@@ -856,16 +917,39 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
                   crossAxisAlignment:
                   CrossAxisAlignment.start,
                   children: [
-                    _eventDropdown(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('Event*'),
+                        _eventDropdown(),
+                      ],
+                    ),
+                    // _eventDropdown(),
                     const SizedBox(height: 20),
                     _input(
                         'Collection*',
                         Icons.folder_outlined,
                             (v) => collectionName = v),
                     const SizedBox(height: 20),
-                    _visibilityDropdown(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('Visibility*'),
+                        _visibilityDropdown(),
+                      ],
+                    ),
+
+                    // _visibilityDropdown(),
                     const SizedBox(height: 20),
-                    _tokenDropdown(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('Token*'),
+                        _tokenDropdown(),
+                      ],
+                    ),
+
+                    // _tokenDropdown(),
                     const SizedBox(height: 30),
                     _uploadPicker(),
                     const SizedBox(height: 24),
@@ -974,8 +1058,14 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       ),
     );
   }
-
   Widget _buildStorageInfo() {
+    if (isAnalyticsLoading) {
+      return const LinearProgressIndicator(color: Colors.white);
+    }
+
+    final double progress =
+    limitMB == 0 ? 0.0 : usedMB / limitMB;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -986,24 +1076,159 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStorageStat('Used', '32.49 MB', Icons.storage),
+              _buildStorageStat(
+                'Used',
+                '${usedMB.toStringAsFixed(2)} MB',
+                Icons.storage,
+              ),
               Container(width: 1, height: 30, color: Colors.white30),
-              _buildStorageStat('Free', '10207 MB', Icons.cloud_done),
+              _buildStorageStat(
+                'Ramaining',
+                '${remainingMB.toStringAsFixed(2)} MB',
+                Icons.cloud_done,
+              ),
             ],
           ),
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
-              value: 0.003,
+              value: progress,
               backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor:
+              const AlwaysStoppedAnimation<Color>(Colors.white),
               minHeight: 6,
             ),
           ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Package: $packageName',
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 12),
+              ),
+              Text(
+                '$usagePercent%',
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+          if (!canUpload || storageWarning)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                'Storage almost full',
+                style: TextStyle(
+                    color: Colors.orangeAccent, fontSize: 11),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  // Widget _buildStorageInfo() {
+  //   // final progress = limitMB == 0 ? 0 : usedMB / limitMB;
+  //   final double progress =
+  //   limitMB == 0 ? 0.0 : (usedMB / limitMB);
+  //
+  //   return Container(
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white.withOpacity(0.15),
+  //       borderRadius: BorderRadius.circular(12),
+  //       border: Border.all(color: Colors.white.withOpacity(0.3)),
+  //     ),
+  //     child: Column(
+  //       children: [
+  //         Row(
+  //           children: [
+  //             _buildStorageStat(
+  //               'Used',
+  //               '${usedMB.toStringAsFixed(2)} MB',
+  //               Icons.storage,
+  //             ),
+  //             Container(width: 1, height: 30, color: Colors.white30),
+  //             _buildStorageStat(
+  //               'Free',
+  //               '${freeMB.toStringAsFixed(2)} MB',
+  //               Icons.cloud_done,
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 12),
+  //         ClipRRect(
+  //           borderRadius: BorderRadius.circular(6),
+  //           child: LinearProgressIndicator(
+  //             // value: progress,
+  //             value: progress.toDouble(),
+  //
+  //             backgroundColor: Colors.white.withOpacity(0.3),
+  //             valueColor:
+  //             const AlwaysStoppedAnimation<Color>(Colors.white),
+  //             minHeight: 6,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 8),
+  //         Text(
+  //           'Package: $packageName',
+  //           style: const TextStyle(
+  //               color: Colors.white70, fontSize: 12),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+
+  // Widget _buildStorageInfo() {
+  //   return Container(
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white.withOpacity(0.15),
+  //       borderRadius: BorderRadius.circular(12),
+  //       border: Border.all(color: Colors.white.withOpacity(0.3)),
+  //     ),
+  //     child: Column(
+  //       children: [
+  //         Row(
+  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //           children: [
+  //             _buildStorageStat('Used', '32.49 MB', Icons.storage),
+  //             Container(width: 1, height: 30, color: Colors.white30),
+  //             _buildStorageStat('Free', '10207 MB', Icons.cloud_done),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 12),
+  //         ClipRRect(
+  //           borderRadius: BorderRadius.circular(6),
+  //           child: LinearProgressIndicator(
+  //             value: 0.003,
+  //             backgroundColor: Colors.white.withOpacity(0.3),
+  //             valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+  //             minHeight: 6,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+
+  Widget _label(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          color: Color(0xFF1F2937),
+        ),
       ),
     );
   }
@@ -1020,7 +1245,21 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         TextField(
           onChanged: onChanged,
           decoration: InputDecoration(
-            prefixIcon: Icon(icon),
+            prefixIcon: Icon(icon, color: Color(0xFF00509D),),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF00509D), // 🔵 blue border
+                width: 1.4,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF00509D), // 🔵 blue border on focus
+                width: 1.6,
+              ),
+            ),
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12)),
           ),
@@ -1055,27 +1294,68 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
           }).toList(),
           onChanged: (v) =>
               setState(() => selectedEventId = v),
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.calendar_today),
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            prefixIcon: Icon(Icons.calendar_today, color: Color(0xFF00509D),),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF00509D), // 🔵 blue border
+                width: 1.4,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF00509D), // 🔵 blue border on focus
+                width: 1.6,
+              ),
+            ),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
       },
     );
   }
-
   Widget _visibilityDropdown() {
-    return DropdownButtonFormField<String>(
-      value: visibility,
-      items: ['Public', 'Private']
-          .map((e) =>
-          DropdownMenuItem(value: e, child: Text(e)))
-          .toList(),
-      onChanged: (v) => setState(() => visibility = v!),
-      decoration:
-      const InputDecoration(border: OutlineInputBorder()),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        canvasColor: Colors.white,
+      ),
+      child: DropdownButtonFormField<String>(
+        value: visibility,
+        items: ['Public', 'Private']
+            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+            .toList(),
+        onChanged: (v) {
+          setState(() {
+            visibility = v!;
+            selectedToken = null; // 🔥 reset token
+          });
+        },
+        decoration: InputDecoration(
+          // prefixIcon: Icon(Icons.calendar_today),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(
+              color: Color(0xFF00509D), // 🔵 blue border
+              width: 1.4,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(
+              color: Color(0xFF00509D), // 🔵 blue border on focus
+              width: 1.6,
+            ),
+          ),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
     );
   }
+
 
   Widget _tokenDropdown() {
     return FutureBuilder<List<dynamic>>(
@@ -1090,25 +1370,52 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
           return const Text('Token load failed');
         }
 
-        final tokens = snapshot.data ?? [];
+        // final tokens = snapshot.data ?? [];
+        final allTokens = snapshot.data ?? [];
+        final tokens = _filterTokensByVisibility(allTokens);
 
-        return DropdownButtonFormField<String>(
-          value: selectedToken,
-          hint: const Text('Select Token'),
-          items: tokens.map((t) {
-            return DropdownMenuItem<String>(
-              value: t['token'],
-              child: Text(
-                t['token'],
-                style: const TextStyle(
-                    fontFamily: 'monospace'),
+
+        return Theme(
+          data: Theme.of(context).copyWith(
+            canvasColor: Colors.white, // 🔥 dropdown bg white
+          ),
+          child: DropdownButtonFormField<String>(
+            value: selectedToken,
+            hint: const Text('Select Token'),
+            items: tokens.map((t) {
+              return DropdownMenuItem<String>(
+          
+                value: t['token'],
+                child: Text(
+                  t['token'],
+                  style: const TextStyle(
+                      fontFamily: 'monospace'),
+                ),
+              );
+            }).toList(),
+            onChanged: (v) =>
+                setState(() => selectedToken = v),
+
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.vpn_key, color: const Color(0xFF00509D), size: 22),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF00509D), // 🔵 blue border
+                  width: 1.4,
+                ),
               ),
-            );
-          }).toList(),
-          onChanged: (v) =>
-              setState(() => selectedToken = v),
-          decoration:
-          const InputDecoration(border: OutlineInputBorder()),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF00509D), // 🔵 blue border on focus
+                  width: 1.6,
+                ),
+              ),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         );
       },
     );
