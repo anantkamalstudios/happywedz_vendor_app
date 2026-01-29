@@ -1,627 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'package:flutter/services.dart';
-//
-// class UploadMediaScreen extends StatefulWidget {
-//   const UploadMediaScreen({Key? key}) : super(key: key);
-//
-//   @override
-//   State<UploadMediaScreen> createState() => _UploadMediaScreenState();
-// }
-//
-// class _UploadMediaScreenState extends State<UploadMediaScreen> {
-//   String? selectedToken;
-//   String? selectedEvent;
-//   String eventId = '';
-//   String collectionName = '';
-//   String visibility = 'Public';
-//   List<Map<String, dynamic>> selectedFiles = [];
-//
-//   final tokens = [
-//     {
-//       'code': '2e93e27ca649',
-//       'type': 'Public',
-//       'event': 'Event #2',
-//       'status': 'Active',
-//       'views': 0,
-//       'emails': 1,
-//       'created': 'Jan 19, 2026, 01:27 PM',
-//       'expires': 'No expiry',
-//     },
-//     {
-//       'code': '576a9fb8233c',
-//       'type': 'Private',
-//       'event': 'Event #2',
-//       'status': 'Active',
-//       'views': 0,
-//       'emails': 1,
-//       'created': 'Jan 16, 2026, 11:23 AM',
-//       'expires': 'No expiry',
-//     },
-//     {
-//       'code': '8b376088b7a6',
-//       'type': 'Private',
-//       'event': 'Event #2',
-//       'status': 'Active',
-//       'views': 0,
-//       'emails': 2,
-//       'created': 'Dec 27, 2025, 06:32 PM',
-//       'expires': 'No expiry',
-//     },
-//     {
-//       'code': '99d86cc73f68',
-//       'type': 'Public',
-//       'event': 'Event #2',
-//       'status': 'Active',
-//       'views': 0,
-//       'emails': 0,
-//       'created': 'Dec 27, 2025, 06:32 PM',
-//       'expires': 'No expiry',
-//     },
-//     {
-//       'code': 'f70f9fa21591',
-//       'type': 'Private',
-//       'event': 'Event #2',
-//       'status': 'Active',
-//       'views': 0,
-//       'emails': 0,
-//       'created': 'Dec 26, 2025, 10:52 AM',
-//       'expires': 'Jan 1, 2026, 05:29 AM',
-//     },
-//   ];
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color(0xFFF8F9FA),
-//       body: SafeArea(
-//         child: Column(
-//           children: [
-//             _buildHeader(),
-//             Expanded(
-//               child: SingleChildScrollView(
-//                 padding: const EdgeInsets.all(20),
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.start,
-//                   children: [
-//                     _buildInputField(
-//                       label: 'Event ID*',
-//                       hint: 'Enter event ID',
-//                       icon: Icons.calendar_today,
-//                       onChanged: (value) => setState(() => eventId = value),
-//                     ),
-//                     const SizedBox(height: 20),
-//                     _buildInputField(
-//                       label: 'Collection*',
-//                       hint: 'Enter collection name',
-//                       icon: Icons.folder_outlined,
-//                       onChanged: (value) => setState(() => collectionName = value),
-//                     ),
-//                     const SizedBox(height: 20),
-//                     _buildDropdownField(
-//                       label: 'Visibility*',
-//                       hint: 'Select visibility',
-//                       value: visibility,
-//                       items: ['Public', 'Private'],
-//                       onChanged: (value) => setState(() => visibility = value ?? 'Public'),
-//                     ),
-//                     const SizedBox(height: 20),
-//                     _buildTokenDropdownField(),
-//                     const SizedBox(height: 12),
-//                     Padding(
-//                       padding: const EdgeInsets.only(left: 4),
-//                       child: Text(
-//                         'You can also select a token from the table above.',
-//                         style: TextStyle(
-//                           fontSize: 13,
-//                           color: Colors.grey[600],
-//                           fontStyle: FontStyle.italic,
-//                         ),
-//                       ),
-//                     ),
-//                     const SizedBox(height: 30),
-//                     _buildFileUploadArea(),
-//                     const SizedBox(height: 24),
-//                     if (selectedFiles.isNotEmpty) _buildSelectedFilesList(),
-//                   ],
-//                 ),
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _buildHeader() {
-//     return Container(
-//       padding: const EdgeInsets.all(20),
-//       decoration: BoxDecoration(
-//         gradient: const LinearGradient(
-//           colors: [Color(0xFF00509D), Color(0xFF0066CC)],
-//           begin: Alignment.topLeft,
-//           end: Alignment.bottomRight,
-//         ),
-//         boxShadow: [
-//           BoxShadow(
-//             color: const Color(0xFF00509D).withOpacity(0.3),
-//             blurRadius: 10,
-//             offset: const Offset(0, 4),
-//           ),
-//         ],
-//       ),
-//       child: Column(
-//         children: [
-//           Row(
-//             children: [
-//               IconButton(
-//                 onPressed: () => Navigator.pop(context),
-//                 icon: const Icon(Icons.arrow_back, color: Colors.white),
-//                 padding: EdgeInsets.zero,
-//                 constraints: const BoxConstraints(),
-//               ),
-//               const SizedBox(width: 16),
-//               const Expanded(
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.start,
-//                   children: [
-//                     Text(
-//                       'Upload Media',
-//                       style: TextStyle(
-//                         fontSize: 22,
-//                         fontWeight: FontWeight.bold,
-//                         color: Colors.white,
-//                       ),
-//                     ),
-//                     SizedBox(height: 4),
-//                     Text(
-//                       'Select token & upload your files',
-//                       style: TextStyle(
-//                         fontSize: 13,
-//                         color: Colors.white70,
-//                       ),
-//                     ),
-//                   ],
-//                 ),
-//               ),
-//             ],
-//           ),
-//           const SizedBox(height: 20),
-//           _buildStorageInfo(),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildStorageInfo() {
-//     return Container(
-//       padding: const EdgeInsets.all(16),
-//       decoration: BoxDecoration(
-//         color: Colors.white.withOpacity(0.15),
-//         borderRadius: BorderRadius.circular(12),
-//         border: Border.all(color: Colors.white.withOpacity(0.3)),
-//       ),
-//       child: Column(
-//         children: [
-//           Row(
-//             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//             children: [
-//               _buildStorageStat('Used', '32.49 MB', Icons.storage),
-//               Container(width: 1, height: 30, color: Colors.white30),
-//               _buildStorageStat('Free', '10207 MB', Icons.cloud_done),
-//             ],
-//           ),
-//           const SizedBox(height: 12),
-//           ClipRRect(
-//             borderRadius: BorderRadius.circular(6),
-//             child: LinearProgressIndicator(
-//               value: 0.003,
-//               backgroundColor: Colors.white.withOpacity(0.3),
-//               valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-//               minHeight: 6,
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildStorageStat(String label, String value, IconData icon) {
-//     return Expanded(
-//       child: Row(
-//         mainAxisAlignment: MainAxisAlignment.center,
-//         children: [
-//           Icon(icon, color: Colors.white, size: 18),
-//           const SizedBox(width: 8),
-//           Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               Text(
-//                 label,
-//                 style: const TextStyle(
-//                   color: Colors.white70,
-//                   fontSize: 11,
-//                   fontWeight: FontWeight.w500,
-//                 ),
-//               ),
-//               Text(
-//                 value,
-//                 style: const TextStyle(
-//                   color: Colors.white,
-//                   fontSize: 14,
-//                   fontWeight: FontWeight.bold,
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _buildInputField({
-//     required String label,
-//     required String hint,
-//     required IconData icon,
-//     required ValueChanged<String> onChanged,
-//   }) {
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         Text(
-//           label,
-//           style: const TextStyle(
-//             fontSize: 15,
-//             fontWeight: FontWeight.w600,
-//             color: Color(0xFF1A1A1A),
-//           ),
-//         ),
-//         const SizedBox(height: 10),
-//         Container(
-//           decoration: BoxDecoration(
-//             color: Colors.white,
-//             borderRadius: BorderRadius.circular(12),
-//             boxShadow: [
-//               BoxShadow(
-//                 color: Colors.black.withOpacity(0.05),
-//                 blurRadius: 8,
-//                 offset: const Offset(0, 2),
-//               ),
-//             ],
-//           ),
-//           child: TextField(
-//             onChanged: onChanged,
-//             style: const TextStyle(
-//               fontSize: 15,
-//               color: Color(0xFF1A1A1A),
-//             ),
-//             decoration: InputDecoration(
-//               hintText: hint,
-//               hintStyle: TextStyle(
-//                 fontSize: 15,
-//                 color: Colors.grey[400],
-//               ),
-//               prefixIcon: Icon(icon, color: const Color(0xFF00509D), size: 22),
-//               filled: true,
-//               fillColor: Colors.white,
-//               border: OutlineInputBorder(
-//                 borderRadius: BorderRadius.circular(12),
-//                 borderSide: BorderSide.none,
-//               ),
-//               enabledBorder: OutlineInputBorder(
-//                 borderRadius: BorderRadius.circular(12),
-//                 borderSide: BorderSide(color: Colors.grey[200]!, width: 1),
-//               ),
-//               focusedBorder: OutlineInputBorder(
-//                 borderRadius: BorderRadius.circular(12),
-//                 borderSide: const BorderSide(color: Color(0xFF00509D), width: 2),
-//               ),
-//               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-//             ),
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-//
-//   Widget _buildDropdownField({
-//     required String label,
-//     required String hint,
-//     required String value,
-//     required List<String> items,
-//     required ValueChanged<String?> onChanged,
-//   }) {
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         Text(
-//           label,
-//           style: const TextStyle(
-//             fontSize: 15,
-//             fontWeight: FontWeight.w600,
-//             color: Color(0xFF1A1A1A),
-//           ),
-//         ),
-//         const SizedBox(height: 10),
-//         Container(
-//           decoration: BoxDecoration(
-//             color: Colors.white,
-//             borderRadius: BorderRadius.circular(12),
-//             border: Border.all(color: Colors.grey[200]!, width: 1),
-//             boxShadow: [
-//               BoxShadow(
-//                 color: Colors.black.withOpacity(0.05),
-//                 blurRadius: 8,
-//                 offset: const Offset(0, 2),
-//               ),
-//             ],
-//           ),
-//           child: DropdownButtonFormField<String>(
-//             value: value,
-//             decoration: InputDecoration(
-//               border: InputBorder.none,
-//               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-//               hintStyle: TextStyle(
-//                 fontSize: 15,
-//                 color: Colors.grey[400],
-//               ),
-//             ),
-//             style: const TextStyle(
-//               fontSize: 15,
-//               color: Color(0xFF1A1A1A),
-//             ),
-//             icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[600], size: 24),
-//             items: items.map((String item) {
-//               return DropdownMenuItem<String>(
-//                 value: item,
-//                 child: Text(item),
-//               );
-//             }).toList(),
-//             onChanged: onChanged,
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-//
-//   Widget _buildTokenDropdownField() {
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         const Text(
-//           'Token*',
-//           style: TextStyle(
-//             fontSize: 15,
-//             fontWeight: FontWeight.w600,
-//             color: Color(0xFF1A1A1A),
-//           ),
-//         ),
-//         const SizedBox(height: 10),
-//         Container(
-//           decoration: BoxDecoration(
-//             color: Colors.white,
-//             borderRadius: BorderRadius.circular(12),
-//             border: Border.all(color: Colors.grey[200]!, width: 1),
-//             boxShadow: [
-//               BoxShadow(
-//                 color: Colors.black.withOpacity(0.05),
-//                 blurRadius: 8,
-//                 offset: const Offset(0, 2),
-//               ),
-//             ],
-//           ),
-//           child: DropdownButtonFormField<String>(
-//             value: selectedToken,
-//             decoration: InputDecoration(
-//               prefixIcon: Icon(Icons.vpn_key, color: const Color(0xFF00509D), size: 22),
-//               border: InputBorder.none,
-//               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-//               hintText: 'Select token',
-//               hintStyle: TextStyle(
-//                 fontSize: 15,
-//                 color: Colors.grey[400],
-//               ),
-//             ),
-//             style: const TextStyle(
-//               fontSize: 14,
-//               color: Color(0xFF1A1A1A),
-//               fontFamily: 'monospace',
-//             ),
-//             icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[600], size: 24),
-//             items: tokens.map((token) {
-//               return DropdownMenuItem<String>(
-//                 value: token['code'].toString(),
-//                 child: Text(
-//                   token['code'].toString(),
-//                   style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
-//                 ),
-//               );
-//             }).toList(),
-//             onChanged: (value) {
-//               setState(() {
-//                 selectedToken = value;
-//                 selectedEvent = tokens.firstWhere((t) => t['code'] == value)['event'].toString();
-//               });
-//             },
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-//
-//   Widget _buildFileUploadArea() {
-//     return Center(
-//       child: SizedBox(
-//         width: double.infinity,
-//         child: OutlinedButton.icon(
-//           onPressed: () {},
-//           icon: const Icon(Icons.upload, size: 18),
-//           label: const Text('Upload Media'),
-//           style: OutlinedButton.styleFrom(
-//             foregroundColor: const Color(0xFF00509D),
-//             side: const BorderSide(color: Color(0xFF00509D)),
-//             padding: const EdgeInsets.symmetric(vertical: 12),
-//             shape: RoundedRectangleBorder(
-//               borderRadius: BorderRadius.circular(8),
-//             ),
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-
-//
-//   Widget _buildSelectedFilesList() {
-//     return Container(
-//       padding: const EdgeInsets.all(18),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(16),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.06),
-//             blurRadius: 12,
-//             offset: const Offset(0, 2),
-//           ),
-//         ],
-//       ),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           Row(
-//             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//             children: [
-//               Row(
-//                 children: [
-//                   Container(
-//                     padding: const EdgeInsets.all(8),
-//                     decoration: BoxDecoration(
-//                       color: const Color(0xFF10B981).withOpacity(0.1),
-//                       borderRadius: BorderRadius.circular(8),
-//                     ),
-//                     child: const Icon(Icons.attachment, color: Color(0xFF10B981), size: 20),
-//                   ),
-//                   const SizedBox(width: 10),
-//                   Text(
-//                     '${selectedFiles.length} Files Selected',
-//                     style: const TextStyle(
-//                       fontSize: 16,
-//                       fontWeight: FontWeight.bold,
-//                       color: Color(0xFF1A1A1A),
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//               TextButton(
-//                 onPressed: () => setState(() => selectedFiles.clear()),
-//                 style: TextButton.styleFrom(
-//                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-//                   minimumSize: Size.zero,
-//                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-//                 ),
-//                 child: const Text(
-//                   'Clear',
-//                   style: TextStyle(
-//                     color: Colors.red,
-//                     fontWeight: FontWeight.w600,
-//                     fontSize: 14,
-//                   ),
-//                 ),
-//               ),
-//             ],
-//           ),
-//           const SizedBox(height: 16),
-//           ...selectedFiles.map((file) => _buildFileListItem(file)),
-//           const SizedBox(height: 18),
-//           SizedBox(
-//             width: double.infinity,
-//             child: ElevatedButton(
-//               onPressed: (){},
-//               style: ElevatedButton.styleFrom(
-//                 backgroundColor: const Color(0xFF00509D),
-//                 shape: RoundedRectangleBorder(
-//                   borderRadius: BorderRadius.circular(12),
-//                 ),
-//                 padding: const EdgeInsets.symmetric(vertical: 16),
-//                 elevation: 3,
-//                 shadowColor: const Color(0xFF00509D).withOpacity(0.4),
-//               ),
-//               child: const Text(
-//                 'Upload Files',
-//                 style: TextStyle(
-//                   color: Colors.white,
-//                   fontSize: 17,
-//                   fontWeight: FontWeight.bold,
-//                 ),
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildFileListItem(Map<String, dynamic> file) {
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 12),
-//       padding: const EdgeInsets.all(14),
-//       decoration: BoxDecoration(
-//         color: const Color(0xFFF8F9FA),
-//         borderRadius: BorderRadius.circular(12),
-//         border: Border.all(color: Colors.grey[200]!, width: 1),
-//       ),
-//       child: Row(
-//         children: [
-//           Container(
-//             padding: const EdgeInsets.all(10),
-//             decoration: BoxDecoration(
-//               color: const Color(0xFF00509D).withOpacity(0.1),
-//               borderRadius: BorderRadius.circular(10),
-//             ),
-//             child: Icon(
-//               file['type'] == 'image' ? Icons.image_outlined : Icons.videocam_outlined,
-//               color: const Color(0xFF00509D),
-//               size: 24,
-//             ),
-//           ),
-//           const SizedBox(width: 14),
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Text(
-//                   file['name'],
-//                   style: const TextStyle(
-//                     fontSize: 15,
-//                     fontWeight: FontWeight.w600,
-//                     color: Color(0xFF1A1A1A),
-//                   ),
-//                   maxLines: 1,
-//                   overflow: TextOverflow.ellipsis,
-//                 ),
-//                 const SizedBox(height: 4),
-//                 Text(
-//                   file['size'],
-//                   style: TextStyle(
-//                     fontSize: 13,
-//                     color: Colors.grey[600],
-//                   ),
-//                 ),
-//               ],
-//             ),
-//           ),
-//           IconButton(
-//             onPressed: () => setState(() => selectedFiles.remove(file)),
-//             icon: const Icon(Icons.close, color: Colors.red, size: 22),
-//             padding: EdgeInsets.zero,
-//             constraints: const BoxConstraints(),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-// }
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -630,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:mime/mime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http_parser/http_parser.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// ======================= EVENT MODEL =======================
 class Event {
@@ -906,7 +283,9 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
+      body: isAnalyticsLoading
+          ? const UploadMediaShimmer()
+      : SafeArea(
         child: Column(
           children: [
             _buildHeader(),
@@ -1474,3 +853,100 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   }
 }
 
+class UploadMediaShimmer extends StatelessWidget {
+  const UploadMediaShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _headerShimmer(),
+          const SizedBox(height: 30),
+
+          _labelShimmer(),
+          _fieldShimmer(),
+
+          const SizedBox(height: 20),
+          _labelShimmer(),
+          _fieldShimmer(),
+
+          const SizedBox(height: 20),
+          _labelShimmer(),
+          _fieldShimmer(),
+
+          const SizedBox(height: 20),
+          _labelShimmer(),
+          _fieldShimmer(),
+
+          const SizedBox(height: 30),
+          _buttonShimmer(),
+        ],
+      ),
+    );
+  }
+
+  // ===================== PARTS =====================
+
+  Widget _headerShimmer() {
+    return _shimmer(
+      child: Container(
+        height: 170,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _labelShimmer() {
+    return _shimmer(
+      child: Container(
+        height: 14,
+        width: 120,
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    );
+  }
+
+  Widget _fieldShimmer() {
+    return _shimmer(
+      child: Container(
+        height: 56,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buttonShimmer() {
+    return _shimmer(
+      child: Container(
+        height: 48,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  Widget _shimmer({required Widget child}) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: child,
+    );
+  }
+}
