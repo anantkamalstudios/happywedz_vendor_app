@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:happy_weds_vendors/movments_plus/upload_screen.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:shimmer/shimmer.dart';
 
 /// ======================= MODEL =======================
 class Event {
@@ -165,7 +166,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: CommonAppBar(title: 'Events Management'),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ?  EventsShimmer()
           : Column(
         children: [
           _buildStatsSection(),
@@ -413,7 +414,18 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => UploadMediaScreen(
+                          preselectedEventId: e.id.toString(),
+                          preselectedEventName: e.name,
+                        ),
+                      ),
+                    );
+                  },
+
                   icon: const Icon(Icons.upload, size: 18),
                   label: const Text('Upload Media'),
                   style: OutlinedButton.styleFrom(
@@ -744,3 +756,132 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
 }
 
 
+/// ======================= SHIMMER PLACEHOLDER =======================
+
+class EventsShimmer extends StatelessWidget {
+  const EventsShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // 🔹 STATS SHIMMER
+          Row(
+            children: [
+              Expanded(child: _statCard()),
+              const SizedBox(width: 12),
+              Expanded(child: _statCard()),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _statCard()),
+              const SizedBox(width: 12),
+              Expanded(child: _statCard()),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // 🔹 FILTER CHIPS
+          _chipRow(),
+
+          const SizedBox(height: 20),
+
+          // 🔹 EVENT CARDS
+          if (isMobile) ...List.generate(4, (_) => _eventCard())
+          else
+            Wrap(
+              spacing: 20,
+              runSpacing: 20,
+              children: List.generate(6, (_) => _eventCard()),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ======================= SHIMMER PARTS =======================
+
+  Widget _statCard() {
+    return _shimmer(
+      child: Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _chipRow() {
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: 4,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, __) => _shimmer(
+          child: Container(
+            width: 90,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _eventCard() {
+    return _shimmer(
+      child: Container(
+        width: 350,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _line(width: 180, height: 16),
+            const SizedBox(height: 12),
+            _line(width: 140),
+            const SizedBox(height: 8),
+            _line(width: 200),
+            const SizedBox(height: 20),
+            _line(width: double.infinity, height: 36),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _line({double width = 120, double height = 12}) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+      ),
+    );
+  }
+
+  Widget _shimmer({required Widget child}) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: child,
+    );
+  }
+}

@@ -111,7 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (hasInternetError) {
       return Scaffold(
         backgroundColor: Colors.white,
-        appBar: CommonAppBar(title: "Moments Plus"),
+        appBar: CommonAppBar(title: "Movments Plus"),
         body: NoInternetView(
           onRetry: _fetchDashboard,
         ),
@@ -129,7 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: CommonAppBar(title: "Moments Plus"),
+      appBar: CommonAppBar(title: "Movments Plus"),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -150,7 +150,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: const Row(
                     children: [
                       Icon(Icons.circle, size: 8, color: Color(0xFF10B981)),
-                      SizedBox(width: 4),
+                      SizedBox(width: 6),
                       Text(
                         "Online",
                         style: TextStyle(
@@ -162,12 +162,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 8),
                 Text(
                   getCurrentDateTime(),
                   style: TextStyle(
                     color: Colors.grey[600],
-                    fontSize: 13,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

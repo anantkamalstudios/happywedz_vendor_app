@@ -6,9 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:shimmer/shimmer.dart';
 
-
 // ======================= SERVICE =======================
-
 class AnalyticsService {
   static const String _url =
       "https://happywedz.com/api/vendor/dashboard/analytics";
@@ -38,15 +36,38 @@ class AnalyticsService {
 }
 
 // ======================= COLORS (WEB MATCH) =======================
+String normalizeCollection(String name) {
+  return name.trim().toLowerCase();
+}
+final List<Color> fallbackPalette = [
+  Color(0xFF845EC2),
+  Color(0xFF4D96FF),
+  Color(0xFFFF6F91),
+  Color(0xFF2C73D2),
+  Color(0xFF008F7A),
+  Color(0xFFFF9671),
+  Color(0xFF00C9A7),
+];
 
 // Media by Collection
-const Map<String, Color> collectionColors = {
+const Map<String, Color> baseCollectionColors  = {
   'Haldi': Color(0xFF36A2EB),
   'Engagement': Color(0xFFFF6384),
   'test': Color(0xFFFFCE56),
   'wedding': Color(0xFF4BC0C0),
 };
 
+Color getCollectionColor(String rawLabel) {
+  final key = normalizeCollection(rawLabel);
+
+  // 1️⃣ predefined color
+  if (baseCollectionColors.containsKey(key)) {
+    return baseCollectionColors[key]!;
+  }
+
+  // 2️⃣ auto color (same name = same color)
+  return fallbackPalette[key.hashCode % fallbackPalette.length];
+}
 // Media Visibility
 const Map<String, Color> visibilityColors = {
   'private': Color(0xFF4BC0C0),
@@ -55,10 +76,9 @@ const Map<String, Color> visibilityColors = {
 
 // Tokens by Type
 const Map<String, Color> tokenColors = {
-  'private': Color(0xFFFFCE56),
-  'public': Color(0xFF36A2EB),
+  'private': Color(0xFF36A2EB),
+  'public': Color(0xFFFFCE56)
 };
-
 
 // ======================= SCREEN =======================
 
@@ -120,15 +140,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 _statsRow(media, tokens),
                 const SizedBox(height: 20),
 
-                // _chartCard(
-                //   title: "Media by Collection",
-                //   chart: _donutChartWithLegend(
-                //     list: media['byCollection'],
-                //     labelKey: 'collection',
-                //     chartKey: 'collection',
-                //     colorMap: collectionColors,
-                //   ),
-                // ),
                 _chartCard(
                   title: "Media by Collection",
                   chart: media['byCollection'].isEmpty
@@ -137,20 +148,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     list: media['byCollection'],
                     labelKey: 'collection',
                     chartKey: 'collection',
-                    colorMap: collectionColors,
+                      useDynamicCollectionColors: true,
+                      //  colorMap: collectionColors,
+                    colorMap: baseCollectionColors
                   ),
                 ),
 
-
-                // _chartCard(
-                //   title: "Media Visibility",
-                //   chart: _donutChartWithLegend(
-                //     list: media['visibility'],
-                //     labelKey: 'visibility',
-                //     chartKey: 'visibility',
-                //     colorMap: visibilityColors,
-                //   ),
-                // ),
                 _chartCard(
                   title: "Media Visibility",
                   chart: (media['visibility'] == null || media['visibility'].isEmpty)
@@ -159,20 +162,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     list: media['visibility'],
                     labelKey: 'visibility',
                     chartKey: 'visibility',
+                    useDynamicCollectionColors: false,
                     colorMap: visibilityColors,
                   ),
                 ),
 
-
-                // _chartCard(
-                //   title: "Tokens by Type",
-                //   chart: _donutChartWithLegend(
-                //     list: tokens['byType'],
-                //     labelKey: 'type',
-                //     chartKey: 'token',
-                //     colorMap: tokenColors,
-                //   ),
-                // ),
                 _chartCard(
                   title: "Tokens by Type",
                   chart: (tokens['byType'] == null || tokens['byType'].isEmpty)
@@ -181,6 +175,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     list: tokens['byType'],
                     labelKey: 'type',
                     chartKey: 'token',
+                    useDynamicCollectionColors: false,
                     colorMap: tokenColors,
                   ),
                 ),
@@ -301,7 +296,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         children: [
           Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
-          SizedBox(height: 240, child: chart),
+          chart,
+          //SizedBox(height: 240, child: chart),
         ],
       ),
     );
@@ -313,6 +309,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     required List list,
     required String labelKey,
     required String chartKey,
+    required bool useDynamicCollectionColors,
     required Map<String, Color> colorMap,
   }) {
     final int? rawIndex = touchedIndexMap[chartKey];
@@ -354,7 +351,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     return PieChartSectionData(
                       value: value,
                       radius: isSelected ? 48 : 40,
-                      color: colorMap[label] ?? Colors.grey,
+                      // color: colorMap[label] ?? Colors.grey,
+                      //color: getCollectionColor(label),
+                      color: useDynamicCollectionColors
+                          ? getCollectionColor(label)
+                          : (colorMap[label] ?? Colors.grey),
+
                       title: '',
                     );
                   }),
@@ -410,7 +412,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: colorMap[label],
+                      // color: colorMap[label],
+                      //color: getCollectionColor(label),
+                      color: useDynamicCollectionColors
+                          ? getCollectionColor(label)
+                          : colorMap[label],
+
+
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -498,35 +506,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  // Widget _recentActivity(dynamic activity) {
-  //   return Container(
-  //     padding: const EdgeInsets.all(16),
-  //     decoration: _cardDecoration(),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         const Text(
-  //           "Recent Activity",
-  //           style: TextStyle(fontWeight: FontWeight.w600),
-  //         ),
-  //         const SizedBox(height: 12),
-  //         ListTile(
-  //           leading: const Icon(Icons.cloud_upload),
-  //           title: const Text("Last Upload"),
-  //           subtitle: Text(activity['lastUploadAt']),
-  //         ),
-  //         const Divider(),
-  //         ListTile(
-  //           leading: const Icon(Icons.vpn_key),
-  //           title: const Text("Token Created"),
-  //           subtitle: Text(activity['lastTokenCreatedAt']),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // ======================= DECORATION =======================
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
