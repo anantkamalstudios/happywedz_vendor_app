@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:happy_weds_vendors/movments_plus/upload_screen.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
@@ -413,7 +414,18 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => UploadMediaScreen(
+                          preselectedEventId: e.id.toString(),
+                          preselectedEventName: e.name,
+                        ),
+                      ),
+                    );
+                  },
+
                   icon: const Icon(Icons.upload, size: 18),
                   label: const Text('Upload Media'),
                   style: OutlinedButton.styleFrom(

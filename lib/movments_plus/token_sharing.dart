@@ -168,7 +168,20 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: CommonAppBar(title: "Tokens & Sharing"),
+      appBar: AppBar(
+        automaticallyImplyLeading: false, // 🔥 THIS IS THE KEY
+        backgroundColor: const Color(0xFF00509D),
+        title: const Text(
+          "Tokens & Sharing",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        elevation: 1,
+      ),
+
+      //appBar: CommonAppBar(title: "Tokens & Sharing"),
       body: FutureBuilder<List<dynamic>>(
         future: tokensFuture,
         builder: (context, snapshot) {

@@ -81,7 +81,11 @@ class TokensService {
 }
 /// ======================= SCREEN =======================
 class UploadMediaScreen extends StatefulWidget {
-  const UploadMediaScreen({Key? key}) : super(key: key);
+  final String? preselectedEventId;
+  final String? preselectedEventName;
+
+  const UploadMediaScreen({Key? key,   this.preselectedEventId,
+    this.preselectedEventName,}) : super(key: key);
 
   @override
   State<UploadMediaScreen> createState() =>
@@ -103,23 +107,47 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   bool canUpload = true;
   bool storageWarning = false;
   bool isAnalyticsLoading = false;
-
-
-
   bool isUploading = false;
 
   late Future<List<Event>> eventsFuture;
   late Future<List<dynamic>> tokensFuture;
   List<dynamic> _filterTokensByVisibility(List<dynamic> tokens) {
-    final selected = visibility.toLowerCase(); // public / private
+    final selectedVisibility = visibility.toLowerCase();
+    final now = DateTime.now();
 
     return tokens.where((t) {
-      final v1 = t['visibility']?.toString().toLowerCase();
-      final v2 = t['type']?.toString().toLowerCase();
+      // 1️⃣ only ACTIVE tokens
+      if (t['status']?.toString().toLowerCase() != 'active') {
+        return false;
+      }
 
-      return v1 == selected || v2 == selected;
+      // 2️⃣ visibility/type match
+      if (t['type']?.toString().toLowerCase() != selectedVisibility) {
+        return false;
+      }
+
+      // 3️⃣ expiry check (optional but safe)
+      if (t['expires_at'] != null) {
+        final expiry = DateTime.tryParse(t['expires_at']);
+        if (expiry != null && expiry.isBefore(now)) {
+          return false;
+        }
+      }
+
+      return true;
     }).toList();
   }
+
+  // List<dynamic> _filterTokensByVisibility(List<dynamic> tokens) {
+  //   final selected = visibility.toLowerCase();
+  //
+  //   return tokens.where((t) {
+  //     final v1 = t['visibility']?.toString().toLowerCase();
+  //     final v2 = t['type']?.toString().toLowerCase();
+  //
+  //     return v1 == selected || v2 == selected;
+  //   }).toList();
+  // }
 
 
   List<Map<String, dynamic>> selectedFiles = [];
@@ -127,11 +155,11 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   @override
   void initState() {
     super.initState();
+    selectedEventId = widget.preselectedEventId;
     eventsFuture = EventsService.fetchEvents();
     tokensFuture = TokensService.fetchTokens();
     fetchDashboardAnalytics();
   }
-
 
   Future<void> fetchDashboardAnalytics() async {
     setState(() => isAnalyticsLoading = true);
@@ -230,18 +258,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       final streamedResponse = await request.send();
       final responseBody =
       await streamedResponse.stream.bytesToString();
-      //
-      // print("📥 STATUS: ${streamedResponse.statusCode}");
-      // print("📥 BODY: $responseBody");
-      //
-      // if (streamedResponse.statusCode == 200 ||
-      //     streamedResponse.statusCode == 201) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     const SnackBar(
-      //         content: Text('Media uploaded successfully')),
-      //   );
-      //   setState(() => selectedFiles.clear());
-      // }
+
       final data = jsonDecode(responseBody);
 
       if (streamedResponse.statusCode == 200 ||
@@ -330,8 +347,12 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
 
                     // _tokenDropdown(),
                     const SizedBox(height: 30),
-                    _uploadPicker(),
-                    const SizedBox(height: 24),
+                    // _uploadPicker(),
+                    // const SizedBox(height: 24),
+                    if (selectedFiles.isEmpty) ...[
+                      _uploadPicker(),
+                      const SizedBox(height: 24),
+                    ],
                     if (selectedFiles.isNotEmpty)
                       _filesList(),
                   ],
@@ -349,11 +370,12 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00509D), Color(0xFF0066CC)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        // gradient: const LinearGradient(
+        //   colors: [Color(0xFF00509D), Color(0xFF0066CC)],
+        //   begin: Alignment.topLeft,
+        //   end: Alignment.bottomRight,
+        // ),
+        color: Color(0xFF00509D),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF00509D).withOpacity(0.3),
@@ -366,31 +388,35 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         children: [
           Row(
             children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 16),
+              // IconButton(
+              //   onPressed: () => Navigator.pop(context),
+              //   /icon: const Icon(Icons.arrow_back, color: Colors.white),
+              //   padding: EdgeInsets.zero,
+              //   constraints: const BoxConstraints(),
+              // ),
+
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Upload Media',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    Center(
+                      child: Text(
+                        'Upload Media',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     SizedBox(height: 4),
-                    Text(
-                      'Select token & upload your files',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
+                    Center(
+                      child: Text(
+                        'Select token & upload your files',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white70,
+                        ),
                       ),
                     ),
                   ],
@@ -510,94 +536,6 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
     );
   }
 
-  // Widget _buildStorageInfo() {
-  //   // final progress = limitMB == 0 ? 0 : usedMB / limitMB;
-  //   final double progress =
-  //   limitMB == 0 ? 0.0 : (usedMB / limitMB);
-  //
-  //   return Container(
-  //     padding: const EdgeInsets.all(16),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white.withOpacity(0.15),
-  //       borderRadius: BorderRadius.circular(12),
-  //       border: Border.all(color: Colors.white.withOpacity(0.3)),
-  //     ),
-  //     child: Column(
-  //       children: [
-  //         Row(
-  //           children: [
-  //             _buildStorageStat(
-  //               'Used',
-  //               '${usedMB.toStringAsFixed(2)} MB',
-  //               Icons.storage,
-  //             ),
-  //             Container(width: 1, height: 30, color: Colors.white30),
-  //             _buildStorageStat(
-  //               'Free',
-  //               '${freeMB.toStringAsFixed(2)} MB',
-  //               Icons.cloud_done,
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 12),
-  //         ClipRRect(
-  //           borderRadius: BorderRadius.circular(6),
-  //           child: LinearProgressIndicator(
-  //             // value: progress,
-  //             value: progress.toDouble(),
-  //
-  //             backgroundColor: Colors.white.withOpacity(0.3),
-  //             valueColor:
-  //             const AlwaysStoppedAnimation<Color>(Colors.white),
-  //             minHeight: 6,
-  //           ),
-  //         ),
-  //         const SizedBox(height: 8),
-  //         Text(
-  //           'Package: $packageName',
-  //           style: const TextStyle(
-  //               color: Colors.white70, fontSize: 12),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-
-  // Widget _buildStorageInfo() {
-  //   return Container(
-  //     padding: const EdgeInsets.all(16),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white.withOpacity(0.15),
-  //       borderRadius: BorderRadius.circular(12),
-  //       border: Border.all(color: Colors.white.withOpacity(0.3)),
-  //     ),
-  //     child: Column(
-  //       children: [
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           children: [
-  //             _buildStorageStat('Used', '32.49 MB', Icons.storage),
-  //             Container(width: 1, height: 30, color: Colors.white30),
-  //             _buildStorageStat('Free', '10207 MB', Icons.cloud_done),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 12),
-  //         ClipRRect(
-  //           borderRadius: BorderRadius.circular(6),
-  //           child: LinearProgressIndicator(
-  //             value: 0.003,
-  //             backgroundColor: Colors.white.withOpacity(0.3),
-  //             valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-  //             minHeight: 6,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-
   Widget _label(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -663,7 +601,8 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         final events = snapshot.data ?? [];
 
         return DropdownButtonFormField<String>(
-          value: selectedEventId,
+          // value: selectedEventId,
+            value: selectedEventId,
           hint: const Text('Select Event'),
           items: events.map((e) {
             return DropdownMenuItem<String>(
@@ -841,13 +780,41 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: isUploading ? null : uploadMedia,
-          child: isUploading
-              ? const CircularProgressIndicator(
-              color: Colors.white)
-              : const Text('Upload Files'),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: isUploading ? null : uploadMedia,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF00509D),
+              side: const BorderSide(color: Color(0xFF00509D)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: isUploading
+                ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Color(0xFF00509D),
+              ),
+            )
+                : const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.upload, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  'Upload File',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
         ),
+
       ],
     );
   }

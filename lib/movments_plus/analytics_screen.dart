@@ -80,7 +80,6 @@ const Map<String, Color> tokenColors = {
   'public': Color(0xFFFFCE56)
 };
 
-
 // ======================= SCREEN =======================
 
 class AnalyticsScreen extends StatefulWidget {
