@@ -109,6 +109,15 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   bool isAnalyticsLoading = false;
   bool isUploading = false;
 
+
+  bool get canSubmitUpload {
+    return selectedEventId != null &&
+        selectedToken != null &&
+        collectionName.trim().isNotEmpty &&
+        selectedFiles.isNotEmpty &&
+        !isUploading;
+  }
+
   late Future<List<Event>> eventsFuture;
   late Future<List<dynamic>> tokensFuture;
   List<dynamic> _filterTokensByVisibility(List<dynamic> tokens) {
@@ -232,25 +241,39 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final vendorId = prefs.getInt('vendorId');
-
-      final uri = Uri.parse(
-          'https://happywedz.com/api/vendor/upload-media');
+      final authToken =
+          prefs.getString('token') ?? prefs.getString('authToken');
+      print("👤 Vendor IDddddddddddddddddddddddddddddddddddddddd: $vendorId");
+      print("🔑 AUTH TOKENnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $authToken");
+      print("📦 Selected Event IDddddddddddddddddddddddddddddddddd: $selectedEventId");
+      print("🎟 Selected Tokennnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $selectedToken");
+      final uri =
+      Uri.parse('https://happywedz.com/api/vendor/upload-media');
 
       final request = http.MultipartRequest('POST', uri);
 
+      /// ✅ HEADERS (IMPORTANT)
+      request.headers.addAll({
+        'Authorization': 'Bearer $authToken',
+        'Accept': 'application/json',
+      });
+
+      /// ✅ FIELDS
       request.fields['vendorId'] = vendorId.toString();
       request.fields['event_id'] = selectedEventId!;
       request.fields['collection'] = collectionName;
       request.fields['visibility'] = visibility.toLowerCase();
       request.fields['token'] = selectedToken!;
+
+      /// ✅ FILES
       for (var f in selectedFiles) {
-        final mimeType = lookupMimeType(f['file'].path);
+        final mimeType = lookupMimeType(f['file'].path) ?? 'image/jpeg';
 
         request.files.add(
           await http.MultipartFile.fromPath(
             'files',
             f['file'].path,
-            contentType: MediaType.parse(mimeType!),
+            contentType: MediaType.parse(mimeType),
           ),
         );
       }
@@ -264,28 +287,24 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       if (streamedResponse.statusCode == 200 ||
           streamedResponse.statusCode == 201) {
         await fetchDashboardAnalytics();
-        final storage = data['storageInfo'];
-
-        setState(() {
-          usedMB = (storage['usedMB'] as num).toDouble();
-          incomingMB = (storage['incomingMB'] as num).toDouble();
-          limitMB = (storage['limitMB'] as num).toDouble();
-          freeMB = limitMB - usedMB;
-          packageName = storage['packageName'];
-        });
-
+        // final storage = data['storageInfo'];
+        //
+        // setState(() {
+        //   usedMB = (storage['usedMB'] as num).toDouble();
+        //   incomingMB = (storage['incomingMB'] as num).toDouble();
+        //   limitMB = (storage['limitMB'] as num).toDouble();
+        //   freeMB = limitMB - usedMB;
+        //   packageName = storage['packageName'];
+        // });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Media uploaded successfully')),
         );
-
         setState(() => selectedFiles.clear());
-      }
-
-      else {
-        throw Exception(responseBody);
+      } else {
+        throw Exception(data['message'] ?? 'Upload failed');
       }
     } catch (e) {
-      print("❌ UPLOAD ERROR: $e");
+      debugPrint("❌ UPLOAD ERROR: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
@@ -293,7 +312,6 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       setState(() => isUploading = false);
     }
   }
-
 
   /// ================= UI =================
   @override
@@ -783,7 +801,8 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: isUploading ? null : uploadMedia,
+            // onPressed: isUploading ? null : uploadMedia,
+            onPressed: canSubmitUpload ? uploadMedia : null,
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF00509D),
               side: const BorderSide(color: Color(0xFF00509D)),
@@ -814,7 +833,18 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
             ),
           ),
         ),
-
+        if (!canSubmitUpload && !isUploading)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'All fields are required',
+              style: TextStyle(
+                color: Colors.red.shade600,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
       ],
     );
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/movments_plus/package_page.dart';
-import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'analytics_screen.dart';
 import 'event.dart';
 
