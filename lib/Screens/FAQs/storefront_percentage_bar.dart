@@ -81,54 +81,6 @@ class ProfileCompletionBar extends StatelessWidget {
   }
 }
 
-// class ProfileCompletionBar extends StatelessWidget {
-//   final double progress;
-//
-//   const ProfileCompletionBar({super.key, required this.progress});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-//       padding: const EdgeInsets.all(10),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(12),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.08),
-//             blurRadius: 6,
-//             offset: const Offset(0, 2),
-//           ),
-//         ],
-//       ),
-//       child: Row(
-//         children: [
-//           Expanded(
-//             child: ClipRRect(
-//               borderRadius: BorderRadius.circular(8),
-//               child: LinearProgressIndicator(
-//                 value: progress, // 0.0 – 1.0
-//                 minHeight: 8,
-//                 backgroundColor: Colors.grey[300],
-//                 valueColor: const AlwaysStoppedAnimation(Color(0xFF00509D)),
-//               ),
-//             ),
-//           ),
-//           const SizedBox(width: 12),
-//           Text(
-//             "${(progress * 100).toInt()}%",
-//             style: const TextStyle(
-//               fontSize: 16,
-//               fontWeight: FontWeight.bold,
-//               color: Colors.black87,
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
 
 class ProfileCompletionService {
   static Future<double> fetchCompletion({
