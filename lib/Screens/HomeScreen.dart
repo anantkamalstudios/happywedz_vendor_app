@@ -93,75 +93,122 @@ class _HomeScreenState extends State<HomeScreen> {
 
       /// 🔥 FLOATING + ONLY FOR PHOTOGRAPHER
       floatingActionButton: isPhotographer
-          ? SizedBox(
-        height: 50,
-        width: 50,
-        child: FloatingActionButton(
-          backgroundColor: const Color(0xFF00509D),
-          shape: const CircleBorder(),
-          elevation: 4,
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const MainHomeScreen(),
-              ),
-            );
-
-          },
-          child: const Icon(
-            Icons.add,
-            size: 32,
-            color: Colors.white,
-          ),
-        ),
+          ? FloatingActionButton(
+        backgroundColor: const Color(0xFF00509D),
+        shape: const CircleBorder(),
+        elevation: 6,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MainHomeScreen(),
+            ),
+          );
+        },
+        child: const Icon(Icons.add, size: 32, color: Colors.white),
       )
           : null,
 
-      floatingActionButtonLocation: isPhotographer
-          ? FloatingActionButtonLocation.centerDocked
-          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
 
       /// 🔹 BOTTOM BAR
+      // bottomNavigationBar: BottomAppBar(
+      //   color: Colors.white,
+      //   elevation: 10,
+      //   shape: isPhotographer
+      //       ? const CircularNotchedRectangle()
+      //       : null,
+      //   notchMargin: isPhotographer ? 8 : 0,
+      //   child: SizedBox(
+      //     height: 64,
+      //     child: Row(
+      //       mainAxisAlignment: MainAxisAlignment.spaceAround,
+      //       children: [
+      //         _bottomItem(
+      //           index: 0,
+      //           icon: "assets/icons/home.png",
+      //           label: "Home",
+      //         ),
+      //         _bottomItem(
+      //           index: 1,
+      //           icon: "assets/icons/leads.png",
+      //           label: "Enquirys",
+      //         ),
+      //
+      //         if (isPhotographer) const SizedBox(width: 40),
+      //
+      //         _bottomItem(
+      //           index: 2,
+      //           icon: "assets/icons/reviews.png",
+      //           label: "Reviews",
+      //         ),
+      //         _bottomItem(
+      //           index: 3,
+      //           icon: "assets/icons/statistics.png",
+      //           label: "Statistics",
+      //         ),
+      //       ],
+      //     ),
+      //   ),
+      // ),
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         elevation: 10,
-        shape: isPhotographer
-            ? const CircularNotchedRectangle()
-            : null,
+        shape: isPhotographer ? const CircularNotchedRectangle() : null,
         notchMargin: isPhotographer ? 8 : 0,
         child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _bottomItem(
-                index: 0,
-                icon: "assets/icons/home.png",
-                label: "Home",
-              ),
-              _bottomItem(
-                index: 1,
-                icon: "assets/icons/leads.png",
-                label: "Enquirys",
-              ),
+        height: 64,
+        child: Row(
+          children: [
 
-              if (isPhotographer) const SizedBox(width: 40),
+            /// 🔹 LEFT ITEMS
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _bottomItem(
+                    index: 0,
+                    icon: "assets/icons/home.png",
+                    label: "Home",
+                  ),
+                  _bottomItem(
+                    index: 1,
+                    icon: "assets/icons/leads.png",
+                    label: "Enquirys",
+                  ),
+                ],
+              ),
+            ),
 
-              _bottomItem(
-                index: 2,
-                icon: "assets/icons/reviews.png",
-                label: "Reviews",
+            /// 🔥 CENTER FAB SPACE
+            if (isPhotographer)
+              const SizedBox(width: 64),
+
+            /// 🔹 RIGHT ITEMS
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _bottomItem(
+                    index: 2,
+                    icon: "assets/icons/reviews.png",
+                    label: "Reviews",
+                  ),
+                  _bottomItem(
+                    index: 3,
+                    icon: "assets/icons/statistics.png",
+                    label: "Statistics",
+                  ),
+                ],
               ),
-              _bottomItem(
-                index: 3,
-                icon: "assets/icons/statistics.png",
-                label: "Statistics",
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+
+    ),
+
     );
   }
 
@@ -184,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Image.asset(
               icon,
-              height: 24,
+              height: 21,
               color: isSelected
                   ? const Color(0xFF00509D)
                   : Colors.grey,
@@ -193,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight:
                 isSelected ? FontWeight.w600 : FontWeight.w400,
                 color: isSelected

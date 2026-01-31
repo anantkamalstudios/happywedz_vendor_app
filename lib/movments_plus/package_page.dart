@@ -742,9 +742,14 @@
 //   });
 // }
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'dart:math' as math;
+
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PackageStoragePage extends StatefulWidget {
   const PackageStoragePage({Key? key}) : super(key: key);
@@ -757,55 +762,8 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
   final PageController _pageController = PageController(viewportFraction: 0.88);
   int _currentPage = 1;
 
-  final List<PackageModel> packages = [
-    PackageModel(
-      name: 'Basic',
-      storage: '2 GB',
-      price: 999,
-      period: 'month',
-      color: const Color(0xFF00509D), // Theme blue
-      icon: Icons.cloud_outlined,
-      features: [
-        PackageFeature('Basic photo storage', true),
-        PackageFeature('Standard upload speed', true),
-        PackageFeature('Email support', true),
-        PackageFeature('Priority support', false),
-        PackageFeature('Advanced analytics', false),
-      ],
-    ),
-    PackageModel(
-      name: 'Standard',
-      storage: '5 GB',
-      price: 1999,
-      period: 'month',
-      color: const Color(0xFF10B981), // Green
-      icon: Icons.cloud_queue_outlined,
-      isPopular: true,
-      features: [
-        PackageFeature('Enhanced photo storage', true),
-        PackageFeature('Priority upload speed', true),
-        PackageFeature('Chat & email support', true),
-        PackageFeature('Basic analytics', true),
-        PackageFeature('Advanced features', false),
-      ],
-    ),
-    PackageModel(
-      name: 'Premium',
-      storage: '10 GB',
-      price: 2999,
-      period: 'month',
-      color: const Color(0xFF8B5CF6), // Purple
-      icon: Icons.cloud_done_outlined,
-      isPremium: true,
-      features: [
-        PackageFeature('Professional storage', true),
-        PackageFeature('Maximum upload speed', true),
-        PackageFeature('24/7 priority support', true),
-        PackageFeature('Advanced analytics', true),
-        PackageFeature('All premium features', true),
-      ],
-    ),
-  ];
+  late Future<List<PackageModel>> _packagesFuture;
+  List<PackageModel> packages = [];
 
   @override
   void initState() {
@@ -818,6 +776,8 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
         });
       }
     });
+    _packagesFuture = fetchPackages();
+
   }
 
   @override
@@ -825,25 +785,121 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     _pageController.dispose();
     super.dispose();
   }
+  Future<List<PackageModel>> fetchPackages() async {
+    final response = await http.get(
+      Uri.parse('http://happywedz.com/api/admin/package'),
+    );
+
+    final body = jsonDecode(response.body);
+
+    if (!body['success']) {
+      throw Exception('Failed to load packages');
+    }
+
+    final List list = body['packages'];
+
+    return list.map((e) {
+      final apiPkg = PackageApiModel.fromJson(e);
+
+      return PackageModel(
+        name: apiPkg.name,
+        storage: '${apiPkg.storageLimitGb} GB',
+        price: apiPkg.price.toInt(),
+        period: 'month',
+        color: _getPackageColor(apiPkg.name),
+        icon: _getPackageIcon(apiPkg.name),
+        isPopular: apiPkg.name == 'Standard',
+        isPremium: apiPkg.name == 'Premium',
+        features: _buildFeatures(apiPkg),  id: apiPkg.id,
+
+      );
+    }).toList();
+  }
+  Color _getPackageColor(String name) {
+    switch (name) {
+      case 'Basic':
+        return const Color(0xFF00509D);
+      case 'Standard':
+        return const Color(0xFF10B981);
+      case 'Premium':
+        return const Color(0xFF8B5CF6);
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  IconData _getPackageIcon(String name) {
+    switch (name) {
+      case 'Basic':
+        return Icons.cloud_outlined;
+      case 'Standard':
+        return Icons.cloud_queue_outlined;
+      case 'Premium':
+        return Icons.cloud_done_outlined;
+      default:
+        return Icons.cloud;
+    }
+  }
+
+  List<PackageFeature> _buildFeatures(PackageApiModel pkg) {
+    return [
+      PackageFeature('Storage up to ${pkg.storageLimitGb} GB', true),
+      PackageFeature('Valid for ${pkg.durationDays} days', true),
+      PackageFeature('Priority Support', pkg.name != 'Basic'),
+      PackageFeature('Advanced analytics', pkg.name == 'Premium'),
+      if (pkg.message != null)
+        PackageFeature(pkg.message!.replaceAll('\n', ' • '), true),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: CommonAppBar(title: 'Packages & Storage'),
-      body: Column(
-        children: [
-          _buildHeader(),
-          const SizedBox(height: 20),
-          _buildPageIndicator(),
-          const SizedBox(height: 24),
-          _buildPackageCarousel(),
-          const SizedBox(height: 24),
-          _buildFeaturesList(),
-          const Spacer(),
-          _buildBottomActions(),
-        ],
+      // body: Column(
+      //   children: [
+      //     _buildHeader(),
+      //     const SizedBox(height: 20),
+      //     _buildPageIndicator(),
+      //     const SizedBox(height: 24),
+      //     _buildPackageCarousel(),
+      //     const SizedBox(height: 24),
+      //     _buildFeaturesList(),
+      //     const Spacer(),
+      //     _buildBottomActions(),
+      //   ],
+      // ),
+      body: FutureBuilder<List<PackageModel>>(
+        future: _packagesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Something went wrong'));
+          }
+
+          packages = snapshot.data!;
+          _currentPage = _currentPage.clamp(0, packages.length - 1);
+
+          return Column(
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 20),
+              _buildPageIndicator(),
+              const SizedBox(height: 24),
+              _buildPackageCarousel(),
+              const SizedBox(height: 24),
+              _buildFeaturesList(),
+              const Spacer(),
+              _buildBottomActions(),
+            ],
+          );
+        },
       ),
+
     );
   }
 
@@ -1359,6 +1415,11 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
+                       requestPackageUpgrade(
+                      packageId: package.id, // 🔥 add id in PackageModel
+                      message: 'Need ${package.name} plan',
+                      package: package,
+                      );
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('${package.name} plan activated! 🎉'),
@@ -1393,6 +1454,75 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+  Future<void> requestPackageUpgrade({
+    required int packageId,
+    required String message,
+    required PackageModel package,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        _showInfoSnack('Session expired. Please login again.');
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('https://happywedz.com/api/vendor/request-package-upgrade'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          "package_id": packageId,
+          "message": message,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      print(response.statusCode);
+      print(data);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Request sent successfully 🎉'),
+            backgroundColor: package.color,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (response.statusCode == 401) {
+        _showInfoSnack('Invalid session. Please login again.');
+      } else {
+        _showInfoSnack(data['message'] ?? 'Something went wrong');
+      }
+    } catch (e) {
+      _showErrorSnack('Network error. Please try again.');
+      print(e);
+    }
+  }
+
+  void _showInfoSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showErrorSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -1595,6 +1725,8 @@ class CirclePatternPainter extends CustomPainter {
 
 // Models
 class PackageModel {
+  final int id;
+
   final String name;
   final String storage;
   final int price;
@@ -1614,8 +1746,36 @@ class PackageModel {
     required this.icon,
     this.isPopular = false,
     this.isPremium = false,
-    required this.features,
+    required this.features, required this.id,
   });
+}
+class PackageApiModel {
+  final int id;
+  final String name;
+  final int storageLimitGb;
+  final double price;
+  final int durationDays;
+  final String? message;
+
+  PackageApiModel({
+    required this.id,
+    required this.name,
+    required this.storageLimitGb,
+    required this.price,
+    required this.durationDays,
+    this.message,
+  });
+
+  factory PackageApiModel.fromJson(Map<String, dynamic> json) {
+    return PackageApiModel(
+      id: json['id'],
+      name: json['name'],
+      storageLimitGb: json['storage_limit_gb'],
+      price: double.parse(json['price']),
+      durationDays: json['duration_days'],
+      message: json['message'],
+    );
+  }
 }
 
 class PackageFeature {
