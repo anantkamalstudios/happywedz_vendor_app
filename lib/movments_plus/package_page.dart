@@ -755,7 +755,7 @@ class PackageStoragePage extends StatefulWidget {
 
 class _PackageStoragePageState extends State<PackageStoragePage> {
   final PageController _pageController = PageController(viewportFraction: 0.88);
-  int _currentPage = 1; // Start with Standard (Most Popular)
+  int _currentPage = 1;
 
   final List<PackageModel> packages = [
     PackageModel(
