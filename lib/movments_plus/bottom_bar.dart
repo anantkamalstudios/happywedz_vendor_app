@@ -1,96 +1,97 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/movments_plus/token_sharing.dart';
 import 'package:happy_weds_vendors/movments_plus/upload_screen.dart';
-import 'analytics_screen.dart';
+
 import 'dashboard_screen.dart';
-import 'gallery_screen.dart';
+import 'event.dart';
 import 'more_screen.dart';
 
+enum MainTab { dashboard, tokens, upload, events, more }
 class MainHomeScreen extends StatefulWidget {
-  const MainHomeScreen({super.key});
+  final MainTab initialTab;
+  final String? preselectedEventId;
+  final String? preselectedEventName;
+
+  const MainHomeScreen({
+    super.key,
+    this.initialTab = MainTab.dashboard,
+    this.preselectedEventId,
+    this.preselectedEventName,
+  });
+
+  static _MainHomeScreenState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_MainHomeScreenState>();
 
   @override
   State<MainHomeScreen> createState() => _MainHomeScreenState();
 }
-
 class _MainHomeScreenState extends State<MainHomeScreen> {
-  int _selectedIndex = 0;
+  late MainTab selectedTab;
+  String? selectedEventId;
+  String? selectedEventName;
+  TokenFilterType selectedTokenFilter = TokenFilterType.all;
 
-  final List<Widget> _pages = const [
-    DashboardScreen(),      // 0 - Dashboard
-    TokensSharingScreen(),   // 1 - Token Sharing
-    UploadMediaScreen(),         // 2 - Upload
-    GalleryScreen(),        // 3 - Gallery
-    MoreScreen(),      // 4 - Analytics
-  ];
-
-  void _onItemTapped(int index) {
+  @override
+  void initState() {
+    super.initState();
+    selectedTab = widget.initialTab;
+  }
+  void openTokensWithFilter(TokenFilterType filter) {
     setState(() {
-      _selectedIndex = index;
+      selectedTokenFilter = filter;
+      selectedTab = MainTab.tokens;
     });
   }
 
+  void openUpload({String? eventId, String? eventName}) {
+    setState(() {
+      selectedEventId = eventId;
+      selectedEventName = eventName;
+      selectedTab = MainTab.upload;
+    });
+  }
+
+
   @override
   Widget build(BuildContext context) {
+    final pages = {
+      MainTab.dashboard: const DashboardScreen(),
+     // MainTab.tokens: const TokensSharingScreen(),
+      MainTab.tokens: TokensSharingScreen(
+        initialFilter: selectedTokenFilter,
+      ),
+
+      MainTab.upload: UploadMediaScreen(
+        preselectedEventId: selectedEventId,
+        preselectedEventName: selectedEventName,
+      ),
+
+      MainTab.events: const EventsManagementPage(),
+      MainTab.more: const MoreScreen(),
+    };
+
     return Scaffold(
-      body: _pages[_selectedIndex],
+      body: IndexedStack(
+        index: MainTab.values.indexOf(selectedTab),
+        children: pages.values.toList(),
+      ),
 
       bottomNavigationBar: SizedBox(
         height: 80,
         child: BottomNavigationBar(
           backgroundColor: Colors.white,
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
+          currentIndex: MainTab.values.indexOf(selectedTab),
+          type: BottomNavigationBarType.fixed,
           selectedItemColor: const Color(0xFF00509D),
           unselectedItemColor: Colors.grey,
-          type: BottomNavigationBarType.fixed,
-
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.dashboard,
-                color: _selectedIndex == 0
-                    ? const Color(0xFF00509D)
-                    : Colors.grey,
-              ),
-              label: "Dashboard",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.vpn_key,
-                color: _selectedIndex == 1
-                    ? const Color(0xFF00509D)
-                    : Colors.grey,
-              ),
-              label: "Tokens",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.cloud_upload,
-                color: _selectedIndex == 2
-                    ? const Color(0xFF00509D)
-                    : Colors.grey,
-              ),
-              label: "Upload",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.photo_library,
-                color: _selectedIndex == 3
-                    ? const Color(0xFF00509D)
-                    : Colors.grey,
-              ),
-              label: "Gallery",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.menu,
-                color: _selectedIndex == 4
-                    ? const Color(0xFF00509D)
-                    : Colors.grey,
-              ),
-              label: "More",
-            ),
+          onTap: (i) => setState(() => selectedTab = MainTab.values[i]),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Dashboard"),
+            BottomNavigationBarItem(icon: Icon(Icons.vpn_key), label: "Tokens"),
+            BottomNavigationBarItem(icon: Icon(Icons.cloud_upload), label: "Upload"),
+            BottomNavigationBarItem(icon: Icon(Icons.event), label: "Events"),
+            BottomNavigationBarItem(icon: Icon(Icons.menu), label: "More"),
           ],
         ),
       ),

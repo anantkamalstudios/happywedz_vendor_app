@@ -162,6 +162,17 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   List<Map<String, dynamic>> selectedFiles = [];
 
   @override
+  void didUpdateWidget(covariant UploadMediaScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.preselectedEventId != oldWidget.preselectedEventId) {
+      setState(() {
+        selectedEventId = widget.preselectedEventId;
+      });
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     selectedEventId = widget.preselectedEventId;

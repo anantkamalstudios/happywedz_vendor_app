@@ -4,12 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/network_service.dart';
 import 'generate_tocken.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:io';
 
-
+enum TokenFilterType { all, public, private, active, disabled }
 class TokensService {
   static Future<List<dynamic>> fetchTokens() async {
     try {
@@ -141,7 +142,12 @@ class TokensService {
 /// ======================= SCREEN =======================
 
 class TokensSharingScreen extends StatefulWidget {
-  const TokensSharingScreen({Key? key}) : super(key: key);
+  final TokenFilterType initialFilter;
+
+  const TokensSharingScreen({
+    Key? key,
+    this.initialFilter = TokenFilterType.all,
+  }) : super(key: key);
 
   @override
   State<TokensSharingScreen> createState() => _TokensSharingScreenState();
@@ -158,10 +164,44 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
     });
   }
 
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   tokensFuture = TokensService.fetchTokens();
+  // }
+
   @override
   void initState() {
     super.initState();
+    _selectedFilter = _mapFilterToIndex(widget.initialFilter);
     tokensFuture = TokensService.fetchTokens();
+  }
+
+  @override
+  void didUpdateWidget(covariant TokensSharingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.initialFilter != widget.initialFilter) {
+      setState(() {
+        _selectedFilter = _mapFilterToIndex(widget.initialFilter);
+      });
+    }
+  }
+
+  int _mapFilterToIndex(TokenFilterType filter) {
+    switch (filter) {
+      case TokenFilterType.public:
+        return 1;
+      case TokenFilterType.private:
+        return 2;
+      case TokenFilterType.active:
+        return 3;
+      case TokenFilterType.disabled:
+        return 4;
+      case TokenFilterType.all:
+      default:
+        return 0;
+    }
   }
 
   @override
@@ -953,7 +993,7 @@ void openShareDialog(BuildContext context, dynamic token) {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.pinkAccent,
+                          backgroundColor: const Color(0xFF00509D),
                           padding: const EdgeInsets.symmetric(
                               vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -1049,7 +1089,15 @@ void openShareDialog(BuildContext context, dynamic token) {
                     ),
 
                     const SizedBox(height: 10),
-
+                    _roundedWhatsAppButton(
+                      label: "Share via WhatsApp",
+                      onTap: () {
+                        shareOnWhatsApp(
+                          "https://happywedz.com/gallery/${token['token']}",
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 14),
                     /// ================= COPY LINK BOX =================
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -1099,6 +1147,52 @@ void openShareDialog(BuildContext context, dynamic token) {
         },
       );
     },
+  );
+}
+Future<void> shareOnWhatsApp(String link) async {
+  final encodedText = Uri.encodeComponent(
+    "Check out this gallery:\n$link",
+  );
+
+  final uri = Uri.parse("https://wa.me/?text=$encodedText");
+
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } else {
+    throw 'Could not open WhatsApp';
+  }
+}
+
+
+Widget _roundedWhatsAppButton({
+  required String label,
+  required VoidCallback onTap,
+}) {
+  return OutlinedButton.icon(
+    onPressed: onTap,
+    icon: const Icon(
+      Icons.maps_ugc_sharp,
+      color: Color(0xFF25D366),
+      size: 20,
+    ),
+    label: Text(
+      label,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF25D366),
+      ),
+    ),
+    style: OutlinedButton.styleFrom(
+      side: const BorderSide(color: Color(0xFF25D366)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.symmetric(
+        vertical: 12,
+        horizontal: 20,
+      ),
+    ),
   );
 }
 

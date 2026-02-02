@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
+import 'bottom_bar.dart';
 
 /// ======================= MODEL =======================
 class Event {
@@ -414,17 +415,31 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
+                  // onPressed: () {
+                  //   Navigator.push(
+                  //     context,
+                  //     MaterialPageRoute(
+                  //       builder: (_) => UploadMediaScreen(
+                  //         preselectedEventId: e.id.toString(),
+                  //         preselectedEventName: e.name,
+                  //       ),
+                  //     ),
+                  //   );
+                  // },
+                  // onPressed: () {
+                  //   MainHomeScreen.of(context)?.openUploadFromEvent(
+                  //     eventId: e.id.toString(),
+                  //     eventName: e.name,
+                  //   );
+                  // },
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => UploadMediaScreen(
-                          preselectedEventId: e.id.toString(),
-                          preselectedEventName: e.name,
-                        ),
-                      ),
+                    MainHomeScreen.of(context)?.openUpload(
+                      eventId: e.id.toString(),
+                      eventName: e.name,
                     );
                   },
+
+
 
                   icon: const Icon(Icons.upload, size: 18),
                   label: const Text('Upload Media'),

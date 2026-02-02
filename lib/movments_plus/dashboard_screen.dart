@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:happy_weds_vendors/movments_plus/token_sharing.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:shimmer/shimmer.dart';
 import '../utils/network_service.dart';
+import 'bottom_bar.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -304,7 +306,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    MainHomeScreen.of(context)?.openUpload();
+                  },
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text("New"),
                   style: TextButton.styleFrom(
@@ -357,8 +361,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     SizedBox(height: 12,),
                     ElevatedButton.icon(
                       onPressed: () {
-                        // TODO: Navigate to Create Collection Screen
-                        // Navigator.push(context, MaterialPageRoute(builder: (_) => CreateCollectionScreen()));
+                        MainHomeScreen.of(context)?.openUpload();
                       },
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text("Create Collection"),
@@ -455,53 +458,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 28),
 
             // ================= TOKEN DISTRIBUTION =================
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.pie_chart,
-                        color: Color(0xFF00509D),
-                        size: 20,
+               Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.pie_chart,
+                          color: Color(0xFF00509D),
+                          size: 20,
+                        ),
+                        SizedBox(width: 8,),
+                        const Text(
+                          "Token Distribution",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    GestureDetector(
+                      onTap: () {
+                        MainHomeScreen.of(context)
+                            ?.openTokensWithFilter(TokenFilterType.public);
+                      },
+                      child: _buildDistributionRow(
+                        "Public Tokens",
+                        publicTokens,
+                        tokens['total'],
+                        const Color(0xFF10B981),
                       ),
-                      SizedBox(width: 8,),
-                      const Text(
-                        "Token Distribution",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: () {
+                        MainHomeScreen.of(context)
+                            ?.openTokensWithFilter(TokenFilterType.private);
+                      },
+                      child: _buildDistributionRow(
+                        "Private Tokens",
+                        privateTokens,
+                        tokens['total'],
+                        const Color(0xFF00509D),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  _buildDistributionRow(
-                    "Public Tokens",
-                    publicTokens,
-                    tokens['total'],
-                    const Color(0xFF10B981),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildDistributionRow(
-                    "Private Tokens",
-                    privateTokens,
-                    tokens['total'],
-                    const Color(0xFF00509D),
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),

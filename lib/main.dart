@@ -1,11 +1,6 @@
-import 'dart:async';
-import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/services/internet_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'Screens/Login.dart';
-import 'Screens/HomeScreen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:provider/provider.dart' show MultiProvider, ChangeNotifierProvider;

@@ -747,7 +747,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'dart:math' as math;
-
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 

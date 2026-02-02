@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/movments_plus/package_page.dart';
 import 'analytics_screen.dart';
 import 'event.dart';
+import 'gallery_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -50,18 +51,18 @@ class MoreScreen extends StatelessWidget {
             },
           ),
 
-          const SizedBox(height: 24),
+        //  const SizedBox(height: 24),
 
-          _sectionTitle("Events"),
+        //  _sectionTitle("Events"),
           _menuTile(
-            icon: Icons.event,
-            title: "My Events",
-            subtitle: "Create & manage your events",
+            icon: Icons.photo_library,
+            title: "Gallery",
+            subtitle: "Photos & videos from your events",
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const EventsManagementPage(),
+                  builder: (_) => const GalleryScreen(),
                 ),
               );
             },
@@ -103,7 +104,7 @@ class MoreScreen extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                "Manage analytics, events & storage",
+                "Manage analytics, gallery & storage",
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
