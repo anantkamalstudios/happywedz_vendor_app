@@ -17,6 +17,9 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
   final TextEditingController pinterestController = TextEditingController();
   final TextEditingController twitterController = TextEditingController();
   final TextEditingController websiteController = TextEditingController();
+  final TextEditingController threadsController = TextEditingController();
+  final TextEditingController youtubeController = TextEditingController();
+  final TextEditingController linkedinController = TextEditingController();
 
   bool loading = false;
   bool saving = false;
@@ -67,6 +70,10 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
           pinterestController.text = data['pinterest_link'] ?? '';
           twitterController.text = data['twitter_link'] ?? '';
           websiteController.text = data['website'] ?? '';
+
+          threadsController.text = data['threads_link'] ?? '';
+          youtubeController.text = data['youtube_link'] ?? '';
+          linkedinController.text = data['linkedin_link'] ?? '';
         });
 
         // Optional: cache locally
@@ -76,6 +83,10 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
         await prefs.setString('pinterest_link', pinterestController.text);
         await prefs.setString('twitter_link', twitterController.text);
         await prefs.setString('website', websiteController.text);
+        await prefs.setString('threads_link', threadsController.text);
+        await prefs.setString('youtube_link', youtubeController.text);
+        await prefs.setString('linkedin_link', linkedinController.text);
+
 
         print("✅ Fresh links loaded from API");
       } else {
@@ -100,6 +111,10 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
       "pinterest_link": pinterestController.text.trim(),
       "twitter_link": twitterController.text.trim(),
       "website": websiteController.text.trim(),
+
+      "threads_link": threadsController.text.trim(),
+      "youtube_link": youtubeController.text.trim(),
+      "linkedin_link": linkedinController.text.trim(),
     };
 
     try {
@@ -162,41 +177,81 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
             _socialField(
               label: "Facebook",
               hint: "https://www.facebook.com/username",
-              icon: Icons.facebook,
-              color: const Color(0xFF1877F2),
+             // icon: Icons.facebook,
+              imagePath: "assets/images/facebook.png",
+              //color: const Color(0xFF1877F2),
+              color: Colors.white,
               controller: facebookController,
             ),
 
             _socialField(
               label: "Instagram",
               hint: "https://www.instagram.com/username",
-              icon: Icons.camera_alt,
-              color: const Color(0xFF00509D),
+              imagePath: "assets/images/social.png",
+              //color: const Color(0xFF00509D),// Instagram Pink
+              // color: Color(0xFFE1306C),
+              color: Colors.white,
               controller: instagramController,
             ),
 
             _socialField(
               label: "Pinterest",
               hint: "https://www.pinterest.com/username",
-              icon: Icons.push_pin,
-              color: const Color(0xFFE60023),
+              // icon: Icons.push_pin,
+              imagePath: "assets/images/pinterest.png",
+             // color: const Color(0xFFE60023),
+              color: Colors.white,
               controller: pinterestController,
             ),
 
             _socialField(
-              label: "Twitter",
+              label: "X(Twitter)",
               hint: "https://www.twitter.com/username",
-              icon: Icons.alternate_email,
-              color: const Color(0xFF1DA1F2),
+              //icon: Icons.alternate_email,
+              imagePath: "assets/images/twitter.png",
+             // color: const Color(0xFF1DA1F2),
+              color: Colors.white,
               controller: twitterController,
             ),
 
             _socialField(
               label: "Website",
               hint: "https://www.yourwebsite.com",
-              icon: Icons.web,
-              color: const Color(0xFF4CAF50),
+              //icon: Icons.web,
+              imagePath: "assets/images/web.png",
+              // color: const Color(0xFF4CAF50),
+              color: Colors.white,
               controller: websiteController,
+            ),
+
+            _socialField(
+              label: "Threads",
+              hint: "https://www.threads.net/username",
+              //icon: Icons.web,
+              imagePath: "assets/images/threads.png",
+              // color: const Color(0xFF4CAF50),
+              color: Colors.white,
+              controller: threadsController,
+            ),
+
+            _socialField(
+              label: "Youtube",
+              hint: "https://www.youtube.com/channel",
+              //icon: Icons.web,
+              imagePath: "assets/images/you.png",
+              // color: const Color(0xFF4CAF50),
+              color: Colors.white,
+              controller: youtubeController,
+            ),
+
+            _socialField(
+              label: "LinkedIn",
+              hint: "https://www.linkedin.com/in/username",
+              //icon: Icons.web,
+              imagePath: "assets/images/linkedin.png",
+              // color: const Color(0xFF4CAF50),
+              color: Colors.white,
+              controller: linkedinController,
             ),
 
             const SizedBox(height: 40),
@@ -228,28 +283,49 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
   }
 
   // ================= SOCIAL FIELD WIDGET =================
+
   Widget _socialField({
     required String label,
     required String hint,
-    required IconData icon,
+    IconData? icon,
+    String? imagePath,
     required Color color,
     required TextEditingController controller,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 10),
         Row(
           children: [
             Container(
               width: 48,
               height: 48,
-              decoration:
-              BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, color: Colors.white, size: 26),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: imagePath != null
+                    ? Image.asset(
+                  imagePath,
+                  width: 30,
+                  height: 30,
+                  fit: BoxFit.contain,
+                )
+                    : Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(

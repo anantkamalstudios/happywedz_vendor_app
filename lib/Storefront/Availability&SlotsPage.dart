@@ -83,8 +83,12 @@ class _SlotsPageState extends State<SlotsPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
-    _lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+    // _firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
+    // _lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+    final now = DateTime.now();
+
+    _firstDay = DateTime(now.year, now.month, now.day); // today
+    _lastDay  = DateTime(now.year + 20, 12, 31);        // till year 2045
 
     _loadCredentialsAndFetch();
   }
@@ -238,6 +242,29 @@ class _SlotsPageState extends State<SlotsPage>
   }
 
   // ---------------- UI ----------------
+  String _monthName(int month) {
+    const months = [
+      "January","February","March","April","May","June",
+      "July","August","September","October","November","December"
+    ];
+    return months[month - 1];
+  }
+
+  void _markAllAvailable() {
+    final days = validDays; // only current month + future
+
+    setState(() {
+      availableDays.addAll(days);
+    });
+  }
+
+  void _markAllUnavailable() {
+    final days = validDays;
+
+    setState(() {
+      availableDays.removeAll(days);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -273,73 +300,146 @@ class _SlotsPageState extends State<SlotsPage>
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(36),
-                      child: TableCalendar(
-                        onPageChanged: (focusedDay) {
-                          setState(() {
-                            _focusedDay = focusedDay;
-                          });
-                        },
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Text(
+                              //   "${_monthName(_focusedDay.month)} ${_focusedDay.year}",
+                              //   style: const TextStyle(
+                              //     fontSize: 18,
+                              //     fontWeight: FontWeight.bold,
+                              //   ),
+                              // ),
 
-                        firstDay: _firstDay,
-                        lastDay: _lastDay,
-                        focusedDay: _focusedDay,
-                        headerStyle: const HeaderStyle(
-                          formatButtonVisible: false,
-                          titleCentered: true,
-                          leftChevronVisible: false,
-                          rightChevronVisible: false,
-                          headerPadding: EdgeInsets.only(bottom: 4),
-                          headerMargin: EdgeInsets.only(bottom: 8),
+                              PopupMenuButton<String>(
+                                color: Colors.white,
+                                onSelected: (value) {
+                                  if (value == "all_available") {
+                                    _markAllAvailable();
+                                  } else if (value == "all_unavailable") {
+                                    _markAllUnavailable();
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: "all_available",
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.check, color: Colors.green),
+                                        SizedBox(width: 8),
+                                        Text("Mark All Available"),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: "all_unavailable",
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.close, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text("Mark All Unavailable"),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "Actions",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_drop_down, // ✅ dropdown icon
+                                size: 22,
+                              ),
+                            ],
+                          ),
                         ),
-                        enabledDayPredicate: (day) =>
-                        !_isPastDay(_normalize(day)),
-                        calendarBuilders: CalendarBuilders(
-                          defaultBuilder: (context, day, _) {
-                            final d = _normalize(day);
+                              ),
+                            ],
+                          ),
 
-                            if (_isPastDay(d)) {
-                              return _dayBox(
-                                d.day,
-                                const Color(0xFF424242),
-                                const Color(0xFF424242),
-                              );
-                            }
+                          TableCalendar(
+                            onPageChanged: (focusedDay) {
+                              setState(() {
+                                _focusedDay = focusedDay;
+                              });
+                            },
 
-                            if (_isAvailable(d)) {
-                              return _dayBox(
-                                d.day,
-                                const Color(0xFF1B5E20),
-                                Colors.white,
-                              );
-                            }
+                            firstDay: _firstDay,
+                            lastDay: _lastDay,
+                            focusedDay: _focusedDay,
+                            headerStyle: const HeaderStyle(
+                              formatButtonVisible: false,
+                              titleCentered: true,
+                              leftChevronVisible: true,
+                              rightChevronVisible: true,
+                              headerPadding: EdgeInsets.only(bottom: 4),
+                              headerMargin: EdgeInsets.only(bottom: 8),
+                            ),
+                            enabledDayPredicate: (day) =>
+                            !_isPastDay(_normalize(day)),
+                            calendarBuilders: CalendarBuilders(
+                              defaultBuilder: (context, day, _) {
+                                final d = _normalize(day);
 
-                            return _dayBox(
-                              d.day,
-                              const Color(0xFFB11226),
-                              Colors.white,
-                            );
-                          },
-                          todayBuilder: (context, day, _) {
-                            final d = _normalize(day);
-                            return _dayBox(
-                              d.day,
-                              const Color(0xFF0D47A1),
-                              Colors.white,
-                            );
-                          },
-                        ),
-                        onDaySelected: (selectedDay, focusedDay) {
-                          final d = _normalize(selectedDay);
-                          if (_isPastDay(d)) return;
+                                if (_isPastDay(d)) {
+                                  return _dayBox(
+                                    d.day,
+                                    const Color(0xFF424242),
+                                    const Color(0xFF424242),
+                                  );
+                                }
 
-                          setState(() {
-                            _focusedDay = focusedDay;
-                            availableDays.contains(d)
-                                ? availableDays.remove(d)
-                                : availableDays.add(d);
-                          });
-                        },
+                                if (_isAvailable(d)) {
+                                  return _dayBox(
+                                    d.day,
+                                    const Color(0xFF1B5E20),
+                                    Colors.white,
+                                  );
+                                }
+
+                                return _dayBox(
+                                  d.day,
+                                  const Color(0xFFB11226),
+                                  Colors.white,
+                                );
+                              },
+                              todayBuilder: (context, day, _) {
+                                final d = _normalize(day);
+                                return _dayBox(
+                                  d.day,
+                                  const Color(0xFF0D47A1),
+                                  Colors.white,
+                                );
+                              },
+                            ),
+                            onDaySelected: (selectedDay, focusedDay) {
+                              final d = _normalize(selectedDay);
+                              if (_isPastDay(d)) return;
+
+                              setState(() {
+                                _focusedDay = focusedDay;
+                                availableDays.contains(d)
+                                    ? availableDays.remove(d)
+                                    : availableDays.add(d);
+                              });
+                            },
+                          ),
+                        ],
                       ),
                     ),
                   ),

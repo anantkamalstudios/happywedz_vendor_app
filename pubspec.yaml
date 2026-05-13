@@ -48,6 +48,7 @@ dependencies:
   permission_handler: ^11.3.0
   gal: ^2.3.0
 
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

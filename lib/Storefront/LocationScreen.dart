@@ -475,8 +475,9 @@ class _LocationPageState extends State<LocationPage> {
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate:
-                          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          userAgentPackageName: 'com.happy.happy_weds_vendors',
+                          //userAgentPackageName: 'com.happy.happy_weds_vendors',
                         ),
                         MarkerLayer(markers: [
                           Marker(
