@@ -57,51 +57,7 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
     }
   }
 
-  // Future<void> fetchVendorService() async {
-  //   print("Fetching vendor service from API...");
-  //   try {
-  //     final response = await http.get(
-  //       Uri.parse("https://happywedz.com/api/vendor-services/vendor/$vendorId"),
-  //       headers: {"Authorization": "Bearer $token"},
-  //     );
-  //
-  //     print("Vendor service response code: ${response.statusCode}");
-  //     if (response.statusCode == 200) {
-  //       final List data = jsonDecode(response.body);
-  //       print("Vendor service data: $data");
-  //
-  //       if (data.isNotEmpty && data[0]["id"] != null) {
-  //         final serviceId = data[0]["id"];
-  //         final prefs = await SharedPreferences.getInstance();
-  //         await prefs.setInt("serviceId", serviceId);
-  //
-  //         currentAttributes = Map<String, dynamic>.from(data[0]["attributes"] ?? {});
-  //         businessNameController.text = currentAttributes["name"] ?? "";
-  //         aboutController.text = currentAttributes["about_us"] ?? "";
-  //
-  //         await prefs.setString("businessName", businessNameController.text);
-  //         await prefs.setString("aboutUs", aboutController.text);
-  //
-  //         print("Cached businessName: ${businessNameController.text}, aboutUs: ${aboutController.text}");
-  //
-  //         vendorSubcategoryId = data[0]["vendor_subcategory_id"];
-  //         if (vendorSubcategoryId != null && subcategories.isNotEmpty) {
-  //           primarySubcategory = subcategories.firstWhere(
-  //                   (s) => s['id'] == vendorSubcategoryId,
-  //               orElse: () => {'name': null})['name'];
-  //         }
-  //
-  //         if (vendorSubcategoryId != null) {
-  //           await prefs.setInt('vendor_subcategory_id', vendorSubcategoryId!);
-  //         }
-  //       }
-  //     }
-  //   } catch (e) {
-  //     print("Error fetching vendor-service: $e");
-  //   } finally {
-  //     setState(() => isLoading = false);
-  //   }
-  // }
+
 
   Future<void> fetchVendorService() async {
     try {
