@@ -7,7 +7,7 @@ import 'package:provider/provider.dart' show MultiProvider, ChangeNotifierProvid
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'SplashScreen.dart';
-
+//backgroundColor: const Color(0xFF00509D),
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

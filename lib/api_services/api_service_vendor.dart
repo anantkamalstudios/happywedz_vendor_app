@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class VendorServiceApi {
@@ -48,11 +49,17 @@ class VendorServiceApi {
   }) async {
     final res = await http.get(
       Uri.parse("$baseUrl/vendor-services/$serviceId"),
-      headers: {"Authorization": "Bearer $token"},
+      headers: {
+        "Accept": "application/json",
+        "Authorization": "Bearer $token",
+      },
     );
 
     if (res.statusCode == 200) {
-      return jsonDecode(res.body);
+      final data = jsonDecode(res.body);
+      // Handle both single-object and array responses
+      if (data is List) return data.isNotEmpty ? Map<String, dynamic>.from(data[0]) : null;
+      return Map<String, dynamic>.from(data);
     }
     return null;
   }
@@ -82,11 +89,17 @@ class VendorServiceApi {
     final res = await http.put(
       Uri.parse("$baseUrl/vendor-services/$serviceId"),
       headers: {
+        "Accept": "application/json",
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
       },
       body: jsonEncode(body),
     );
-    return res.statusCode == 200 || res.statusCode == 201;
+
+    // Accept any 2xx status (200 OK, 201 Created, 204 No Content, etc.)
+    final success = res.statusCode >= 200 && res.statusCode < 300;
+    debugPrint("PUT /vendor-services/$serviceId → ${res.statusCode} | success=$success");
+    if (!success) debugPrint("Response body: ${res.body}");
+    return success;
   }
 }

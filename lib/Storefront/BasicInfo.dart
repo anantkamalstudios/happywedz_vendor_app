@@ -24,6 +24,12 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
   String? primarySubcategory;
   List<Map<String, dynamic>> subcategories = [];
 
+  String adStatus = 'hide';
+  final Map<String, String> adStatusOptions = {
+    'publish': 'Published',
+    'hide': 'Hidden',
+  };
+
   bool isLoading = true;
   bool isSaving = false;
 
@@ -81,6 +87,11 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
       vendorSubcategoryId = data["vendor_subcategory_id"];
       if (vendorSubcategoryId != null) {
         await prefs.setInt("vendor_subcategory_id", vendorSubcategoryId!);
+      }
+
+      if (data["status"] != null &&
+          adStatusOptions.containsKey(data["status"])) {
+        adStatus = data["status"];
       }
     } catch (e) {
       debugPrint("❌ fetchVendorService error: $e");
@@ -151,8 +162,7 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
                   subcategories.firstWhere(
                     (s) => s['id'] == vendorSubcategoryId,
                     orElse: () => {'name': null},
-                  )['name'] ??
-                  '';
+                  )['name'];
             } else if (subcategories.isNotEmpty) {
               primarySubcategory = subcategories[0]['name'];
               vendorSubcategoryId = subcategories[0]['id'];
@@ -221,6 +231,7 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
     final body = {
       "vendor_id": vendorId,
       "vendor_subcategory_id": vendorSubcategoryId,
+      "status": adStatus,
       "attributes": currentAttributes,
     };
 
@@ -397,21 +408,81 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
                             ),
                           ),
                           SizedBox(height: 15),
-                          Text(
-                            "Vendor Type",
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          SizedBox(height: 5),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(vendorType),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Vendor Type",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 5),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                      child: Text(vendorType),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(width: 15),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Ad Status",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 5),
+                                    DropdownButtonFormField<String>(
+                                      value: adStatus,
+                                      isExpanded: true,
+                                      items: adStatusOptions.entries
+                                          .map(
+                                            (e) => DropdownMenuItem<String>(
+                                              value: e.key,
+                                              child: Text(e.value),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (value) {
+                                        if (value == null) return;
+                                        setState(() => adStatus = value);
+                                      },
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                           SizedBox(height: 15),
                           Text(

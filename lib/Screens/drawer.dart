@@ -185,12 +185,14 @@ Future<void> _loadVendorId() async {
                   ),
                   child: Row(
                     children: [
-                      Column(
+                      Expanded(
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Text(
                             userName,
+                            softWrap: true,
                             style: const TextStyle(
                               fontSize: 22,
                               color: Colors.black,
@@ -223,6 +225,7 @@ Future<void> _loadVendorId() async {
                             ],
                           ),
                         ],
+                      ),
                       ),
                     ],
                   ),
