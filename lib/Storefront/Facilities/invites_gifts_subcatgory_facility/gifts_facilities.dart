@@ -141,6 +141,7 @@ class GiftsFacilitiesState extends State<GiftsFacilities>
     _storageSupport   = log['storage_support'] as String?;
     _urgentOrders     = log['urgent_orders'] as String?;
 
+
     final pr = asMap(gm['pricing']);
     _pricingModel          = pr['pricing_model'] as String?;
     _startingPriceRange    = pr['starting_price_range'] as String?;
