@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_shimmer.dart';
 
 class SocialNetworkPage extends StatefulWidget {
   const SocialNetworkPage({super.key});
@@ -39,7 +40,7 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
     vendorId = prefs.getInt('vendorId');
     token = prefs.getString('token');
 
-    print("🔑 vendorId: $vendorId | token: $token");
+    debugPrint("🔑 vendorId: $vendorId | token: $token");
 
     if (vendorId != null && token != null) {
       await _fetchLinksFromAPI(); // 🔥 ALWAYS FETCH FRESH
@@ -58,8 +59,8 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
         },
       );
 
-      print("📩 GET response: ${response.statusCode}");
-      print("📦 Body: ${response.body}");
+      debugPrint("📩 GET response: ${response.statusCode}");
+      debugPrint("📦 Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -88,12 +89,12 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
         await prefs.setString('linkedin_link', linkedinController.text);
 
 
-        print("✅ Fresh links loaded from API");
+        debugPrint("✅ Fresh links loaded from API");
       } else {
-        print("❌ Failed to fetch vendor data");
+        debugPrint("❌ Failed to fetch vendor data");
       }
     } catch (e) {
-      print("❌ API Error: $e");
+      debugPrint("❌ API Error: $e");
     }
 
     setState(() => loading = false);
@@ -127,8 +128,8 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
         body: jsonEncode(body),
       );
 
-      print("📩 PUT response: ${response.statusCode}");
-      print("📦 Body: ${response.body}");
+      debugPrint("📩 PUT response: ${response.statusCode}");
+      debugPrint("📦 Body: ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final prefs = await SharedPreferences.getInstance();
@@ -138,18 +139,22 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
         await prefs.setString('twitter_link', body['twitter_link']!);
         await prefs.setString('website', body['website']!);
 
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Links saved successfully")),
         );
 
-        print("✅ Links updated on server + local cache");
+        debugPrint("✅ Links updated on server + local cache");
       } else {
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to save links")),
         );
       }
     } catch (e) {
-      print("❌ Save error: $e");
+      debugPrint("❌ Save error: $e");
     }
 
     setState(() => saving = false);
@@ -162,7 +167,7 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Professional Links"),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FormShimmer(fields: 5)
           : SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(

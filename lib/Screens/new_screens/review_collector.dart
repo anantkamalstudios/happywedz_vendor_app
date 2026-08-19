@@ -400,7 +400,7 @@
 //       borderRadius: BorderRadius.circular(12),
 //       boxShadow: [
 //         BoxShadow(
-//           color: Colors.black.withOpacity(0.05),
+//           color: Colors.black.withValues(alpha: 0.05),
 //           blurRadius: 12,
 //         ),
 //       ],
@@ -415,9 +415,10 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/common_app_bar.dart';
 import 'package:flutter/services.dart';
+import '../../widgets/app_shimmer.dart';
 
 class ReviewCollectorScreen extends StatefulWidget {
-  const ReviewCollectorScreen({Key? key}) : super(key: key);
+  const ReviewCollectorScreen({super.key});
 
   @override
   State<ReviewCollectorScreen> createState() => _ReviewCollectorScreenState();
@@ -550,6 +551,8 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       if (data['success'] == true) {
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Review request sent successfully")),
         );
@@ -570,7 +573,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Review Collector"),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FormShimmer(fields: 3)
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -769,6 +772,8 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
                 : () async {
               await Clipboard.setData(
                   ClipboardData(text: reviewLink));
+              // AUDIT FIX: context used after an await — guard added.
+              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Link copied")),
               );
@@ -784,7 +789,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12),
+        BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12),
       ],
     );
   }

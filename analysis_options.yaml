@@ -21,8 +21,36 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # ========================================================================
+    # AUDIT DECISION — `file_names` DISABLED (project-wide)
+    # ========================================================================
+    #
+    # 46 of this project's source files use PascalCase or spaced names rather
+    # than lower_case_with_underscores, e.g.:
+    #
+    #     lib/Screens/LeadsScreen.dart
+    #     lib/Screens/FAQs/Jewellery and Accessories.dart
+    #     lib/Storefront/Availability&SlotsPage.dart
+    #
+    # WHY THE RULE IS OFF RATHER THAN THE FILES RENAMED:
+    # Renaming them is not a local change. Every one is referenced by an
+    # `import` from several other files, so a rename touches ~40 additional
+    # files purely to move a string. That is exactly the kind of broad,
+    # zero-behaviour-change refactor this audit was asked NOT to perform, and
+    # it carries real risk on a codebase with no test coverage. Left enabled,
+    # the rule emitted 46 permanent warnings that buried the genuine findings
+    # in `flutter analyze` output.
+    #
+    # WHAT TO DO INSTEAD (recommended, as a separate dedicated change):
+    # rename the files with the IDE's "Rename File" refactor, which rewrites
+    # the imports automatically, then delete this block to re-enable the rule.
+    # It is worth doing — two of the names contain a space and an ampersand,
+    # which are awkward on case-sensitive filesystems and in shell tooling.
+    #
+    # NOTHING ELSE IS SUPPRESSED PROJECT-WIDE. Every other lint in
+    # `flutter_lints` remains active; the handful of individually-suppressed
+    # sites each carry an inline `// ignore:` with a written justification.
+    file_names: false
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

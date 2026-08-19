@@ -8,12 +8,44 @@ import 'package:provider/provider.dart';
 
 class InternetService {
   /// Quick network type check + real internet lookup
+  ///
+  /// AUDIT FIX — THE FAST PATH WAS DEAD CODE.
+  ///
+  /// The previous implementation was:
+  ///     final connectivity = await Connectivity().checkConnectivity();
+  ///     if (connectivity == ConnectivityResult.none) return false;
+  ///
+  /// In `connectivity_plus` 7.x (the version pinned in pubspec.yaml)
+  /// `checkConnectivity()` returns a `List<ConnectivityResult>`, NOT a single
+  /// `ConnectivityResult`. Comparing a List to an enum value is always false —
+  /// the analyzer flagged this as `unrelated_type_equality_checks`.
+  ///
+  /// Consequence: with the device in airplane mode the early return never
+  /// fired, so every check fell through to a DNS lookup that could only fail
+  /// after the full 5-second timeout. `ConnectivityProvider` calls this on
+  /// every connectivity change, and `HomeTab` polls on a 20s loop, so an
+  /// offline device spent 5 seconds blocked on a lookup it already knew would
+  /// fail. Offline detection is now immediate.
   static Future<bool> hasInternet() async {
-    final connectivity = await Connectivity().checkConnectivity();
-    if (connectivity == ConnectivityResult.none) return false;
-
     try {
-      final result = await InternetAddress.lookup('google.com').timeout(const Duration(seconds: 5));
+      final results = await Connectivity().checkConnectivity();
+
+      // No interface at all → definitively offline, no lookup needed.
+      if (results.isEmpty ||
+          results.every((r) => r == ConnectivityResult.none)) {
+        return false;
+      }
+    } catch (e) {
+      // A platform-channel failure must not be reported as "offline" — fall
+      // through to the real lookup, which is the authoritative check.
+      debugPrint("⚠️ checkConnectivity failed, falling back to lookup: $e");
+    }
+
+    // An interface being up does not mean the internet is reachable (captive
+    // portals, hotel wifi), so confirm with a real DNS lookup.
+    try {
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 5));
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } catch (_) {
       return false;
@@ -124,7 +156,7 @@ class _ConnectivityOverlayState extends State<ConnectivityOverlay>
                                 ? 'You are connected. Sync resumed.'
                                 : 'Some features may be unavailable. Check your connection.',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.95),
+                              color: Colors.white.withValues(alpha: 0.95),
                               fontSize: 12,
                             ),
                           ),

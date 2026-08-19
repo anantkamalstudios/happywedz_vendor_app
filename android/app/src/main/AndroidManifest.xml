@@ -18,6 +18,13 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+        <!-- Required by google_maps_flutter (LocationScreen). "Maps SDK for
+             Android" is enabled on this key. It is shared with iOS
+             (AppDelegate.swift), so it cannot carry an Android app
+             restriction — split it into per-platform keys before release. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyBn2KZPZa4KlkMSxVKkeNcWErtEeFeeclI" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

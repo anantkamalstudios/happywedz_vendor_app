@@ -64,17 +64,23 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("token", data["token"]);
 
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data["message"])),
         );
 
         Navigator.popUntil(context, (route) => route.isFirst);
       } else {
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data["message"] ?? "Reset failed")),
         );
       }
     } catch (e) {
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Server error")),
       );

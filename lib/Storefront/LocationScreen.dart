@@ -1,14 +1,18 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
 import '../api_services/api_service_vendor.dart';
+import '../widgets/app_shimmer.dart';
 
 class LocationPage extends StatefulWidget {
+  const LocationPage({super.key});
+
   @override
   State<LocationPage> createState() => _LocationPageState();
 }
@@ -23,7 +27,9 @@ class _LocationPageState extends State<LocationPage> {
   final longitudeController = TextEditingController();
 
   // ---------------- Location ----------------
-  LatLng selectedLocation = LatLng(20.5937, 78.9629);
+  /// Centre of India — the fallback until the vendor's saved coordinates load.
+  static const LatLng _indiaCentre = LatLng(20.5937, 78.9629);
+  LatLng selectedLocation = _indiaCentre;
 
   // ---------------- Country / City ----------------
   List<String> countries = [];
@@ -46,7 +52,28 @@ class _LocationPageState extends State<LocationPage> {
   Map<String, dynamic> currentAttributes = {};
 
   final VendorServiceApi _vendorApi = VendorServiceApi();
-  final MapController _mapController = MapController();
+
+  /// AUDIT NOTE (resolved): this used to be a flutter_map `MapController` that
+  /// was never attached to anything. It is now the live GoogleMap handle and is
+  /// used by `_recentreMap` to re-centre on the vendor's saved coordinates once
+  /// they arrive — the behaviour the old note said the screen should have.
+  GoogleMapController? _mapController;
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  /// Moves the camera onto [selectedLocation]. Safe to call before the map has
+  /// been created — `onMapCreated` calls it again once the controller exists.
+  void _recentreMap({double zoom = 14}) {
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: selectedLocation, zoom: zoom),
+      ),
+    );
+  }
 
   // ================= INIT =================
   @override
@@ -65,7 +92,7 @@ class _LocationPageState extends State<LocationPage> {
     serviceId = prefs.getInt('serviceId');
     token = prefs.getString('token');
 
-    print("🔍 vendorId=$vendorId, subCat=$vendorSubcategoryId, serviceId=$serviceId");
+    debugPrint("🔍 vendorId=$vendorId, subCat=$vendorSubcategoryId, serviceId=$serviceId");
 
     if (vendorId != null && token != null) {
       await _ensureServiceId();
@@ -217,14 +244,16 @@ class _LocationPageState extends State<LocationPage> {
       latitudeController.text = currentAttributes['latitude'] ?? '';
       longitudeController.text = currentAttributes['longitude'] ?? '';
 
-      if (latitudeController.text.isNotEmpty &&
-          longitudeController.text.isNotEmpty) {
-        selectedLocation = LatLng(
-          double.parse(latitudeController.text),
-          double.parse(longitudeController.text),
-        );
+      final lat = double.tryParse(latitudeController.text);
+      final lng = double.tryParse(longitudeController.text);
+      if (lat != null && lng != null) {
+        selectedLocation = LatLng(lat, lng);
       }
     });
+
+    // The camera is only seeded from `initialCameraPosition` at creation time,
+    // so the saved pin has to be pushed to the map explicitly when it arrives.
+    _recentreMap();
 
     if (selectedCountry != null) {
       fetchCities(selectedCountry!);
@@ -325,12 +354,16 @@ class _LocationPageState extends State<LocationPage> {
         await StorefrontCompletionService.refreshCompletion(
           serviceId: serviceId!,
         );
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Location saved successfully")),
         );
       }
     } catch (e) {
-      print("❌ Save error: $e");
+      debugPrint("❌ Save error: $e");
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to save location")),
       );
@@ -433,7 +466,7 @@ class _LocationPageState extends State<LocationPage> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Location & Service Areas"),
       body: loadingVendorData
-          ? Center(child: CircularProgressIndicator())
+          ? const FormShimmer(fields: 4)
           : Column(
             children: [
               Expanded(
@@ -459,34 +492,48 @@ class _LocationPageState extends State<LocationPage> {
                   SizedBox(height: 10),
                   SizedBox(
                     height: 250,
-                    child: FlutterMap(
-                      options: MapOptions(
-                        initialCenter: selectedLocation,
-                        initialZoom: 5,
-                        onTap: (_, p) {
-                          setState(() {
-                            selectedLocation = p;
-                            latitudeController.text =
-                                p.latitude.toString();
-                            longitudeController.text =
-                                p.longitude.toString();
-                          });
-                        },
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: selectedLocation,
+                        // Country-wide until a real pin is known, then
+                        // `_recentreMap` zooms in on it.
+                        zoom: selectedLocation == _indiaCentre ? 5 : 14,
                       ),
-                      children: [
-                        TileLayer(
-                          urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                          userAgentPackageName: 'com.happy.happy_weds_vendors',
-                          //userAgentPackageName: 'com.happy.happy_weds_vendors',
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                        if (selectedLocation != _indiaCentre) _recentreMap();
+                      },
+                      onTap: (p) {
+                        setState(() {
+                          selectedLocation = p;
+                          latitudeController.text = p.latitude.toString();
+                          longitudeController.text = p.longitude.toString();
+                        });
+                      },
+                      markers: {
+                        Marker(
+                          markerId: const MarkerId('selected-location'),
+                          position: selectedLocation,
+                          draggable: true,
+                          onDragEnd: (p) {
+                            setState(() {
+                              selectedLocation = p;
+                              latitudeController.text = p.latitude.toString();
+                              longitudeController.text = p.longitude.toString();
+                            });
+                          },
                         ),
-                        MarkerLayer(markers: [
-                          Marker(
-                            point: selectedLocation,
-                            child: Icon(Icons.location_pin,
-                                color: Colors.red, size: 40),
-                          )
-                        ])
-                      ],
+                      },
+                      // The map sits inside a SingleChildScrollView; without
+                      // this the parent steals the vertical drag and the map
+                      // cannot be panned.
+                      gestureRecognizers: {
+                        Factory<OneSequenceGestureRecognizer>(
+                          EagerGestureRecognizer.new,
+                        ),
+                      },
+                      myLocationButtonEnabled: false,
+                      zoomControlsEnabled: false,
                     ),
                   ),
                   SizedBox(height: 20),

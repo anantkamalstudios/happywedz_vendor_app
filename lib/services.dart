@@ -12,9 +12,9 @@
 //
 //   /// Fetch vendor-service from API by vendor ID
 //   Future<void> fetchVendorService(int vendorId, String token) async {
-//     print("=====================================");
-//     print("📡 FETCHING VENDOR-SERVICE FOR VENDOR ID: $vendorId");
-//     print("=====================================");
+//     debugPrint("=====================================");
+//     debugPrint("📡 FETCHING VENDOR-SERVICE FOR VENDOR ID: $vendorId");
+//     debugPrint("=====================================");
 //
 //     try {
 //       final response = await http.get(
@@ -22,23 +22,23 @@
 //         headers: {"Authorization": "Bearer $token"},
 //       );
 //
-//       print("📩 GET Response Status: ${response.statusCode}");
-//       print("📩 GET Response Body: ${response.body}");
+//       debugPrint("📩 GET Response Status: ${response.statusCode}");
+//       debugPrint("📩 GET Response Body: ${response.body}");
 //
 //       if (response.statusCode == 200) {
 //         final List data = jsonDecode(response.body);
 //         if (data.isNotEmpty) {
 //           vendorData = Map<String, dynamic>.from(data[0]);
 //           serviceId = vendorData!["id"];
-//           print("✅ Vendor service data saved locally. Service ID: $serviceId");
+//           debugPrint("✅ Vendor service data saved locally. Service ID: $serviceId");
 //         } else {
-//           print("⚠️ GET returned empty list for vendor-service");
+//           debugPrint("⚠️ GET returned empty list for vendor-service");
 //         }
 //       } else {
-//         print("❌ Failed to fetch vendor-service: ${response.statusCode}");
+//         debugPrint("❌ Failed to fetch vendor-service: ${response.statusCode}");
 //       }
 //     } catch (e) {
-//       print("❌ Exception fetching vendor-service: $e");
+//       debugPrint("❌ Exception fetching vendor-service: $e");
 //     }
 //   }
 //
@@ -84,15 +84,15 @@
 //       serviceId = newData["id"];
 //     }
 //
-//     print("🔄 Vendor service data updated locally.");
+//     debugPrint("🔄 Vendor service data updated locally.");
 //     printVendorData();
 //   }
 //
 //   /// Save contact details via PUT API
 //   Future<http.Response> saveContact({required String url, required String token, required Map<String, dynamic> body}) async {
-//     print("📤 SAVING CONTACT DETAILS via VendorServiceManager PUT");
-//     print("URL: $url");
-//     print("Body: $body");
+//     debugPrint("📤 SAVING CONTACT DETAILS via VendorServiceManager PUT");
+//     debugPrint("URL: $url");
+//     debugPrint("Body: $body");
 //
 //     try {
 //       final response = await http.put(
@@ -104,10 +104,10 @@
 //         body: jsonEncode(body),
 //       );
 //
-//       print("📩 PUT Response: ${response.statusCode} | ${response.body}");
+//       debugPrint("📩 PUT Response: ${response.statusCode} | ${response.body}");
 //       return response;
 //     } catch (e) {
-//       print("❌ Error saving contact details: $e");
+//       debugPrint("❌ Error saving contact details: $e");
 //       rethrow;
 //     }
 //   }
@@ -115,9 +115,9 @@
 //   int? getSubcategoryId() => vendorData?["vendor_subcategory_id"];
 //
 //   void printVendorData() {
-//     print("=====================================");
-//     print("📌 CURRENT VENDOR DATA:");
-//     print(jsonEncode(vendorData));
-//     print("=====================================");
+//     debugPrint("=====================================");
+//     debugPrint("📌 CURRENT VENDOR DATA:");
+//     debugPrint(jsonEncode(vendorData));
+//     debugPrint("=====================================");
 //   }
 // }

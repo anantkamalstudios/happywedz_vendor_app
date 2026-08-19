@@ -290,6 +290,12 @@ class MenusPage extends StatefulWidget {
   const MenusPage({super.key});
 
   @override
+  /// AUDIT NOTE: `createState` returning the private State type is the
+  /// pattern Flutter's own `flutter create` template uses. Making the State
+  /// public purely to satisfy `library_private_types_in_public_api` would be
+  /// a wider refactor than this audit's brief allows, so the lint is silenced
+  /// locally with this note rather than left as unexplained noise.
+  // ignore: library_private_types_in_public_api
   _MenusPageState createState() => _MenusPageState();
 }
 
@@ -398,6 +404,8 @@ class _MenusPageState extends State<MenusPage> {
           serviceId: serviceId!,
         );
 
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Menus saved successfully")),
         );
@@ -405,6 +413,8 @@ class _MenusPageState extends State<MenusPage> {
         // 🔥 reload fresh data after save
         await _loadFromServer();
       } else {
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to save menus")),
         );

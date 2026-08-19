@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_shimmer.dart';
 
 class PricingPage extends StatefulWidget {
   const PricingPage({super.key});
@@ -153,10 +154,14 @@ class _PricingPageState extends State<PricingPage> {
       await  StorefrontCompletionService.refreshCompletion(
         serviceId: serviceId!,
       );
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Pricing saved successfully.")),
       );
     } else {
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to save pricing.")),
       );
@@ -172,7 +177,7 @@ class _PricingPageState extends State<PricingPage> {
       backgroundColor: Colors.white,
     appBar: CommonAppBar(title: 'Pricing & Packages'),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FormShimmer(fields: 4)
           : Column(
             children: [
               Expanded(

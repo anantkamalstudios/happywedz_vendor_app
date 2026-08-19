@@ -15,7 +15,7 @@
 //
 //   int? _selectedPackageIndex;
 //   String _selectedUpgradePackage = '';
-//   final TextEditingController _messageController = TextEditingController();
+//   final TextEditingController messageController = TextEditingController();
 //
 //   final List<Package> packages = [
 //     Package(
@@ -83,7 +83,7 @@
 //   @override
 //   void dispose() {
 //     _animationController.dispose();
-//     _messageController.dispose();
+//     messageController.dispose();
 //     super.dispose();
 //   }
 //
@@ -169,7 +169,7 @@
 //                         child: Container(
 //                           padding: const EdgeInsets.all(16),
 //                           decoration: BoxDecoration(
-//                             color: isSelected ? const Color(0xFF00509D).withOpacity(0.08) : Colors.grey[50],
+//                             color: isSelected ? const Color(0xFF00509D).withValues(alpha: 0.08) : Colors.grey[50],
 //                             border: Border.all(
 //                               color: isSelected ? const Color(0xFF00509D) : Colors.grey.shade200,
 //                               width: isSelected ? 2 : 1,
@@ -244,7 +244,7 @@
 //                   ),
 //                   const SizedBox(height: 12),
 //                   TextField(
-//                     controller: _messageController,
+//                     controller: messageController,
 //                     maxLines: 4,
 //                     decoration: InputDecoration(
 //                       hintText: 'Tell us why you need this upgrade...',
@@ -339,7 +339,7 @@
 //                       end: Alignment.bottomRight,
 //                       colors: [
 //                         const Color(0xFF00509D),
-//                         const Color(0xFF00509D).withOpacity(0.85),
+//                         const Color(0xFF00509D).withValues(alpha: 0.85),
 //                       ],
 //                     ),
 //                   ),
@@ -364,7 +364,7 @@
 //                             'Select the perfect storage plan for your photography business',
 //                             style: TextStyle(
 //                               fontSize: 14,
-//                               color: Colors.white.withOpacity(0.9),
+//                               color: Colors.white.withValues(alpha: 0.9),
 //                               height: 1.4,
 //                             ),
 //                           ),
@@ -410,7 +410,7 @@
 //                     borderRadius: BorderRadius.circular(20),
 //                     boxShadow: [
 //                       BoxShadow(
-//                         color: Colors.black.withOpacity(0.04),
+//                         color: Colors.black.withValues(alpha: 0.04),
 //                         blurRadius: 20,
 //                         offset: const Offset(0, 4),
 //                       ),
@@ -424,7 +424,7 @@
 //                           Container(
 //                             padding: const EdgeInsets.all(10),
 //                             decoration: BoxDecoration(
-//                               color: const Color(0xFF00509D).withOpacity(0.1),
+//                               color: const Color(0xFF00509D).withValues(alpha: 0.1),
 //                               borderRadius: BorderRadius.circular(12),
 //                             ),
 //                             child: const Icon(
@@ -519,8 +519,8 @@
 //           boxShadow: [
 //             BoxShadow(
 //               color: isSelected
-//                   ? const Color(0xFF00509D).withOpacity(0.15)
-//                   : Colors.black.withOpacity(0.04),
+//                   ? const Color(0xFF00509D).withValues(alpha: 0.15)
+//                   : Colors.black.withValues(alpha: 0.04),
 //               blurRadius: isSelected ? 24 : 16,
 //               offset: Offset(0, isSelected ? 8 : 4),
 //             ),
@@ -622,7 +622,7 @@
 //                             margin: const EdgeInsets.only(top: 2),
 //                             padding: const EdgeInsets.all(3),
 //                             decoration: BoxDecoration(
-//                               color: const Color(0xFF10B981).withOpacity(0.15),
+//                               color: const Color(0xFF10B981).withValues(alpha: 0.15),
 //                               shape: BoxShape.circle,
 //                             ),
 //                             child: const Icon(
@@ -746,12 +746,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
-import 'dart:math' as math;
+
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/app_shimmer.dart';
 
 class PackageStoragePage extends StatefulWidget {
-  const PackageStoragePage({Key? key}) : super(key: key);
+  const PackageStoragePage({super.key});
 
   @override
   State<PackageStoragePage> createState() => _PackageStoragePageState();
@@ -759,7 +760,7 @@ class PackageStoragePage extends StatefulWidget {
 
 class _PackageStoragePageState extends State<PackageStoragePage> {
   final PageController _pageController = PageController(viewportFraction: 0.88);
-  int _currentPage = 1;
+  int _currentPage = 1; // Start with Standard (Most Popular)
 
   late Future<List<PackageModel>> _packagesFuture;
   List<PackageModel> packages = [];
@@ -873,7 +874,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
         future: _packagesFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const ListShimmer(itemCount: 4, showAvatar: false, itemHeight: 180);
           }
 
           if (snapshot.hasError) {
@@ -921,7 +922,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
             shaderCallback: (bounds) => LinearGradient(
               colors: [
                 packages[_currentPage].color,
-                packages[_currentPage].color.withOpacity(0.7),
+                packages[_currentPage].color.withValues(alpha: 0.7),
               ],
             ).createShader(bounds),
             child: const Text(
@@ -1014,7 +1015,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                   borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
-                      color: package.color.withOpacity(0.4),
+                      color: package.color.withValues(alpha: 0.4),
                       blurRadius: 30,
                       spreadRadius: 0,
                     ),
@@ -1033,7 +1034,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                 end: Alignment.bottomRight,
                 colors: [
                   package.color,
-                  package.color.withOpacity(0.8),
+                  package.color.withValues(alpha: 0.8),
                 ],
               ),
             ),
@@ -1043,7 +1044,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                 Positioned.fill(
                   child: CustomPaint(
                     painter: CirclePatternPainter(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                     ),
                   ),
                 ),
@@ -1060,7 +1061,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Icon(
@@ -1106,7 +1107,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                         '${package.storage} Storage',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1139,7 +1140,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                               '/${package.period}',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -1151,7 +1152,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                         '30 days validity',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -1177,7 +1178,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 20,
               offset: const Offset(0, 4),
             ),
@@ -1223,7 +1224,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                           height: 24,
                           decoration: BoxDecoration(
                             color: feature.included
-                                ? package.color.withOpacity(0.15)
+                                ? package.color.withValues(alpha: 0.15)
                                 : Colors.grey.shade100,
                             shape: BoxShape.circle,
                           ),
@@ -1272,7 +1273,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -1297,7 +1298,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 0,
-                  shadowColor: package.color.withOpacity(0.3),
+                  shadowColor: package.color.withValues(alpha: 0.3),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1357,7 +1358,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: package.color.withOpacity(0.1),
+                color: package.color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -1462,7 +1463,9 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     required PackageModel package,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await
+
+      SharedPreferences.getInstance();
       final token = prefs.getString('token');
 
       if (token == null || token.isEmpty) {
@@ -1484,10 +1487,12 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
 
       final data = jsonDecode(response.body);
 
-      print(response.statusCode);
-      print(data);
+      debugPrint("${response.statusCode}");
+      debugPrint("$data");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(data['message'] ?? 'Request sent successfully 🎉'),
@@ -1502,7 +1507,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
       }
     } catch (e) {
       _showErrorSnack('Network error. Please try again.');
-      print(e);
+      debugPrint("$e");
     }
   }
 
@@ -1527,7 +1532,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
   }
 
   void _showUpgradeDialog() {
-    final _messageController = TextEditingController();
+    final messageController = TextEditingController();
     String? selectedPackage;
 
     showModalBottomSheet(
@@ -1630,7 +1635,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: _messageController,
+                    controller: messageController,
                     maxLines: 4,
                     decoration: InputDecoration(
                       hintText: 'e.g., I need 20GB storage for multiple events...',

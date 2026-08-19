@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/movments_plus/package_page.dart';
+
+import '../auth/auth_guard.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import 'analytics_screen.dart';
 import 'event.dart';
-import 'gallery_screen.dart';
+
+/// AUDIT NOTE:
+/// Analytics, Packages & Storage and My Events all read vendor-scoped data
+/// from authenticated endpoints. They were opened with a bare
+/// `Navigator.push`, so a tap that landed after the session had gone opened
+/// the screen anyway and it simply rendered empty. They now go through
+/// [AuthGuard], which verifies the session before pushing and re-verifies on
+/// every app resume.
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -10,17 +21,11 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: const Color(0xFF00509D),
-        title: const Text(
-          "More",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-          ),
-        ),
+        backgroundColor: AppColors.primary,
+        title: Text("More", style: AppTextStyles.appBarTitle),
         elevation: 1,
       ),
       //appBar: CommonAppBar(title: 'More'),
@@ -35,37 +40,35 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.analytics,
             title: "Analytics",
             subtitle: "View performance & insights",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-              );
-            },
+            onTap: () => AuthGuard.push(
+              context,
+              (_) => const AnalyticsScreen(),
+              debugLabel: 'AnalyticsScreen',
+            ),
           ),
           _menuTile(
             icon: Icons.storage,
             title: "Packages & Storage",
             subtitle: "Manage plan & storage usage",
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context)=> PackageStoragePage()));
-            },
+            onTap: () => AuthGuard.push(
+              context,
+              (_) => PackageStoragePage(),
+              debugLabel: 'PackageStoragePage',
+            ),
           ),
 
-        //  const SizedBox(height: 24),
+          const SizedBox(height: 24),
 
-        //  _sectionTitle("Events"),
+          _sectionTitle("Events"),
           _menuTile(
-            icon: Icons.photo_library,
-            title: "Gallery",
-            subtitle: "Photos & videos from your events",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const GalleryScreen(),
-                ),
-              );
-            },
+            icon: Icons.event,
+            title: "My Events",
+            subtitle: "Create & manage your events",
+            onTap: () => AuthGuard.push(
+              context,
+              (_) => const EventsManagementPage(),
+              debugLabel: 'EventsManagementPage',
+            ),
           ),
         ],
       ),
@@ -87,7 +90,7 @@ class MoreScreen extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             child: const Icon(Icons.apps, color: Colors.white),
           ),
           const SizedBox(width: 12),
@@ -104,7 +107,7 @@ class MoreScreen extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                "Manage analytics, gallery & storage",
+                "Manage analytics, events & storage",
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
@@ -150,7 +153,7 @@ class MoreScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -162,7 +165,7 @@ class MoreScreen extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
+            color: iconColor.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: iconColor, size: 22),

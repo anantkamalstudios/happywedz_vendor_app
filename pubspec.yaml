@@ -2,13 +2,20 @@ name: happy_weds_vendors
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+6
+version: 1.0.0+7
 
 environment:
   sdk: ^3.8.1
 
 dependencies:
   flutter:
+    sdk: flutter
+  # AUDIT NOTE: main.dart already imported `package:flutter_localizations/…`
+  # (for GlobalMaterialLocalizations) but the package was never declared here.
+  # It only resolved transitively through flutter_quill, which the
+  # `depend_on_referenced_packages` lint flagged and which would have broken
+  # the app the moment flutter_quill was removed or bumped. Declared directly.
+  flutter_localizations:
     sdk: flutter
 
   shared_preferences: ^2.1.1
@@ -30,8 +37,6 @@ dependencies:
   country_state_city: ^0.1.0
   html_editor_enhanced: ^2.6.0
   google_maps_flutter: ^2.14.0
-  flutter_map: ^8.2.2
-  latlong2: ^0.9.0
   chewie: ^1.7.1
   table_calendar: ^3.0.9
   dropdown_search: ^6.0.3
@@ -48,6 +53,17 @@ dependencies:
   permission_handler: ^11.3.0
   gal: ^2.3.0
 
+
+  # AUDIT NOTE — UNDECLARED DIRECT DEPENDENCIES.
+  # `lib/movments_plus/upload_screen.dart` imports both of these directly
+  # (`package:file_picker/file_picker.dart` and
+  # `package:http_parser/http_parser.dart`) but neither was declared here —
+  # they only resolved transitively. That is exactly the situation the
+  # `depend_on_referenced_packages` lint warns about: the day an unrelated
+  # dependency stops pulling them in, media upload stops compiling.
+  # Pinned to the versions already in pubspec.lock so resolution is unchanged.
+  file_picker: ^10.3.7
+  http_parser: ^4.1.2
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +82,29 @@ flutter:
     - assets/icons/statistics.png
     - assets/icons/reviews.png
     - assets/images/
+
+  # ==========================================================================
+  # POPPINS — the single font family for the whole application.
+  #
+  # AUDIT NOTE: the app previously shipped no fonts at all and MaterialApp had
+  # no `theme:`, so every screen rendered in Flutter's default Roboto. The TTFs
+  # are bundled (rather than fetched at runtime via google_fonts) so the
+  # typography is identical offline and on first launch, with no network
+  # dependency and no first-frame font swap.
+  #
+  # Wired up in lib/theme/app_theme.dart via `fontFamily: 'Poppins'`.
+  # ==========================================================================
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
 
 
 

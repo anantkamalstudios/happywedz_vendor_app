@@ -5,10 +5,17 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../FAQs/storefront_percentage_bar.dart';
 
 class AlbumsPage extends StatefulWidget {
+  const AlbumsPage({super.key});
+
   @override
+  /// AUDIT NOTE: `createState` returning the private State type is the
+  /// pattern Flutter's own `flutter create` template uses. Making the State
+  /// public purely to satisfy `library_private_types_in_public_api` would be
+  /// a wider refactor than this audit's brief allows, so the lint is silenced
+  /// locally with this note rather than left as unexplained noise.
+  // ignore: library_private_types_in_public_api
   _AlbumsPageState createState() => _AlbumsPageState();
 }
 
@@ -48,9 +55,14 @@ class _AlbumsPageState extends State<AlbumsPage> {
     );
 
     if (formData != null && formData is Map<String, dynamic>) {
-      final List<XFile>? selectedImages = await _picker.pickMultiImage();
+      // AUDIT FIX: `pickMultiImage()` returns a non-nullable List<XFile>, so
+      // the `?` type and the `!= null` half of the guard were dead code
+      // (flagged `unnecessary_nullable_for_final_variable_declarations`).
+      // The emptiness check — which is the one that matters, because the
+      // picker returns an EMPTY list when the user cancels — is kept.
+      final List<XFile> selectedImages = await _picker.pickMultiImage();
 
-      if (selectedImages != null && selectedImages.isNotEmpty) {
+      if (selectedImages.isNotEmpty) {
         setState(() {
           _albums.add({
             "title": formData['title'] ?? "New Album",
@@ -70,9 +82,10 @@ class _AlbumsPageState extends State<AlbumsPage> {
 
   // Add ability to add more photos to existing album
   Future<void> _addMorePhotos(int index) async {
-    final List<XFile>? selectedImages = await _picker.pickMultiImage();
+    // AUDIT FIX: see the note in `_addNewAlbum` — same dead null check.
+    final List<XFile> selectedImages = await _picker.pickMultiImage();
 
-    if (selectedImages != null && selectedImages.isNotEmpty) {
+    if (selectedImages.isNotEmpty) {
       setState(() {
         final album = _albums[index];
         final images = List<String>.from(album['images'] ?? []);
@@ -239,7 +252,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
                           gradient: LinearGradient(
-                            colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                            colors: [Colors.black.withValues(alpha: 0.6), Colors.transparent],
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                           ),
@@ -278,7 +291,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
@@ -304,7 +317,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
 }
 
 class CreateAlbumFormPage extends StatefulWidget {
-  const CreateAlbumFormPage({Key? key}) : super(key: key);
+  const CreateAlbumFormPage({super.key});
 
   @override
   State<CreateAlbumFormPage> createState() => _CreateAlbumFormPageState();
@@ -369,7 +382,7 @@ class _CreateAlbumFormPageState extends State<CreateAlbumFormPage> {
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Banquet'),
-                value: _selectedBanquet,
+                initialValue: _selectedBanquet,
                 items: _banquetOptions.map((String banquet) {
                   return DropdownMenuItem<String>(
                     value: banquet,
@@ -409,12 +422,12 @@ class AlbumImagesPage extends StatefulWidget {
   final Function(List<String>)? onAlbumUpdated;
 
   const AlbumImagesPage({
-    Key? key,
+    super.key,
     required this.title,
     required this.images,
     required this.local,
     this.onAlbumUpdated,
-  }) : super(key: key);
+  });
 
   @override
   State<AlbumImagesPage> createState() => _AlbumImagesPageState();
@@ -453,6 +466,8 @@ class _AlbumImagesPageState extends State<AlbumImagesPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('coverImage', _images[index]);
 
+    // AUDIT FIX: context used after an await — guard added.
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("This photo is now your cover image.")),
     );
@@ -525,13 +540,13 @@ class ImagePreviewPage extends StatelessWidget {
   final VoidCallback? onMakeCover;
 
   const ImagePreviewPage({
-    Key? key,
+    super.key,
     required this.image,
     required this.likes,
     required this.onLike,
     required this.onDelete,
     this.onMakeCover,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -618,6 +633,11 @@ class ImagePreviewPage extends StatelessWidget {
 
                     if (confirm == true) {
                       onDelete(); // remove from album
+                      // AUDIT FIX: `context` was used after awaiting the
+                      // confirm dialog. If the preview route was dismissed
+                      // while the dialog was open, `Navigator.of(context)`
+                      // threw on a deactivated element.
+                      if (!context.mounted) return;
                       Navigator.of(context).pop(); // close preview
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Photo deleted')),

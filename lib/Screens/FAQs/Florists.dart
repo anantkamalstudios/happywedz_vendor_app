@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../../api_services/storefront_completion_service.dart';
-import 'storefront_percentage_bar.dart';
+import '../../utils/common_app_bar.dart';
+import '../../widgets/app_shimmer.dart';
 
 // // ===== MODEL =====
 class FaqQuestion {
@@ -210,6 +211,8 @@ class _FloristFaqScreenState extends State<FloristFaqScreen> {
       );
     }
 
+    // AUDIT FIX: context used after an await — guard added.
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text("FAQ Saved")));
   }
@@ -219,15 +222,15 @@ class _FloristFaqScreenState extends State<FloristFaqScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Florist FAQs", style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-        backgroundColor: const Color(0xFFE0F7FA),
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
+      // AUDIT FIX — INCONSISTENT APP BAR.
+      // This was the only FAQ screen (of 13) not using `CommonAppBar`. It had
+      // a pale-cyan #E0F7FA bar with black text, while every sibling FAQ
+      // screen renders the Steel Azure #00509D bar with white text. Switched
+      // to the shared component so the whole FAQ section matches — the title
+      // text and the back behaviour are unchanged.
+      appBar: CommonAppBar(title: "Florist FAQs"),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ListShimmer(itemCount: 5, showAvatar: false, itemHeight: 120)
           : ListView.builder(
         itemCount: faqs.length,
         itemBuilder: (_, i) => _faqCard(faqs[i]),
@@ -285,16 +288,29 @@ class _FloristFaqScreenState extends State<FloristFaqScreen> {
   Widget _buildInput(FaqQuestion q) {
     switch (q.type) {
       case 'radio':
-        return Column(
-          children: q.options
-              .map((o) => RadioListTile(
-            title: Text(o),
-            value: o,
-            groupValue: selectedRadio[q.id],
-            onChanged: (v) =>
-                setState(() => selectedRadio[q.id] = v.toString()),
-          ))
-              .toList(),
+        // AUDIT FIX — DEPRECATED RADIO API.
+        // `RadioListTile.groupValue` and `.onChanged` were deprecated after
+        // Flutter 3.32 in favour of a `RadioGroup` ancestor. The previous code
+        // also did `selectedRadio[q.id] = v.toString()`, which stored the string
+        // "null" if the tile ever reported a null value. Behaviour is otherwise
+        // unchanged: the choice is still held in `selectedRadio[q.id]`.
+        return RadioGroup<String>(
+          groupValue: selectedRadio[q.id],
+          onChanged: (v) => setState(() {
+            if (v == null) {
+              selectedRadio.remove(q.id);
+            } else {
+              selectedRadio[q.id] = v;
+            }
+          }),
+          child: Column(
+            children: q.options
+                .map((o) => RadioListTile<String>(
+                      title: Text(o),
+                      value: o,
+                    ))
+                .toList(),
+          ),
         );
 
       case 'checkbox':

@@ -66,7 +66,7 @@
 //         });
 //       }
 //     } catch (e) {
-//       print("❌ Error loading data: $e");
+//       debugPrint("❌ Error loading data: $e");
 //     }
 //   }
 //
@@ -109,7 +109,7 @@
 //             .showSnackBar(SnackBar(content: Text("Update failed")));
 //       }
 //     } catch (e) {
-//       print("❌ Error: $e");
+//       debugPrint("❌ Error: $e");
 //     }
 //   }
 //
@@ -182,7 +182,7 @@
 //             .showSnackBar(SnackBar(content: Text("Password update failed")));
 //       }
 //     } catch (e) {
-//       print("❌ ERROR: $e");
+//       debugPrint("❌ ERROR: $e");
 //     }
 //   }
 //
@@ -376,7 +376,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/common_app_bar.dart';
 
 class BusinessDetailsPage extends StatefulWidget {
+  const BusinessDetailsPage({super.key});
+
   @override
+  /// AUDIT NOTE: `createState` returning the private State type is the
+  /// pattern Flutter's own `flutter create` template uses. Making the State
+  /// public purely to satisfy `library_private_types_in_public_api` would be
+  /// a wider refactor than this audit's brief allows, so the lint is silenced
+  /// locally with this note rather than left as unexplained noise.
+  // ignore: library_private_types_in_public_api
   _BusinessDetailsPageState createState() => _BusinessDetailsPageState();
 }
 
@@ -517,11 +525,15 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
         profileImage = null;
       });
 
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Profile Updated Successfully")),
       );
     } else {
       debugPrint(res.body);
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Update Failed")),
       );
@@ -550,6 +562,8 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
     );
 
     if (response.statusCode == 200) {
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Password Updated Successfully")),
       );

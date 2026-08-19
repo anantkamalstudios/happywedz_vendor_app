@@ -153,10 +153,10 @@
 //           }
 //         }
 //       } else {
-//         print("❌ Failed to fetch FAQ answers: ${response.statusCode}");
+//         debugPrint("❌ Failed to fetch FAQ answers: ${response.statusCode}");
 //       }
 //     } catch (e) {
-//       print("⚠️ Error fetching FAQ answers: $e");
+//       debugPrint("⚠️ Error fetching FAQ answers: $e");
 //     } finally {
 //       setState(() => isLoading = false);
 //     }
@@ -405,7 +405,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api_services/storefront_completion_service.dart';
 import '../../utils/common_app_bar.dart';
-import 'storefront_percentage_bar.dart';
+import '../../widgets/app_shimmer.dart';
 
 // ===== MODEL =====
 class VendorQuestion {
@@ -603,6 +603,8 @@ class _JewelleryFaqScreenState extends State<JewelleryFaqScreen> {
       );
     }
 
+    // AUDIT FIX: context used after an await — guard added.
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("FAQ Saved")),
     );
@@ -615,7 +617,7 @@ class _JewelleryFaqScreenState extends State<JewelleryFaqScreen> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Jewellery FAQs"),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ListShimmer(itemCount: 5, showAvatar: false, itemHeight: 120)
           : ListView.builder(
         itemCount: questions.length,
         itemBuilder: (_, i) => _faqCard(questions[i]),
@@ -630,7 +632,7 @@ class _JewelleryFaqScreenState extends State<JewelleryFaqScreen> {
               // await ProfileCompletionController
               //     .markDone(ProfileCompletionController.keyFaq);
 
-              if (!mounted) return;
+              if (!context.mounted) return;
               Navigator.popUntil(context, (route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
@@ -675,18 +677,29 @@ class _JewelleryFaqScreenState extends State<JewelleryFaqScreen> {
   Widget _input(VendorQuestion q) {
     switch (q.type) {
       case 'radio':
-        return Column(
-          children: q.options
-              .map(
-                (o) => RadioListTile(
-              title: Text(o),
-              value: o,
-              groupValue: selectedRadio[q.id],
-              onChanged: (v) =>
-                  setState(() => selectedRadio[q.id] = v.toString()),
-            ),
-          )
-              .toList(),
+        // AUDIT FIX — DEPRECATED RADIO API.
+        // `RadioListTile.groupValue` and `.onChanged` were deprecated after
+        // Flutter 3.32 in favour of a `RadioGroup` ancestor. The previous code
+        // also did `selectedRadio[q.id] = v.toString()`, which stored the string
+        // "null" if the tile ever reported a null value. Behaviour is otherwise
+        // unchanged: the choice is still held in `selectedRadio[q.id]`.
+        return RadioGroup<String>(
+          groupValue: selectedRadio[q.id],
+          onChanged: (v) => setState(() {
+            if (v == null) {
+              selectedRadio.remove(q.id);
+            } else {
+              selectedRadio[q.id] = v;
+            }
+          }),
+          child: Column(
+            children: q.options
+                .map((o) => RadioListTile<String>(
+                      title: Text(o),
+                      value: o,
+                    ))
+                .toList(),
+          ),
         );
 
       case 'checkbox':
