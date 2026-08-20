@@ -8,6 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'bottom_bar.dart';
 
+
+
+
+
+
+
+
 /// ======================= MODEL =======================
 class Event {
   final int id;
