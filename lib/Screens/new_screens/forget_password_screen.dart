@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/Screens/new_screens/reset_password.dart';
 import 'package:http/http.dart' as http;
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -22,7 +23,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse("https://happywedz.com/api/vendor/forgot-password"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor/forgot-password"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "email": _emailC.text.trim(),

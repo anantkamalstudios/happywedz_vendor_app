@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../chat_screen/chat_screenn.dart';
 import '../../utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class LeadDetailScreen extends StatefulWidget {
   final dynamic lead;
@@ -42,10 +44,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
     if (widget.openQuotation) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await _fetchQuotationHistory();
-        // AUDIT FIX: context used after an await — guard added. Opening the
-        // enquiry with `openQuotation: true` and immediately pressing Back
-        // used to show a dialog on a disposed route.
-        if (!mounted) return;
         _showQuotationHistoryDialog(context);
       });
     }
@@ -69,8 +67,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       final token = prefs.getString('token') ?? prefs.getString('authToken');
 
       if (token == null || token.isEmpty) {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("No auth token found. Please log in.")),
         );
@@ -79,33 +75,20 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
 
       // ✅ Use correct ID — adjust if your API returns nested data
       // final leadId = widget.lead['_id'] ?? widget.lead['id'] ?? widget.lead['requestId'];
-      //
-      // AUDIT FIX — THE NULL CHECK COULD NEVER RUN.
-      //   final leadId = widget.lead['id'].toString();
-      //   if (leadId == null) { …show "Lead ID missing"… }
-      // `.toString()` on a null id throws `NoSuchMethodError` on the line
-      // ABOVE the guard, so the friendly "Lead ID missing." message was
-      // unreachable and the vendor got an unhandled exception instead. The
-      // analyzer flagged the dead comparison as `unnecessary_null_comparison`.
-      // The value is now read safely and the guard checks for an empty id.
-      final leadId = widget.lead is Map
-          ? (widget.lead['id']?.toString() ?? '')
-          : '';
+      final leadId = widget.lead['id'].toString();
 
-      if (leadId.isEmpty) {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
+      if (leadId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Lead ID missing.")),
         );
         return;
       }
 
-      final url = Uri.parse("https://happywedz.com/api/inbox/request/$leadId/status");
-      debugPrint("🟢 PATCH -> $url");
+      final url = Uri.parse("${ApiConfig.baseUrl}/inbox/request/$leadId/status");
+      print("🟢 PATCH -> $url");
 
       final body = jsonEncode({"newStatus": newStatus.toLowerCase()});
-      debugPrint("📦 Body: $body");
+      print("📦 Body: $body");
 
       final response = await http.patch(
         url,
@@ -116,20 +99,16 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
         body: body,
       );
 
-      debugPrint("🟣 Response ${response.statusCode}: ${response.body}");
+      print("🟣 Response ${response.statusCode}: ${response.body}");
 
       if (response.statusCode == 200) {
         setState(() => currentStatus = newStatus);
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("✅ Status updated to $newStatus")),
         );
 
         Navigator.pop(context, true); // ✅ trigger refresh
       } else {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("❌ Failed to update status (${response.statusCode})"),
@@ -138,9 +117,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
         );
       }
     } catch (e) {
-      debugPrint("🔥 Exception while updating status: $e");
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
+      print("🔥 Exception while updating status: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("⚠️ Error: $e")),
       );
@@ -158,11 +135,11 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       if (token == null) return;
 
       final userId = widget.lead['userId'] ?? widget.lead['user']?['id'];
-      debugPrint("🟢 Fetching quotation history for userId: $userId");
+      print("🟢 Fetching quotation history for userId: $userId");
 
 
       final url = Uri.parse(
-        "https://happywedz.com/api/request-pricing/vendor/quotation-history?userId=$userId",
+        "${ApiConfig.baseUrl}/request-pricing/vendor/quotation-history?userId=$userId",
       );
 
       final response = await http.get(
@@ -198,15 +175,13 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       final token = prefs.getString('token') ?? prefs.getString('authToken');
 
       if (token == null || token.isEmpty) {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("No auth token found. Please log in.")),
         );
         return;
       }
 
-      final url = Uri.parse("https://happywedz.com/api/request-pricing/requests/$leadId/quotation");
+      final url = Uri.parse("${ApiConfig.baseUrl}/request-pricing/requests/$leadId/quotation");
 
       final servicesList = services
           .split(',')
@@ -221,8 +196,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
         "message": message,
       });
 
-      debugPrint("📤 Sending POST request to: $url");
-      debugPrint("📦 Request body: $body");
+      print("📤 Sending POST request to: $url");
+      print("📦 Request body: $body");
 
       final response = await http.post(
         url,
@@ -233,18 +208,12 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
         body: body,
       );
 
-      debugPrint("📥 Response status: ${response.statusCode}");
-      debugPrint("📥 Raw response body: ${response.body}");
+      print("📥 Response status: ${response.statusCode}");
+      print("📥 Raw response body: ${response.body}");
 
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await _fetchQuotationHistory(); // 🔥 ensure fresh data
-
-        // AUDIT FIX: three consecutive uses of `context` after two awaits
-        // (the POST and the history refetch) with no guard. Popping the send
-        // dialog on a disposed route threw, and the follow-up history dialog
-        // was pushed onto a Navigator that might no longer exist.
-        if (!mounted) return;
 
         Navigator.of(context).pop(); // close send dialog
 
@@ -256,9 +225,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       }
 
       else {
-        debugPrint("❌ Error from API (${response.statusCode}): ${response.body}");
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
+        print("❌ Error from API (${response.statusCode}): ${response.body}");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("❌ Failed to send quotation"),
@@ -267,10 +234,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
         );
       }
     } catch (e, stack) {
-      debugPrint("⚠️ Exception while sending quotation: $e");
-      debugPrint("$stack");
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
+      print("⚠️ Exception while sending quotation: $e");
+      print(stack);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Something went wrong. Please try again. $e")),
       );
@@ -278,15 +243,23 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       setState(() => _isLoading = false);
     }
   }
+
+  String _formatDateTime(dynamic rawDate) {
+    if (rawDate == null) return 'N/A';
+    final parsed = DateTime.tryParse(rawDate.toString());
+    if (parsed == null) return rawDate.toString();
+    return DateFormat('dd MMM yyyy, hh:mm a').format(parsed.toLocal());
+  }
+
   @override
   Widget build(BuildContext context) {
     final lead = widget.lead;
-    debugPrint("✅ FULL LEAD DATA => ${widget.lead}");
+    print("✅ FULL LEAD DATA => ${widget.lead}");
     final name = "${lead['firstName'] ?? ''} ${lead['lastName'] ?? ''}".trim();
     final email = lead['email'] ?? 'N/A';
     final phone = lead['phone'] ?? lead['phoneNumber'] ?? 'N/A';
     final eventDate = lead['eventDate'] ?? 'N/A';
-    final receivedDate = lead['createdAt'] ?? 'N/A';
+    final receivedDate = _formatDateTime(lead['createdAt']);
     final message = lead['message'] ?? 'No message';
 
     Color statusColor = _getStatusColor(currentStatus);
@@ -326,7 +299,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
           ),
           if (_isLoading)
             Container(
-              color: Colors.black.withValues(alpha: 0.3),
+              color: Colors.black.withOpacity(0.3),
               child: const Center(
                 child: CircularProgressIndicator(
                   color: Color(0xFF4682B4), // Steel Azure
@@ -439,7 +412,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
 
   Widget _buildStatus(String status, Color color) {
     return Chip(
-      backgroundColor: color.withValues(alpha: 0.15),
+      backgroundColor: color.withOpacity(0.15),
       label: Text(
         status.toUpperCase(),
         style: TextStyle(color: color, fontWeight: FontWeight.w700),
@@ -487,7 +460,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
           child: ElevatedButton(
             onPressed: () => _updateStatus(label),
             style: ElevatedButton.styleFrom(
-              backgroundColor: color.withValues(alpha: 0.15),
+              backgroundColor: color.withOpacity(0.15),
               foregroundColor: color,
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -512,10 +485,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
           child: ElevatedButton.icon(
             onPressed: () async {
               await _fetchQuotationHistory();
-              // AUDIT FIX: context used after an await — guard added.
-              // `_actionButtons` has no local BuildContext parameter, so the
-              // `context` here is the State's, guarded by `mounted`.
-              if (!mounted) return;
               _showQuotationHistoryDialog(context);
             },
 
@@ -535,8 +504,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
           child: ElevatedButton.icon(
 
             onPressed: () {
-              debugPrint("🟢 Chat open with conversationId: ${widget.conversationId}");
-              debugPrint("🟢 Lead ID: $leadId");
+              print("🟢 Chat open with conversationId: ${widget.conversationId}");
+              print("🟢 Lead ID: $leadId");
 
               Navigator.push(
                 context,
@@ -701,16 +670,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                       onPressed: () {
                         // final leadId = widget.lead['_id']?.toString() ??
                         //     widget.lead['id']?.toString();
-                        //
-                        // AUDIT FIX: same dead null check as in
-                        // `_updateStatus` — `.toString()` on a null id threw
-                        // before the guard could run. Read safely and check
-                        // for an empty id instead.
-                        final leadId = widget.lead is Map
-                            ? (widget.lead['id']?.toString() ?? '')
-                            : '';
+                        final leadId = widget.lead['id'].toString();
 
-                        if (leadId.isEmpty) {
+                        if (leadId == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Lead ID missing.")),
                           );
@@ -895,7 +857,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                             ],
                           ),
                         );
-                      }),
+                      }).toList(),
 
                     const SizedBox(height: 20),
 

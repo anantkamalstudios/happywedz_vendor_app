@@ -374,6 +374,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class BusinessDetailsPage extends StatefulWidget {
   const BusinessDetailsPage({super.key});
@@ -427,7 +428,7 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
     if (vendorId == null || token == null) return;
 
     final response = await http.get(
-      Uri.parse("https://happywedz.com/api/vendor/$vendorId"),
+      Uri.parse("${ApiConfig.baseUrl}/vendor/$vendorId"),
       headers: {"Authorization": "Bearer $token"},
     );
 
@@ -481,7 +482,7 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
 
     final request = http.MultipartRequest(
       "PUT",
-      Uri.parse("https://happywedz.com/api/vendor/$vendorId"),
+      Uri.parse("${ApiConfig.baseUrl}/vendor/$vendorId"),
     );
 
     request.headers["Authorization"] = "Bearer $token";
@@ -549,7 +550,7 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
     if (vendorId == null || token == null) return;
 
     final response = await http.post(
-      Uri.parse("https://happywedz.com/api/vendor/change-password"),
+      Uri.parse("${ApiConfig.baseUrl}/vendor/change-password"),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $token",

@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:happy_weds_vendors/utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 /// ================= EVENT MODEL =================
 class EventModel {
@@ -79,7 +81,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     final token = await _getToken();
 
     final res = await http.get(
-      Uri.parse('https://happywedz.com/api/events'),
+      Uri.parse('${ApiConfig.baseUrl}/events'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -103,7 +105,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     final token = await _getToken();
 
     final res = await http.get(
-      Uri.parse('https://happywedz.com/api/media?event_id=$eventId'),
+      Uri.parse('${ApiConfig.baseUrl}/media?event_id=$eventId'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -130,19 +132,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        automaticallyImplyLeading: false, // 🔥 THIS IS THE KEY
-        backgroundColor: const Color(0xFF00509D),
-        title: const Text(
-          "Gallery",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-          ),
-        ),
-        elevation: 1,
-      ),
-      // appBar: CommonAppBar(title: 'Gallery'),
+      appBar: CommonAppBar(title: 'Gallery'),
       body: Column(
         children: [
           /// EVENT DROPDOWN

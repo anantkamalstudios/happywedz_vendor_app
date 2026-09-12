@@ -15,7 +15,7 @@
 //
 //   int? _selectedPackageIndex;
 //   String _selectedUpgradePackage = '';
-//   final TextEditingController messageController = TextEditingController();
+//   final TextEditingController _messageController = TextEditingController();
 //
 //   final List<Package> packages = [
 //     Package(
@@ -83,7 +83,7 @@
 //   @override
 //   void dispose() {
 //     _animationController.dispose();
-//     messageController.dispose();
+//     _messageController.dispose();
 //     super.dispose();
 //   }
 //
@@ -169,7 +169,7 @@
 //                         child: Container(
 //                           padding: const EdgeInsets.all(16),
 //                           decoration: BoxDecoration(
-//                             color: isSelected ? const Color(0xFF00509D).withValues(alpha: 0.08) : Colors.grey[50],
+//                             color: isSelected ? const Color(0xFF00509D).withOpacity(0.08) : Colors.grey[50],
 //                             border: Border.all(
 //                               color: isSelected ? const Color(0xFF00509D) : Colors.grey.shade200,
 //                               width: isSelected ? 2 : 1,
@@ -244,7 +244,7 @@
 //                   ),
 //                   const SizedBox(height: 12),
 //                   TextField(
-//                     controller: messageController,
+//                     controller: _messageController,
 //                     maxLines: 4,
 //                     decoration: InputDecoration(
 //                       hintText: 'Tell us why you need this upgrade...',
@@ -339,7 +339,7 @@
 //                       end: Alignment.bottomRight,
 //                       colors: [
 //                         const Color(0xFF00509D),
-//                         const Color(0xFF00509D).withValues(alpha: 0.85),
+//                         const Color(0xFF00509D).withOpacity(0.85),
 //                       ],
 //                     ),
 //                   ),
@@ -364,7 +364,7 @@
 //                             'Select the perfect storage plan for your photography business',
 //                             style: TextStyle(
 //                               fontSize: 14,
-//                               color: Colors.white.withValues(alpha: 0.9),
+//                               color: Colors.white.withOpacity(0.9),
 //                               height: 1.4,
 //                             ),
 //                           ),
@@ -410,7 +410,7 @@
 //                     borderRadius: BorderRadius.circular(20),
 //                     boxShadow: [
 //                       BoxShadow(
-//                         color: Colors.black.withValues(alpha: 0.04),
+//                         color: Colors.black.withOpacity(0.04),
 //                         blurRadius: 20,
 //                         offset: const Offset(0, 4),
 //                       ),
@@ -424,7 +424,7 @@
 //                           Container(
 //                             padding: const EdgeInsets.all(10),
 //                             decoration: BoxDecoration(
-//                               color: const Color(0xFF00509D).withValues(alpha: 0.1),
+//                               color: const Color(0xFF00509D).withOpacity(0.1),
 //                               borderRadius: BorderRadius.circular(12),
 //                             ),
 //                             child: const Icon(
@@ -519,8 +519,8 @@
 //           boxShadow: [
 //             BoxShadow(
 //               color: isSelected
-//                   ? const Color(0xFF00509D).withValues(alpha: 0.15)
-//                   : Colors.black.withValues(alpha: 0.04),
+//                   ? const Color(0xFF00509D).withOpacity(0.15)
+//                   : Colors.black.withOpacity(0.04),
 //               blurRadius: isSelected ? 24 : 16,
 //               offset: Offset(0, isSelected ? 8 : 4),
 //             ),
@@ -622,7 +622,7 @@
 //                             margin: const EdgeInsets.only(top: 2),
 //                             padding: const EdgeInsets.all(3),
 //                             decoration: BoxDecoration(
-//                               color: const Color(0xFF10B981).withValues(alpha: 0.15),
+//                               color: const Color(0xFF10B981).withOpacity(0.15),
 //                               shape: BoxShape.circle,
 //                             ),
 //                             child: const Icon(
@@ -746,13 +746,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
-
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/app_shimmer.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class PackageStoragePage extends StatefulWidget {
-  const PackageStoragePage({super.key});
+  const PackageStoragePage({Key? key}) : super(key: key);
 
   @override
   State<PackageStoragePage> createState() => _PackageStoragePageState();
@@ -760,7 +760,8 @@ class PackageStoragePage extends StatefulWidget {
 
 class _PackageStoragePageState extends State<PackageStoragePage> {
   final PageController _pageController = PageController(viewportFraction: 0.88);
-  int _currentPage = 1; // Start with Standard (Most Popular)
+  int _currentPage = 0;
+  bool _hasJumpedToCurrentPlan = false;
 
   late Future<List<PackageModel>> _packagesFuture;
   List<PackageModel> packages = [];
@@ -786,8 +787,30 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     super.dispose();
   }
   Future<List<PackageModel>> fetchPackages() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? prefs.getString('authToken');
+
+    String? currentPackageName;
+    try {
+      final dashboardRes = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/vendor/dashboard/analytics'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+      if (dashboardRes.statusCode == 200) {
+        final dashboardBody = jsonDecode(dashboardRes.body);
+        if (dashboardBody['success'] == true) {
+          currentPackageName = dashboardBody['package']?['name'] as String?;
+        }
+      }
+    } catch (_) {
+      // If this fails, we just won't be able to highlight the current plan.
+    }
+
     final response = await http.get(
-      Uri.parse('http://happywedz.com/api/admin/package'),
+      Uri.parse('${ApiConfig.baseUrl}/admin/package'),
     );
 
     final body = jsonDecode(response.body);
@@ -800,6 +823,8 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
 
     return list.map((e) {
       final apiPkg = PackageApiModel.fromJson(e);
+      final isCurrent = currentPackageName != null &&
+          apiPkg.name.toLowerCase() == currentPackageName.toLowerCase();
 
       return PackageModel(
         name: apiPkg.name,
@@ -810,6 +835,8 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
         icon: _getPackageIcon(apiPkg.name),
         isPopular: apiPkg.name == 'Standard',
         isPremium: apiPkg.name == 'Premium',
+        isCurrent: isCurrent,
+        durationDays: apiPkg.durationDays,
         features: _buildFeatures(apiPkg),  id: apiPkg.id,
 
       );
@@ -844,7 +871,8 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
   List<PackageFeature> _buildFeatures(PackageApiModel pkg) {
     return [
       PackageFeature('Storage up to ${pkg.storageLimitGb} GB', true),
-      PackageFeature('Valid for ${pkg.durationDays} days', true),
+      if (pkg.durationDays != null)
+        PackageFeature('Valid for ${pkg.durationDays} days', true),
       PackageFeature('Priority Support', pkg.name != 'Basic'),
       PackageFeature('Advanced analytics', pkg.name == 'Premium'),
       if (pkg.message != null)
@@ -874,15 +902,28 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
         future: _packagesFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const ListShimmer(itemCount: 4, showAvatar: false, itemHeight: 180);
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Something went wrong'));
+            debugPrint('❌ PACKAGES LOAD ERROR: ${snapshot.error}\n${snapshot.stackTrace}');
+            return const Center(child: Text('Something went wrong'));
           }
 
           packages = snapshot.data!;
           _currentPage = _currentPage.clamp(0, packages.length - 1);
+
+          if (!_hasJumpedToCurrentPlan) {
+            _hasJumpedToCurrentPlan = true;
+            final currentIndex = packages.indexWhere((p) => p.isCurrent);
+            if (currentIndex != -1 && currentIndex != _currentPage) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _pageController.jumpToPage(currentIndex);
+                setState(() => _currentPage = currentIndex);
+              });
+            }
+          }
 
           return Column(
             children: [
@@ -893,7 +934,6 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
               _buildPackageCarousel(),
               const SizedBox(height: 24),
               _buildFeaturesList(),
-              const Spacer(),
               _buildBottomActions(),
             ],
           );
@@ -922,7 +962,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
             shaderCallback: (bounds) => LinearGradient(
               colors: [
                 packages[_currentPage].color,
-                packages[_currentPage].color.withValues(alpha: 0.7),
+                packages[_currentPage].color.withOpacity(0.7),
               ],
             ).createShader(bounds),
             child: const Text(
@@ -970,9 +1010,11 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     );
   }
 
+  static const double _cardHeight = 300;
+
   Widget _buildPackageCarousel() {
     return SizedBox(
-      height: 280,
+      height: _cardHeight,
       child: PageView.builder(
         controller: _pageController,
         itemCount: packages.length,
@@ -986,9 +1028,12 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                 value = (1 - (value.abs() * 0.15)).clamp(0.85, 1.0);
               }
               return Center(
-                child: SizedBox(
-                  height: Curves.easeOut.transform(value) * 280,
-                  child: child,
+                child: Transform.scale(
+                  scale: Curves.easeOut.transform(value),
+                  child: SizedBox(
+                    height: _cardHeight,
+                    child: child,
+                  ),
                 ),
               );
             },
@@ -1015,7 +1060,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                   borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
-                      color: package.color.withValues(alpha: 0.4),
+                      color: package.color.withOpacity(0.4),
                       blurRadius: 30,
                       spreadRadius: 0,
                     ),
@@ -1034,7 +1079,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                 end: Alignment.bottomRight,
                 colors: [
                   package.color,
-                  package.color.withValues(alpha: 0.8),
+                  package.color.withOpacity(0.8),
                 ],
               ),
             ),
@@ -1044,7 +1089,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                 Positioned.fill(
                   child: CustomPaint(
                     painter: CirclePatternPainter(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: Colors.white.withOpacity(0.05),
                     ),
                   ),
                 ),
@@ -1061,7 +1106,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Icon(
@@ -1070,7 +1115,27 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                               size: 32,
                             ),
                           ),
-                          if (package.isPopular)
+                          if (package.isCurrent)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                '✓ Current Plan',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            )
+                          else if (package.isPopular)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -1107,7 +1172,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                         '${package.storage} Storage',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: Colors.white.withOpacity(0.9),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1140,7 +1205,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                               '/${package.period}',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: Colors.white.withValues(alpha: 0.8),
+                                color: Colors.white.withOpacity(0.8),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -1149,10 +1214,12 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '30 days validity',
+                        package.durationDays != null
+                            ? '${package.durationDays} days validity'
+                            : 'days validity',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: Colors.white.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -1178,7 +1245,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: Colors.black.withOpacity(0.04),
               blurRadius: 20,
               offset: const Offset(0, 4),
             ),
@@ -1224,7 +1291,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                           height: 24,
                           decoration: BoxDecoration(
                             color: feature.included
-                                ? package.color.withValues(alpha: 0.15)
+                                ? package.color.withOpacity(0.15)
                                 : Colors.grey.shade100,
                             shape: BoxShape.circle,
                           ),
@@ -1273,7 +1340,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -1287,20 +1354,33 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: package.isCurrent
+                    ? null
+                    : () {
                   _showConfirmationSheet(package);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: package.color,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey[300],
+                  disabledForegroundColor: Colors.grey[600],
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 0,
-                  shadowColor: package.color.withValues(alpha: 0.3),
+                  shadowColor: package.color.withOpacity(0.3),
                 ),
-                child: Row(
+                child: package.isCurrent
+                    ? const Text(
+                  'Current Plan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                )
+                    : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
@@ -1358,7 +1438,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: package.color.withValues(alpha: 0.1),
+                color: package.color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -1463,9 +1543,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     required PackageModel package,
   }) async {
     try {
-      final prefs = await
-
-      SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
 
       if (token == null || token.isEmpty) {
@@ -1474,7 +1552,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
       }
 
       final response = await http.post(
-        Uri.parse('https://happywedz.com/api/vendor/request-package-upgrade'),
+        Uri.parse('${ApiConfig.baseUrl}/vendor/request-package-upgrade'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -1487,12 +1565,10 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
 
       final data = jsonDecode(response.body);
 
-      debugPrint("${response.statusCode}");
-      debugPrint("$data");
+      print(response.statusCode);
+      print(data);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(data['message'] ?? 'Request sent successfully 🎉'),
@@ -1507,7 +1583,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
       }
     } catch (e) {
       _showErrorSnack('Network error. Please try again.');
-      debugPrint("$e");
+      print(e);
     }
   }
 
@@ -1532,7 +1608,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
   }
 
   void _showUpgradeDialog() {
-    final messageController = TextEditingController();
+    final _messageController = TextEditingController();
     String? selectedPackage;
 
     showModalBottomSheet(
@@ -1635,7 +1711,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: messageController,
+                    controller: _messageController,
                     maxLines: 4,
                     decoration: InputDecoration(
                       hintText: 'e.g., I need 20GB storage for multiple events...',
@@ -1739,6 +1815,8 @@ class PackageModel {
   final IconData icon;
   final bool isPopular;
   final bool isPremium;
+  final bool isCurrent;
+  final int? durationDays;
   final List<PackageFeature> features;
 
   PackageModel({
@@ -1750,6 +1828,8 @@ class PackageModel {
     required this.icon,
     this.isPopular = false,
     this.isPremium = false,
+    this.isCurrent = false,
+    this.durationDays,
     required this.features, required this.id,
   });
 }
@@ -1758,7 +1838,7 @@ class PackageApiModel {
   final String name;
   final int storageLimitGb;
   final double price;
-  final int durationDays;
+  final int? durationDays;
   final String? message;
 
   PackageApiModel({

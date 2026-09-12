@@ -6,7 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api_services/storefront_completion_service.dart';
 import '../../utils/common_app_bar.dart';
-import '../../widgets/app_shimmer.dart';
+import 'storefront_percentage_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 // ===== MODEL =====
 class VendorQuestion {
@@ -165,10 +166,10 @@ class VendorQuestion {
 //           }
 //         }
 //       } else {
-//         debugPrint("❌ Failed to fetch FAQ answers: ${response.statusCode}");
+//         print("❌ Failed to fetch FAQ answers: ${response.statusCode}");
 //       }
 //     } catch (e) {
-//       debugPrint("⚠️ Error fetching FAQ answers: $e");
+//       print("⚠️ Error fetching FAQ answers: $e");
 //     } finally {
 //       setState(() => isLoading = false);
 //     }
@@ -223,12 +224,12 @@ class VendorQuestion {
 //
 //
 //
-//       debugPrint("📤 Sent: ${jsonEncode(body)}");
-//       debugPrint("📩 Response (${response.statusCode}): ${response.body}");
-//       debugPrint("🪪 vendorId: $vendorId");
-//       debugPrint("🔐 token: $token");
-//       debugPrint("🎨 vendorTypeId: $vendorTypeId");
-//       debugPrint("➡️ Sending: ${jsonEncode(body)}");
+//       print("📤 Sent: ${jsonEncode(body)}");
+//       print("📩 Response (${response.statusCode}): ${response.body}");
+//       print("🪪 vendorId: $vendorId");
+//       print("🔐 token: $token");
+//       print("🎨 vendorTypeId: $vendorTypeId");
+//       print("➡️ Sending: ${jsonEncode(body)}");
 //
 //       if (response.statusCode == 200) {
 //         ScaffoldMessenger.of(context).showSnackBar(
@@ -468,7 +469,7 @@ class _WeddingDjScreenState extends State<WeddingDjScreen> {
 
     try {
       final res = await http.get(
-        Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
+        Uri.parse("${ApiConfig.baseUrl}/faq-answers/$vendorId"),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
@@ -584,7 +585,7 @@ class _WeddingDjScreenState extends State<WeddingDjScreen> {
     }
 
     await http.post(
-      Uri.parse("https://happywedz.com/api/faq-answers/save"),
+      Uri.parse("${ApiConfig.baseUrl}/faq-answers/save"),
       headers: {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
@@ -604,8 +605,6 @@ class _WeddingDjScreenState extends State<WeddingDjScreen> {
         serviceId: serviceId,
       );
     }
-    // AUDIT FIX: context used after an await — guard added.
-    if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text("FAQ Saved")));
   }
@@ -617,7 +616,7 @@ class _WeddingDjScreenState extends State<WeddingDjScreen> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Wedding DJ FAQs"),
       body: isLoading
-          ? const ListShimmer(itemCount: 5, showAvatar: false, itemHeight: 120)
+          ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
         itemCount: questions.length,
         itemBuilder: (_, i) => _card(questions[i]),
@@ -670,29 +669,18 @@ class _WeddingDjScreenState extends State<WeddingDjScreen> {
   Widget _input(VendorQuestion q) {
     switch (q.type) {
       case 'radio':
-        // AUDIT FIX — DEPRECATED RADIO API.
-        // `RadioListTile.groupValue` and `.onChanged` were deprecated after
-        // Flutter 3.32 in favour of a `RadioGroup` ancestor. The previous code
-        // also did `selectedRadio[q.id] = v.toString()`, which stored the string
-        // "null" if the tile ever reported a null value. Behaviour is otherwise
-        // unchanged: the choice is still held in `selectedRadio[q.id]`.
-        return RadioGroup<String>(
-          groupValue: selectedRadio[q.id],
-          onChanged: (v) => setState(() {
-            if (v == null) {
-              selectedRadio.remove(q.id);
-            } else {
-              selectedRadio[q.id] = v;
-            }
-          }),
-          child: Column(
-            children: q.options
-                .map((o) => RadioListTile<String>(
-                      title: Text(o),
-                      value: o,
-                    ))
-                .toList(),
-          ),
+        return Column(
+          children: q.options
+              .map(
+                (o) => RadioListTile(
+              title: Text(o),
+              value: o,
+              groupValue: selectedRadio[q.id],
+              onChanged: (v) =>
+                  setState(() => selectedRadio[q.id] = v.toString()),
+            ),
+          )
+              .toList(),
         );
 
       case 'checkbox':

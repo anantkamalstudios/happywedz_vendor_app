@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/storefront_calculation.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 
 class StorefrontCompletionService {
@@ -25,7 +26,7 @@ class StorefrontCompletionService {
     try {
       // 🔥 STEP 1: Fetch latest vendor-service
       final getUrl = Uri.parse(
-        "https://happywedz.com/api/vendor-services/$serviceId",
+        "${ApiConfig.baseUrl}/vendor-services/$serviceId",
       );
 
       final getRes = await http.get(
@@ -56,7 +57,7 @@ class StorefrontCompletionService {
 
       // 🔥 STEP 3: PUT completion to server
       final putUrl = Uri.parse(
-        "https://happywedz.com/api/vendor-services/$serviceId/storefront-completion",
+        "${ApiConfig.baseUrl}/vendor-services/$serviceId/storefront-completion",
       );
 
       final putRes = await http.put(

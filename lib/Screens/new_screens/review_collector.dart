@@ -400,7 +400,7 @@
 //       borderRadius: BorderRadius.circular(12),
 //       boxShadow: [
 //         BoxShadow(
-//           color: Colors.black.withValues(alpha: 0.05),
+//           color: Colors.black.withOpacity(0.05),
 //           blurRadius: 12,
 //         ),
 //       ],
@@ -415,10 +415,10 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/common_app_bar.dart';
 import 'package:flutter/services.dart';
-import '../../widgets/app_shimmer.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class ReviewCollectorScreen extends StatefulWidget {
-  const ReviewCollectorScreen({super.key});
+  const ReviewCollectorScreen({Key? key}) : super(key: key);
 
   @override
   State<ReviewCollectorScreen> createState() => _ReviewCollectorScreenState();
@@ -457,7 +457,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
 
     try {
       final res = await http.get(
-        Uri.parse("https://happywedz.com/api/inbox?filter=booked"),
+        Uri.parse("${ApiConfig.baseUrl}/inbox?filter=booked"),
         headers: {"Authorization": "Bearer $token"},
       );
 
@@ -483,7 +483,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
 
     final res = await http.get(
       Uri.parse(
-          "https://happywedz.com/api/vendor-services/vendor/$vendorId"),
+          "${ApiConfig.baseUrl}/vendor-services/vendor/$vendorId"),
       headers: {
         "Authorization": "Bearer $token",
       },
@@ -511,7 +511,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
     setState(() {
       loadingLink = false;
       reviewLink = serviceId != null
-          ? "https://happywedz.com/write-review/$serviceId"
+          ? "${ApiConfig.websiteUrl}/write-review/$serviceId"
           : "";
     });
   }
@@ -535,7 +535,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
 
     final res = await http.post(
       Uri.parse(
-          "https://happywedz.com/api/reviews/send-review-request/$requestId"),
+          "${ApiConfig.baseUrl}/reviews/send-review-request/$requestId"),
       headers: {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
@@ -551,8 +551,6 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       if (data['success'] == true) {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Review request sent successfully")),
         );
@@ -573,7 +571,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Review Collector"),
       body: isLoading
-          ? const FormShimmer(fields: 3)
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -772,8 +770,6 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
                 : () async {
               await Clipboard.setData(
                   ClipboardData(text: reviewLink));
-              // AUDIT FIX: context used after an await — guard added.
-              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Link copied")),
               );
@@ -789,7 +785,7 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12),
+        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12),
       ],
     );
   }

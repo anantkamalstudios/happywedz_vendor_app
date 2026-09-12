@@ -8,11 +8,9 @@ import 'package:http/http.dart' as http;
 
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
-import '../widgets/app_shimmer.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class VideoUploadPage extends StatefulWidget {
-  const VideoUploadPage({super.key});
-
   @override
   State<VideoUploadPage> createState() => _VideoUploadPageState();
 }
@@ -62,7 +60,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
   Future<void> fetchCurrentAttributes() async {
     try {
       final response = await http.get(
-        Uri.parse('https://happywedz.com/api/vendor-services/$serviceId'),
+        Uri.parse('${ApiConfig.baseUrl}/vendor-services/$serviceId'),
         headers: {"Authorization": "Bearer $token"},
       );
 
@@ -75,7 +73,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
         }
       }
     } catch (e) {
-      debugPrint("Error fetching video attributes: $e");
+      print("Error fetching video attributes: $e");
     }
   }
 
@@ -93,7 +91,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
         );
         return thumb;
       } catch (e) {
-        debugPrint("Thumbnail error: $e");
+        print("Thumbnail error: $e");
       }
     }
     return null;
@@ -148,7 +146,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
 
     try {
       final response = await http.put(
-        Uri.parse("https://happywedz.com/api/vendor-services/$serviceId"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor-services/$serviceId"),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
@@ -163,20 +161,14 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
         );
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList("videos_$vendorId", videoURLs);
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text("Videos Saved Successfully")));
       } else {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text("Failed to Save")));
       }
     } catch (e) {
-      debugPrint("Error saving videos: $e");
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
+      print("Error saving videos: $e");
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text("Error saving videos")));
     }
@@ -198,18 +190,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
     activeController?.pause();
     activeController?.dispose();
 
-    // AUDIT FIX: `VideoPlayerController.network` is deprecated in favour of
-    // `.networkUrl(Uri)`. `Uri.parse` on a malformed URL throws a raw
-    // FormatException here, so the URL is validated first — a bad video link
-    // in the storefront used to take the whole screen down with an unhandled
-    // exception instead of simply not playing.
-    final uri = Uri.tryParse(url);
-    if (uri == null || !uri.hasScheme) {
-      debugPrint("❌ Invalid video URL, not playing: $url");
-      return;
-    }
-
-    activeController = VideoPlayerController.networkUrl(uri);
+    activeController = VideoPlayerController.network(url);
     await activeController!.initialize();
     activeController!.play();
 
@@ -220,7 +201,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
   String? extractYouTubeId(String url) {
     final RegExp exp = RegExp(r"(?:v=|youtu\.be/|embed/)([^&?]+)");
     final match = exp.firstMatch(url);
-    return match?.group(1);
+    return match != null ? match.group(1) : null;
   }
 
   Widget buildVideoGrid() {
@@ -329,7 +310,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title:"Video Gallery"),
       body: loadingVendorData
-          ? const GridShimmer(itemCount: 6, crossAxisCount: 2)
+          ? Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
         padding: EdgeInsets.all(16),
         child: Column(

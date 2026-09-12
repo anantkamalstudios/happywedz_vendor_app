@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'bottom_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 
 
@@ -44,7 +45,7 @@ class Event {
 /// ======================= SERVICE =======================
 
 class EventsService {
-  static const _url = 'https://happywedz.com/api/events';
+  static const _url = '${ApiConfig.baseUrl}/events';
 
   static Future<List<Event>> fetchEvents() async {
     final prefs = await SharedPreferences.getInstance();
@@ -172,7 +173,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: CommonAppBar(title: 'Events Management'),
+      appBar: CommonAppBar(title: 'Events Management', showBack: false),
       body: loading
           ?  EventsShimmer()
           : Column(
@@ -189,6 +190,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'events_fab',
         onPressed: _showCreateEventDialog,
         backgroundColor: const Color(0xFF00509D),
         icon: const Icon(Icons.add_circle_outline, color: Colors.white),

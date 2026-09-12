@@ -5,7 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api_services/storefront_completion_service.dart';
 import '../../utils/common_app_bar.dart';
-import '../../widgets/app_shimmer.dart';
+import 'storefront_percentage_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 // ===== MODEL =====
 class VendorQuestion {
@@ -104,7 +105,7 @@ class _CatererFaqScreenState extends State<CatererFaqScreen> {
 
     try {
       final res = await http.get(
-        Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
+        Uri.parse("${ApiConfig.baseUrl}/faq-answers/$vendorId"),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
@@ -218,7 +219,7 @@ class _CatererFaqScreenState extends State<CatererFaqScreen> {
     }
 
     await http.post(
-      Uri.parse("https://happywedz.com/api/faq-answers/save"),
+      Uri.parse("${ApiConfig.baseUrl}/faq-answers/save"),
       headers: {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
@@ -238,8 +239,6 @@ class _CatererFaqScreenState extends State<CatererFaqScreen> {
         serviceId: serviceId,
       );
     }
-    // AUDIT FIX: context used after an await — guard added.
-    if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text("FAQ Saved")));
   }
@@ -251,7 +250,7 @@ class _CatererFaqScreenState extends State<CatererFaqScreen> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Caterer FAQs"),
       body: isLoading
-          ? const ListShimmer(itemCount: 5, showAvatar: false, itemHeight: 120)
+          ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
         itemCount: faqs.length,
         itemBuilder: (_, i) => _faqCard(faqs[i]),
@@ -311,29 +310,18 @@ class _CatererFaqScreenState extends State<CatererFaqScreen> {
   Widget _input(VendorQuestion q) {
     switch (q.type) {
       case 'radio':
-        // AUDIT FIX — DEPRECATED RADIO API.
-        // `RadioListTile.groupValue` and `.onChanged` were deprecated after
-        // Flutter 3.32 in favour of a `RadioGroup` ancestor. The previous code
-        // also did `selectedRadio[q.id] = v.toString()`, which stored the string
-        // "null" if the tile ever reported a null value. Behaviour is otherwise
-        // unchanged: the choice is still held in `selectedRadio[q.id]`.
-        return RadioGroup<String>(
-          groupValue: selectedRadio[q.id],
-          onChanged: (v) => setState(() {
-            if (v == null) {
-              selectedRadio.remove(q.id);
-            } else {
-              selectedRadio[q.id] = v;
-            }
-          }),
-          child: Column(
-            children: q.options
-                .map((o) => RadioListTile<String>(
-                      title: Text(o),
-                      value: o,
-                    ))
-                .toList(),
-          ),
+        return Column(
+          children: q.options
+              .map(
+                (o) => RadioListTile(
+              title: Text(o),
+              value: o,
+              groupValue: selectedRadio[q.id],
+              onChanged: (v) =>
+                  setState(() => selectedRadio[q.id] = v.toString()),
+            ),
+          )
+              .toList(),
         );
 
       case 'checkbox':

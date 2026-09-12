@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../utils/common_app_bar.dart';
-import '../widgets/app_shimmer.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class PreferredVendorsPage extends StatefulWidget {
   const PreferredVendorsPage({super.key});
@@ -115,7 +115,7 @@ class _PreferredVendorsPageState extends State<PreferredVendorsPage> {
 
     try {
       final response = await http.get(
-        Uri.parse("https://happywedz.com/api/vendor-services?search=$query"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor-services?search=$query"),
         headers: token != null ? {"Authorization": "Bearer $token"} : {},
       );
 
@@ -138,7 +138,7 @@ class _PreferredVendorsPageState extends State<PreferredVendorsPage> {
       }
     } catch (e) {
       setState(() => suggestions = []);
-      debugPrint("Error searching vendors: $e");
+      print("Error searching vendors: $e");
     }
 
     setState(() => loading = false);
@@ -213,14 +213,10 @@ class _PreferredVendorsPageState extends State<PreferredVendorsPage> {
 
     if (success) {
       await _saveVendorsLocally();
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Preferred vendors saved successfully.")),
       );
     } else {
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to save preferred vendors")),
       );
@@ -238,7 +234,7 @@ class _PreferredVendorsPageState extends State<PreferredVendorsPage> {
       backgroundColor: const Color(0xffF2F2F2),
       appBar: CommonAppBar(title:"Preferred Vendors"),
       body: loadingVendorData
-          ? const ListShimmer(itemCount: 6, showAvatar: true, itemHeight: 96)
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

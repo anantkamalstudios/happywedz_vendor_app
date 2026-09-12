@@ -9,6 +9,7 @@ import '../utils/network_service.dart';
 import 'generate_tocken.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:io';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 enum TokenFilterType { all, public, private, active, disabled }
 class TokensService {
@@ -23,7 +24,7 @@ class TokensService {
       }
 
       final response = await http.get(
-        Uri.parse('https://happywedz.com/api/token/vendor/$vendorId'),
+        Uri.parse('${ApiConfig.baseUrl}/token/vendor/$vendorId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -51,7 +52,7 @@ class TokensService {
         throw Exception("Auth data missing");
       }
 
-      final url = 'https://happywedz.com/api/token/$tokenId/disable';
+      final url = '${ApiConfig.baseUrl}/token/$tokenId/disable';
       print("➡️ Disable Token API HIT: $url");
 
       final response = await http.put(
@@ -102,7 +103,7 @@ class TokensService {
         throw Exception("Auth token missing");
       }
 
-      final url = 'https://happywedz.com/api/token/share-email';
+      final url = '${ApiConfig.baseUrl}/token/share-email';
       print("➡️ SHARE API HIT: $url");
 
       final response = await http.post(
@@ -265,6 +266,7 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
       ),
 
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'tokens_fab',
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -1093,7 +1095,7 @@ void openShareDialog(BuildContext context, dynamic token) {
                       label: "Share via WhatsApp",
                       onTap: () {
                         shareOnWhatsApp(
-                          "https://happywedz.com/gallery/${token['token']}",
+                          "${ApiConfig.websiteUrl}/gallery/${token['token']}",
                         );
                       },
                     ),
@@ -1112,7 +1114,7 @@ void openShareDialog(BuildContext context, dynamic token) {
                         children: [
                           Expanded(
                             child: Text(
-                              "https://happywedz.com/gallery/${token['token']}",
+                              "${ApiConfig.websiteUrl}/gallery/${token['token']}",
                               style: const TextStyle(fontSize: 12),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1122,7 +1124,7 @@ void openShareDialog(BuildContext context, dynamic token) {
                               Clipboard.setData(
                                 ClipboardData(
                                   text:
-                                  "https://happywedz.com/gallery/${token['token']}",
+                                  "${ApiConfig.websiteUrl}/gallery/${token['token']}",
                                 ),
                               );
                               ScaffoldMessenger.of(context)

@@ -9,6 +9,10 @@ import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:shimmer/shimmer.dart';
 import '../utils/network_service.dart';
 import 'bottom_bar.dart';
+import 'gallery_screen.dart';
+import 'package_page.dart';
+import 'analytics_screen.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -46,7 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (token == null) throw Exception("Auth token missing");
 
       final response = await http.get(
-        Uri.parse('https://happywedz.com/api/vendor/dashboard/analytics'),
+        Uri.parse('${ApiConfig.baseUrl}/vendor/dashboard/analytics'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -102,6 +106,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return toInt(item['count']);
   }
+
+  int getMediaCountByVisibility(Map<String, dynamic> media, String visibility) {
+    final list = (media['visibility'] ?? []) as List;
+
+    final item = list.firstWhere(
+          (e) => e['visibility'] == visibility,
+      orElse: () => {'count': 0},
+    );
+
+    return toInt(item['count']);
+  }
   // ======================= UI =======================
 
   @override
@@ -113,7 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (hasInternetError) {
       return Scaffold(
         backgroundColor: Colors.white,
-        appBar: CommonAppBar(title: "Movments Plus"),
+        appBar: CommonAppBar(title: "Movments Plus", showBack: false),
         body: NoInternetView(
           onRetry: _fetchDashboard,
         ),
@@ -125,19 +140,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final tokens = data!['tokens'];
     final reach = data!['reach'];
     final activity = data!['activity'];
+    final usage = data!['usage'] ?? {};
     final publicTokens = getTokenCountByType(tokens, 'public');
     final privateTokens = getTokenCountByType(tokens, 'private');
+    final publicMedia = getMediaCountByVisibility(media, 'public');
+    final activeTokens = toInt(tokens['active']);
+    final totalTokens = toInt(tokens['total']);
+    final canUpload = usage['canUpload'] ?? true;
+    final storageWarning = usage['storageWarning'] ?? false;
 
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: CommonAppBar(title: "Movments Plus"),
+      appBar: CommonAppBar(title: "Movments Plus", showBack: false),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ================= STATUS =================
+            // ================= STATUS + REFRESH =================
             Row(
               children: [
                 Container(
@@ -165,127 +186,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  getCurrentDateTime(),
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    getCurrentDateTime(),
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-
+                TextButton.icon(
+                  onPressed: _fetchDashboard,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text("Refresh"),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF00509D),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
               ],
             ),
 
-            const SizedBox(height: 24),
-
-            // ================= PACKAGE =================
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF00509D), Color(0xFF0066CC)],
+            if (storageWarning) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
                 ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF00509D).withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        "Storage is running low! Consider upgrading your package.",
+                        style: TextStyle(fontSize: 12, color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "${package['name']} Plan",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "${(package['limitMB'] / 1024).toStringAsFixed(1)} GB Storage Available",
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Text(
-                              "${package['usedMB']} MB",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              "used",
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.workspace_premium,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // ================= STATS =================
+            // ================= PRIMARY STATS (4 cards) =================
             Row(
               children: [
                 Expanded(
-                  child: _buildMiniStatCard(
-                    icon: Icons.photo_library,
+                  child: _buildPrimaryStatCard(
+                    icon: Icons.inventory_2_outlined,
+                    value:
+                    "${package['usedMB']} MB",
+                    label: "Storage Used",
+                    trend: "${package['usagePercent']}%",
+                    caption:
+                    "${package['remainingMB']} MB of ${package['limitMB']} MB remaining",
+                    progress: (toInt(package['usagePercent'])) / 100,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildPrimaryStatCard(
+                    icon: Icons.photo_library_outlined,
                     value: media['total'].toString(),
-                    label: "Media Files",
-                    color: const Color(0xFF10B981),
+                    label: "Total Media Files",
+                    caption:
+                    "${media['byCollection'].length} Collections • $publicMedia Public",
                   ),
                 ),
-                const SizedBox(width: 12),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
                 Expanded(
-                  child: _buildMiniStatCard(
-                    icon: Icons.visibility,
+                  child: _buildPrimaryStatCard(
+                    icon: Icons.remove_red_eye_outlined,
                     value: reach['totalViews'].toString(),
-                    label: "Views",
-                    color: const Color(0xFF8B5CF6),
+                    label: "Total Gallery Views",
+                    caption: "${reach['uniqueViews']} Unique Visitors",
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildMiniStatCard(
-                    icon: Icons.key,
-                    value: tokens['total'].toString(),
-                    label: "Tokens",
-                    color: const Color(0xFF00509D),
+                  child: _buildPrimaryStatCard(
+                    icon: Icons.vpn_key_outlined,
+                    value: totalTokens.toString(),
+                    label: "Access Tokens",
+                    trend: activeTokens.toString(),
+                    caption:
+                    "$activeTokens Active • ${totalTokens - activeTokens} Inactive",
                   ),
                 ),
               ],
@@ -517,6 +514,233 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
+
+            const SizedBox(height: 28),
+
+            // ================= CURRENT PACKAGE =================
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.workspace_premium_outlined,
+                          color: Color(0xFF00509D), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        "Current Package",
+                        style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00509D).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "${package['name']} Plan",
+                      style: const TextStyle(
+                        color: Color(0xFF00509D),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildPackageStatItem(
+                          "Storage Limit",
+                          "${package['limitMB']} MB",
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildPackageStatItem(
+                          "Used Space",
+                          "${package['usedMB']} MB",
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildPackageStatItem(
+                          "Available",
+                          "${package['remainingMB']} MB",
+                          valueColor: const Color(0xFF00509D),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (package['name'] == 'Basic' ||
+                      package['name'] == 'Standard') ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const PackageStoragePage()),
+                          );
+                        },
+                        icon: const Icon(Icons.trending_up, size: 18),
+                        label: const Text("Upgrade Package"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00509D),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // ================= QUICK ACTIONS =================
+            const Text(
+              "Quick Actions",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 2.2,
+              children: [
+                _buildQuickAction(
+                  icon: Icons.cloud_upload_outlined,
+                  label: "Upload Media",
+                  enabled: canUpload,
+                  onTap: () => MainHomeScreen.of(context)?.openUpload(),
+                ),
+                _buildQuickAction(
+                  icon: Icons.create_new_folder_outlined,
+                  label: "New Collection",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const GalleryScreen()),
+                    );
+                  },
+                ),
+                _buildQuickAction(
+                  icon: Icons.vpn_key_outlined,
+                  label: "Generate Token",
+                  onTap: () => MainHomeScreen.of(context)
+                      ?.openTokensWithFilter(TokenFilterType.all),
+                ),
+                _buildQuickAction(
+                  icon: Icons.bar_chart_outlined,
+                  label: "View Analytics",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AnalyticsScreen()),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPackageStatItem(String label, String value,
+      {Color valueColor = const Color(0xFF1A1A1A)}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool enabled = true,
+  }) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: enabled ? Colors.white : Colors.grey[100],
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: enabled
+              ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ]
+              : [],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: enabled ? const Color(0xFF00509D) : Colors.grey,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: enabled ? const Color(0xFF1A1A1A) : Colors.grey,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),
@@ -571,11 +795,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ======================= UI HELPERS =======================
 
-  Widget _buildMiniStatCard({
+  Widget _buildPrimaryStatCard({
     required IconData icon,
     required String value,
     required String label,
-    required Color color,
+    String? trend,
+    String? caption,
+    double? progress,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -591,30 +817,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00509D).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: const Color(0xFF00509D), size: 20),
+              ),
+              if (trend != null)
+                Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    trend,
+                    style: const TextStyle(
+                      color: Color(0xFF10B981),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 22,
+            style: const TextStyle(
+              fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: color,
+              color: Color(0xFF1A1A1A),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
+          if (progress != null) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress.clamp(0, 1),
+                backgroundColor: Colors.grey[200],
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                    Color(0xFF00509D)),
+                minHeight: 6,
+              ),
+            ),
+          ],
+          if (caption != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              caption,
+              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+            ),
+          ],
         ],
       ),
     );
@@ -622,7 +890,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildCollectionCard(String name, int fileCount, int colorValue) {
     final color = Color(colorValue);
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const GalleryScreen()),
+        );
+      },
+      child: Container(
       width: 120,
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(16),
@@ -671,6 +946,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ],
+      ),
       ),
     );
   }

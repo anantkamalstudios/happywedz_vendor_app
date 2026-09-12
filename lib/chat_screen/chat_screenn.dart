@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class ChatScreen extends StatefulWidget {
   final String receiverName;
@@ -30,7 +31,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // ================= FETCH MESSAGES =================
   Future<void> fetchMessages() async {
     final url =
-        "https://happywedz.com/api/messages/vendor/conversations/${widget.conversationId}/messages";
+        "${ApiConfig.baseUrl}/messages/vendor/conversations/${widget.conversationId}/messages";
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? prefs.getString('authToken');
@@ -97,7 +98,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (token == null) return;
 
     final url =
-        "https://happywedz.com/api/messages/vendor/conversations/${widget.conversationId}/messages";
+        "${ApiConfig.baseUrl}/messages/vendor/conversations/${widget.conversationId}/messages";
 
     try {
       final response = await http.post(

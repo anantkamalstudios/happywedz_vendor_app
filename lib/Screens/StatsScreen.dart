@@ -108,7 +108,7 @@
 // //       if (map.containsKey('vendorId')) return (map['vendorId'] as num).toInt();
 // //       if (map.containsKey('vendor_id')) return (map['vendor_id'] as num).toInt();
 // //     } catch (e) {
-// //       debugPrint("Warning: Error decoding token: $e");
+// //       print("Warning: Error decoding token: $e");
 // //     }
 // //     return null;
 // //   }
@@ -454,7 +454,7 @@
 // //       _regenerateProfileViewsChart("This Week");
 // //
 // //     } catch (e) {
-// //       debugPrint("Error: $e");
+// //       print("Error: $e");
 // //     }
 // //
 // //     setState(() => isLoading = false);
@@ -627,7 +627,7 @@
 // //           color: Colors.white,
 // //           borderRadius: BorderRadius.circular(12),
 // //           border: Border.all(color: Colors.grey.shade300),
-// //           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 4))],
+// //           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))],
 // //         ),
 // //         child: Row(
 // //           children: [
@@ -713,7 +713,7 @@
 // //                 belowBarData: BarAreaData(
 // //                   show: true,
 // //                   gradient: LinearGradient(
-// //                     colors: [Color(0xFF4682B4).withValues(alpha: 0.35), Color(0xFF4682B4).withValues(alpha: 0.05)],
+// //                     colors: [Color(0xFF4682B4).withOpacity(0.35), Color(0xFF4682B4).withOpacity(0.05)],
 // //                     begin: Alignment.topCenter,
 // //                     end: Alignment.bottomCenter,
 // //                   ),
@@ -863,7 +863,7 @@
 //       if (map.containsKey('vendorId')) return (map['vendorId'] as num).toInt();
 //       if (map.containsKey('vendor_id')) return (map['vendor_id'] as num).toInt();
 //     } catch (e) {
-//       debugPrint("Warning: Error decoding token: $e");
+//       print("Warning: Error decoding token: $e");
 //     }
 //     return null;
 //   }
@@ -1166,7 +1166,7 @@
 //       _regenerateAllCharts("This Week");
 //
 //     } catch (e) {
-//       debugPrint("Error: $e");
+//       print("Error: $e");
 //     }
 //
 //     setState(() => isLoading = false);
@@ -1386,7 +1386,7 @@
 //           border: Border.all(color: Colors.grey.shade300),
 //           boxShadow: [
 //             BoxShadow(
-//                 color: Colors.black.withValues(alpha: 0.05),
+//                 color: Colors.black.withOpacity(0.05),
 //                 blurRadius: 8,
 //                 offset: const Offset(0, 4))
 //           ],
@@ -1487,8 +1487,8 @@
 //                   show: true,
 //                   gradient: LinearGradient(
 //                     colors: [
-//                       Color(0xFF4682B4).withValues(alpha: 0.35),
-//                       Color(0xFF4682B4).withValues(alpha: 0.05)
+//                       Color(0xFF4682B4).withOpacity(0.35),
+//                       Color(0xFF4682B4).withOpacity(0.05)
 //                     ],
 //                     begin: Alignment.topCenter,
 //                     end: Alignment.bottomCenter,
@@ -1561,7 +1561,7 @@
 
 
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
@@ -1570,72 +1570,11 @@ import 'package:pdf/pdf.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-
-import '../auth/auth_guard.dart';
-import '../auth/session_manager.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text_styles.dart';
-import '../theme/app_theme.dart';
-import '../widgets/app_shimmer.dart';
-import '../widgets/app_snackbar.dart';
-import '../widgets/app_states.dart';
 import 'new_screens/leads_list_stats.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
-/// AUDIT NOTE — REMOVED IMPORT (import line only; NO code deleted)
-/// `dart:typed_data` was imported for a `Uint8List` in the JWT-decoding helper.
-/// The live helper no longer declares that type explicitly, so the import was
-/// unreferenced (`unused_import`).
-
-/// ============================================================================
-/// StatsPage — Leads / Impressions / Profile Views
-/// ============================================================================
-///
-/// API INTEGRATION IS UNCHANGED:
-///   GET https://happywedz.com/api/request-pricing/vendor/dashboard
-///   GET https://happywedz.com/api/vendor/profile-views/{vendorId}
-///   GET https://happywedz.com/api/wishlist/vendor/stats/{vendorId}
-/// Same URLs, methods and headers.
-///
-/// AUDIT NOTE — BUGS FIXED
-///
-/// 1. THE VENDOR ID WAS READ FROM THE WRONG STORAGE KEY (high severity).
-///        final int? vid = prefs.getInt("vendor_id");   // snake_case
-///    Login and SignUp both write `vendorId` (camelCase) — `vendor_id` is
-///    never written anywhere in this project. So this lookup ALWAYS returned
-///    null and the code always fell through to decoding the JWT payload. When
-///    the token carried no `id`/`vendorId`/`vendor_id` claim, `vendorId`
-///    stayed null and BOTH vendor-scoped requests were skipped entirely —
-///    "Profile Views" and "Impressions" silently read 0 forever while "Leads"
-///    worked fine. The correct key is checked first now, with the old key and
-///    the JWT retained as fallbacks so nothing that used to work breaks.
-///
-/// 2. `DateTime.parse` ON UNVALIDATED API DATA — UNCAUGHT CRASH.
-///        final d = DateTime.parse(req["createdAt"]);
-///    Called in five places across the three chart builders and the PDF
-///    export. A null or malformed `createdAt` threw a `FormatException`, and
-///    `_regenerateAllCharts` is invoked from the range dropdown's `onChanged`
-///    — OUTSIDE any try/catch — so one bad record made changing the date range
-///    throw an unhandled exception. All parses now use `tryParse` and skip
-///    unparseable rows.
-///
-/// 3. AN EMPTY CHART RENDERED AS A ZERO-WIDTH BOX.
-///        SizedBox(width: labels.length * pointWidth, …)
-///    With no labels that is `width: 0`, so the chart drew nothing inside a
-///    260px-tall bordered rectangle. A vendor with no data saw an empty frame
-///    with no explanation.
-///
-/// 4. A FAILED FETCH WAS INDISTINGUISHABLE FROM ZERO ACTIVITY.
-///    `fetchDashboardData` caught everything into `debugPrint("Error: $e")` and
-///    still rendered the charts, so a network failure displayed a confident
-///    "0 leads, 0 views, 0 impressions".
-///
-/// 5. THE PDF EXPORT COULD DEREFERENCE NULL DATES.
-///        DateFormat(…).format(customStartDate!)
-///    `_generateAndShowPdf` force-unwraps both range dates. It is only called
-///    from the picker, which sets them — but nothing enforced that.
-/// ----------------------------------------------------------------------------
 class StatsPage extends StatefulWidget {
-  const StatsPage({super.key});
+  const StatsPage({Key? key}) : super(key: key);
 
   @override
   State<StatsPage> createState() => _StatsPageState();
@@ -1656,15 +1595,6 @@ class _StatsPageState extends State<StatsPage>
 
   // ---------- Data ----------
   bool isLoading = true;
-
-  /// AUDIT FIX (bug 4): a failed load is now recorded instead of being
-  /// swallowed into a print while the charts render confident zeroes.
-  Object? loadError;
-
-  /// True while the PDF export is being generated, so the range dropdown
-  /// cannot start a second export on top of the first.
-  bool _exporting = false;
-
   List<dynamic> apiRequests = [];
   List<dynamic> impressionList = [];
   List<dynamic> profileViewsList = [];
@@ -1705,24 +1635,9 @@ class _StatsPageState extends State<StatsPage>
   }
 
   // Token se vendor ID extract
-  //
-  // AUDIT FIX (bug 1): the ONLY prefs key this used to check was `vendor_id`,
-  // which nothing in this project ever writes — Login.dart and SignUp.dart
-  // both write `vendorId`. The lookup therefore always missed and always fell
-  // through to JWT decoding, so on any token without an id claim the
-  // Profile Views and Impressions requests were skipped and both tiles read 0
-  // permanently. The correct key is tried FIRST; the old key and the JWT are
-  // retained as fallbacks so nothing that previously worked regresses.
   int? _resolveVendorIdFromPrefsOrToken(SharedPreferences prefs, String? token) {
-    // 1. The key the app actually writes at login/registration.
-    final int? primary = prefs.getInt(SessionManager.kVendorId);
-    if (primary != null) return primary;
-
-    // 2. Legacy snake_case key — kept in case any older build wrote it.
-    final int? legacy = prefs.getInt("vendor_id");
-    if (legacy != null) return legacy;
-
-    // 3. Last resort: decode the JWT payload.
+    final int? vid = prefs.getInt("vendor_id");
+    if (vid != null) return vid;
     if (token == null) return null;
     try {
       final parts = token.split('.');
@@ -1731,69 +1646,11 @@ class _StatsPageState extends State<StatsPage>
       final normalized = base64Url.normalize(payload);
       final decoded = base64Url.decode(normalized);
       final map = jsonDecode(utf8.decode(decoded));
-      if (map is! Map) return null;
-      final raw = map['id'] ?? map['vendorId'] ?? map['vendor_id'];
-      // AUDIT FIX: `?.toInt()` threw `NoSuchMethodError` when the claim came
-      // back as a String, which is how this backend encodes it.
-      return _asInt(raw);
+      return (map['id'] ?? map['vendorId'] ?? map['vendor_id'])?.toInt();
     } catch (e) {
-      debugPrint("Token decode error: $e");
+      print("Token decode error: $e");
     }
     return null;
-  }
-
-  static int? _asInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value.toString());
-  }
-
-  /// AUDIT FIX (bug 2): every date coming off the API goes through here.
-  /// Returns null instead of throwing a FormatException on null/garbage.
-  static DateTime? _parseDate(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value;
-    return DateTime.tryParse(value.toString());
-  }
-
-  /// Counts rows in [list] whose [dateKey] falls on [day]. Rows with a missing
-  /// or unparseable date are skipped rather than crashing the whole chart.
-  static int _countOnDay(List<dynamic> list, String dateKey, DateTime day) {
-    return list.where((row) {
-      if (row is! Map) return false;
-      final d = _parseDate(row[dateKey]);
-      if (d == null) return false;
-      return d.year == day.year && d.month == day.month && d.day == day.day;
-    }).length;
-  }
-
-  /// Resolves the [start, end] window for a named period. Extracted because
-  /// the identical 18-line if/else chain was copy-pasted into all three
-  /// `_regenerate*Chart` methods and `_getFilteredLeads` — four places that
-  /// had to be kept in sync by hand.
-  static (DateTime, DateTime)? _rangeFor(String period) {
-    final now = DateTime.now();
-    switch (period) {
-      case "This Week":
-        final start = now.subtract(Duration(days: now.weekday - 1));
-        return (start, start.add(const Duration(days: 6)));
-      case "This Month":
-        return (
-          DateTime(now.year, now.month, 1),
-          DateTime(now.year, now.month + 1, 0),
-        );
-      case "Last Month":
-        if (now.month == 1) {
-          return (DateTime(now.year - 1, 12, 1), DateTime(now.year - 1, 12, 31));
-        }
-        return (
-          DateTime(now.year, now.month - 1, 1),
-          DateTime(now.year, now.month, 0),
-        );
-      default:
-        return null;
-    }
   }
 
   // ==================== Custom Range Picker ====================
@@ -1813,7 +1670,6 @@ class _StatsPageState extends State<StatsPage>
     customStartDate = picked.start;
     customEndDate = picked.end;
 
-    if (!mounted) return;
     setState(() {
       selectedPeriod = "Custom Range";
     });
@@ -1824,80 +1680,38 @@ class _StatsPageState extends State<StatsPage>
 
   // ==================== PDF Generation & Preview ====================
   Future<void> _generateAndShowPdf() async {
-    // AUDIT FIX (bug 5): `_generateAndShowPdf` force-unwraps both range dates
-    // throughout. Nothing enforced that they were set; bail out safely instead
-    // of throwing a null-check error inside the PDF builder.
-    final start = customStartDate;
-    final end = customEndDate;
-    if (start == null || end == null) {
-      debugPrint("⚠️ PDF export requested with no date range — ignoring");
-      return;
-    }
-
-    // AUDIT FIX: the export had no progress feedback at all. On a large
-    // dataset `Printing.layoutPdf` takes several seconds during which the
-    // screen looked frozen, and the dropdown could start a second export.
-    if (_exporting) return;
-    if (mounted) setState(() => _exporting = true);
-
-    try {
-      await _buildAndPreviewPdf(start, end);
-    } catch (e) {
-      debugPrint("❌ PDF export failed: $e");
-      if (mounted) {
-        AppSnackbar.error(
-          context,
-          "Couldn't generate the report. Please try again.",
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
-
-    if (!mounted) return;
-    setState(() {
-      selectedPeriod = "This Week";
-      customStartDate = null;
-      customEndDate = null;
-    });
-
-    _regenerateAllCharts("This Week");
-    _controller.forward(from: 0);
-  }
-
-  Future<void> _buildAndPreviewPdf(DateTime start, DateTime end) async {
     final pdf = pw.Document();
 
     Map<String, int> getCountByDate(List<dynamic> list, String dateKey) {
       final map = <String, int>{};
-      final DateTime rangeStart = DateTime(start.year, start.month, start.day);
+      final DateTime rangeStart = DateTime(
+        customStartDate!.year,
+        customStartDate!.month,
+        customStartDate!.day,
+      );
+
       final DateTime rangeEnd = DateTime(
-        end.year,
-        end.month,
-        end.day,
+        customEndDate!.year,
+        customEndDate!.month,
+        customEndDate!.day,
         23,
         59,
         59,
         999,
       );
-
-      for (final item in list) {
-        if (item is! Map) continue;
-        // AUDIT FIX (bug 2): `DateTime.parse(dateStr)` threw a FormatException
-        // on any malformed date and aborted the whole export.
-        final date = _parseDate(item[dateKey]);
-        if (date == null) continue;
+      for (var item in list) {
+        final dateStr = item[dateKey];
+        if (dateStr == null) continue;
+        final date = DateTime.parse(dateStr);
         // if (date.isBefore(customStartDate!) || date.isAfter(customEndDate!)) continue;
         if (date.isBefore(rangeStart) || date.isAfter(rangeEnd)) continue;
+
 
         final formatted = DateFormat("dd MMM yyyy").format(date);
         map[formatted] = (map[formatted] ?? 0) + 1;
       }
       return map;
     }
-
-    final DateTime customStartDate = start;
-    final DateTime customEndDate = end;
 
     final leadsData = getCountByDate(apiRequests, "createdAt");
     final impressionsData = getCountByDate(impressionList, "addedAt");
@@ -1915,7 +1729,7 @@ class _StatsPageState extends State<StatsPage>
           pw.SizedBox(height: 12),
           pw.Center(
             child: pw.Text(
-              "${DateFormat("dd MMM yyyy").format(customStartDate)} - ${DateFormat("dd MMM yyyy").format(customEndDate)}",
+              "${DateFormat("dd MMM yyyy").format(customStartDate!)} - ${DateFormat("dd MMM yyyy").format(customEndDate!)}",
               style: const pw.TextStyle(fontSize: 16),
             ),
           ),
@@ -1924,7 +1738,7 @@ class _StatsPageState extends State<StatsPage>
           if (leadsData.isNotEmpty) ...[
             pw.Text("Leads", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 8),
-            pw.TableHelper.fromTextArray(
+            pw.Table.fromTextArray(
               headers: ["Date", "Count"],
               data: leadsData.entries.map((e) => [e.key, e.value.toString()]).toList(),
               border: pw.TableBorder.all(),
@@ -1936,7 +1750,7 @@ class _StatsPageState extends State<StatsPage>
           if (impressionsData.isNotEmpty) ...[
             pw.Text("Impressions", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 8),
-            pw.TableHelper.fromTextArray(
+            pw.Table.fromTextArray(
               headers: ["Date", "Count"],
               data: impressionsData.entries.map((e) => [e.key, e.value.toString()]).toList(),
               border: pw.TableBorder.all(),
@@ -1948,7 +1762,7 @@ class _StatsPageState extends State<StatsPage>
           if (profileViewsData.isNotEmpty) ...[
             pw.Text("Profile Views", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 8),
-            pw.TableHelper.fromTextArray(
+            pw.Table.fromTextArray(
               headers: ["Date", "Count"],
               data: profileViewsData.entries.map((e) => [e.key, e.value.toString()]).toList(),
               border: pw.TableBorder.all(),
@@ -1963,11 +1777,15 @@ class _StatsPageState extends State<StatsPage>
     );
 
     await Printing.layoutPdf(onLayout: (_) => pdf.save());
-    // AUDIT NOTE: the range reset and chart regeneration that used to live
-    // here now run in `_generateAndShowPdf`'s post-try block, so they still
-    // happen even if `layoutPdf` throws (a user cancelling the system print
-    // sheet on some Android OEMs raises a PlatformException, which previously
-    // left the screen stuck on "Custom Range" with every chart hidden).
+
+    setState(() {
+      selectedPeriod = "This Week";
+      customStartDate = null;
+      customEndDate = null;
+    });
+
+    _regenerateAllCharts("This Week");
+    _controller.forward(from: 0);
   }
 
   // ==================== Chart Regeneration ====================
@@ -1975,227 +1793,193 @@ class _StatsPageState extends State<StatsPage>
     _regenerateLeadsChart(period);
     _regenerateImpressionsChart(period);
     _regenerateProfileViewsChart(period);
-    // AUDIT FIX: unguarded setState. This is reachable from the dropdown's
-    // async `onChanged` and from the PDF path, both of which can complete
-    // after the tab has been switched away.
-    if (mounted) setState(() {});
+    setState(() {});
   }
 
-  /// AUDIT NOTE: the three `_regenerate*Chart` methods were byte-for-byte
-  /// identical apart from the source list and the date key. They now share
-  /// [_buildSeries], so a fix in one applies to all three — the previous copies
-  /// had already drifted (the impressions one carried a "Same logic as above…"
-  /// comment). Behaviour, labels and totals are unchanged.
-  ///
-  /// AUDIT FIX (bug 2): `DateTime.parse` → `_parseDate` (tryParse). A single
-  /// row with a null or malformed date used to throw a FormatException out of
-  /// the range dropdown's `onChanged`, where nothing caught it.
-  (List<String>, List<double>, int) _buildSeries({
-    required String period,
-    required List<dynamic> source,
-    required String dateKey,
-  }) {
-    final labels = <String>[];
-    final values = <double>[];
+  void _regenerateLeadsChart(String period) {
+    dailyLabels.clear();
+    dailyValues.clear();
+    final now = DateTime.now();
+    late DateTime start, end;
 
-    final range = _rangeFor(period);
-    if (range == null) return (labels, values, 0);
-
-    final (start, end) = range;
+    if (period == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (period == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (period == "Last Month") {
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
+    } else {
+      return;
+    }
 
     var current = DateTime(start.year, start.month, start.day);
     int total = 0;
-
     while (!current.isAfter(end)) {
       final label = period == "This Week"
           ? DateFormat("EEE").format(current)
           : DateFormat("dd MMM").format(current);
 
-      final count = _countOnDay(source, dateKey, current);
+      final count = apiRequests.where((req) {
+        final d = DateTime.parse(req["createdAt"]);
+        return d.year == current.year && d.month == current.month && d.day == current.day;
+      }).length;
 
-      labels.add(label);
-      values.add(count.toDouble());
+      dailyLabels.add(label);
+      dailyValues.add(count.toDouble());
       total += count;
       current = current.add(const Duration(days: 1));
     }
-
-    return (labels, values, total);
-  }
-
-  void _regenerateLeadsChart(String period) {
-    final (labels, values, total) = _buildSeries(
-      period: period,
-      source: apiRequests,
-      dateKey: "createdAt",
-    );
-    if (labels.isEmpty && _rangeFor(period) == null) return;
-
-    dailyLabels
-      ..clear()
-      ..addAll(labels);
-    dailyValues
-      ..clear()
-      ..addAll(values);
     visibleLeadCount = total;
   }
 
   void _regenerateImpressionsChart(String period) {
-    final (labels, values, total) = _buildSeries(
-      period: period,
-      source: impressionList,
-      dateKey: "addedAt",
-    );
-    if (labels.isEmpty && _rangeFor(period) == null) return;
+    impressionDailyLabels.clear();
+    impressionDailyValues.clear();
+    // Same logic as above...
+    final now = DateTime.now();
+    late DateTime start, end;
 
-    impressionDailyLabels
-      ..clear()
-      ..addAll(labels);
-    impressionDailyValues
-      ..clear()
-      ..addAll(values);
+    if (period == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (period == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (period == "Last Month") {
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
+    } else {
+      return;
+    }
+
+    var current = DateTime(start.year, start.month, start.day);
+    int total = 0;
+    while (!current.isAfter(end)) {
+      final label = period == "This Week"
+          ? DateFormat("EEE").format(current)
+          : DateFormat("dd MMM").format(current);
+
+      final count = impressionList.where((v) {
+        final d = DateTime.parse(v["addedAt"]);
+        return d.year == current.year && d.month == current.month && d.day == current.day;
+      }).length;
+
+      impressionDailyLabels.add(label);
+      impressionDailyValues.add(count.toDouble());
+      total += count;
+      current = current.add(const Duration(days: 1));
+    }
     visibleImpressionCount = total;
   }
 
   void _regenerateProfileViewsChart(String period) {
-    final (labels, values, total) = _buildSeries(
-      period: period,
-      source: profileViewsList,
-      dateKey: "createdAt",
-    );
-    if (labels.isEmpty && _rangeFor(period) == null) return;
+    profileViewLabels.clear();
+    profileViewValues.clear();
+    final now = DateTime.now();
+    late DateTime start, end;
 
-    profileViewLabels
-      ..clear()
-      ..addAll(labels);
-    profileViewValues
-      ..clear()
-      ..addAll(values);
+    if (period == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (period == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (period == "Last Month") {
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
+    } else {
+      return;
+    }
+
+    var current = DateTime(start.year, start.month, start.day);
+    int total = 0;
+    while (!current.isAfter(end)) {
+      final label = period == "This Week"
+          ? DateFormat("EEE").format(current)
+          : DateFormat("dd MMM").format(current);
+
+      final count = profileViewsList.where((v) {
+        final d = DateTime.parse(v["createdAt"]);
+        return d.year == current.year && d.month == current.month && d.day == current.day;
+      }).length;
+
+      profileViewLabels.add(label);
+      profileViewValues.add(count.toDouble());
+      total += count;
+      current = current.add(const Duration(days: 1));
+    }
     visibleProfileViewCount = total;
   }
 
   // ==================== API Fetch ====================
-  // Endpoints, methods and headers are UNCHANGED. Only response handling and
-  // error surfacing were hardened.
   Future<void> fetchDashboardData() async {
-    if (mounted) {
-      setState(() {
-        isLoading = true;
-        loadError = null;
-      });
-    }
-
     try {
       final prefs = await SharedPreferences.getInstance();
-      // AUDIT FIX: read only `token` before. Every other screen falls back to
-      // `authToken`; a session holding only that key produced an empty
-      // Statistics screen with no explanation.
-      token = await SessionManager.getToken();
+      token = prefs.getString("token");
       vendorId = _resolveVendorIdFromPrefsOrToken(prefs, token);
 
       if (token == null) {
-        // AUDIT FIX (bug 4): was a silent `return` that dropped the vendor on
-        // a page reading 0 / 0 / 0.
-        throw const StatsException(
-          'Your session has expired.\nPlease log in again.',
-        );
+        setState(() => isLoading = false);
+        return;
       }
 
-      // ---- LEADS ----
       final leadRes = await http.get(
-        Uri.parse("https://happywedz.com/api/request-pricing/vendor/dashboard"),
+        Uri.parse("${ApiConfig.baseUrl}/request-pricing/vendor/dashboard"),
         headers: {"Authorization": "Bearer $token"},
-      ).timeout(const Duration(seconds: 30));
-
+      );
       if (leadRes.statusCode == 200) {
-        final decoded = jsonDecode(leadRes.body);
-        // AUDIT FIX: `jsonDecode(...)["requests"] ?? []` assigned into
-        // `List<dynamic> apiRequests` threw a raw TypeError when the endpoint
-        // returned its error object.
-        final requests = (decoded is Map) ? decoded["requests"] : null;
-        apiRequests = requests is List ? requests : <dynamic>[];
-      } else if (SessionManager.isUnauthorized(leadRes.statusCode)) {
-        throw const StatsException(
-          'Your session has expired.\nPlease log in again.',
-        );
-      } else {
-        throw StatsException(
-          AppErrorState.messageForStatus(leadRes.statusCode),
-        );
+        apiRequests = jsonDecode(leadRes.body)["requests"] ?? [];
       }
 
       if (vendorId != null) {
-        // ---- PROFILE VIEWS ----
         final pvRes = await http.get(
-          Uri.parse("https://happywedz.com/api/vendor/profile-views/$vendorId"),
+          Uri.parse("${ApiConfig.baseUrl}/vendor/profile-views/$vendorId"),
           headers: {"Authorization": "Bearer $token"},
-        ).timeout(const Duration(seconds: 30));
-
+        );
         if (pvRes.statusCode == 200) {
           final data = jsonDecode(pvRes.body);
-          if (data is Map && data["success"] == true) {
-            // AUDIT FIX: `(data["totalViews"] ?? 0)` was assigned straight
-            // into an `int` field; the endpoint returns it as a String.
-            profileViewsTotal = _asInt(data["totalViews"]) ?? 0;
-            final views = data["views"];
-            profileViewsList = views is List ? List<dynamic>.from(views) : [];
+          if (data["success"] == true) {
+            profileViewsTotal = (data["totalViews"] ?? 0);
+            profileViewsList = List<dynamic>.from(data["views"] ?? []);
           }
-        } else {
-          // Non-fatal: leads still render. Logged so the gap is traceable.
-          debugPrint("⚠️ profile-views returned ${pvRes.statusCode}");
         }
 
-        // ---- IMPRESSIONS (wishlist adds) ----
         final impRes = await http.get(
-          Uri.parse("https://happywedz.com/api/wishlist/vendor/stats/$vendorId"),
+          Uri.parse("${ApiConfig.baseUrl}/wishlist/vendor/stats/$vendorId"),
           headers: {"Authorization": "Bearer $token"},
-        ).timeout(const Duration(seconds: 30));
-
+        );
         if (impRes.statusCode == 200) {
           final data = jsonDecode(impRes.body);
-          // AUDIT FIX: `(data["data"] as List)` threw a raw TypeError whenever
-          // `data` was a map, and `data["data"][0]["users"]` assumed both the
-          // index and the key existed.
-          final list = (data is Map) ? data["data"] : null;
-          if (list is List && list.isNotEmpty) {
-            final first = list.first;
-            final users = (first is Map) ? first["users"] : null;
-            impressionList = users is List ? List<dynamic>.from(users) : [];
+          if (data["data"] != null && (data["data"] as List).isNotEmpty) {
+            impressionList = List<dynamic>.from(data["data"][0]["users"] ?? []);
           }
-        } else {
-          debugPrint("⚠️ wishlist stats returned ${impRes.statusCode}");
         }
-      } else {
-        // AUDIT NOTE (bug 1): with the storage-key fix this should now be
-        // rare. Logged loudly because it is the difference between real
-        // numbers and a silent zero on two of the three tiles.
-        debugPrint(
-          "⚠️ vendorId could not be resolved — "
-          "Profile Views and Impressions will read 0",
-        );
       }
 
-      await prefs.setInt(SessionManager.kLeadCount, apiRequests.length);
-      await prefs.setInt(SessionManager.kViewsCount, profileViewsTotal);
-      await prefs.setInt(
-        SessionManager.kImpressionCount,
-        impressionList.length,
-      );
+      await prefs.setInt("lead_count", apiRequests.length);
+      await prefs.setInt("views_count", profileViewsTotal);
+      await prefs.setInt("impression_count", impressionList.length);
 
       _regenerateAllCharts("This Week");
-
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-        loadError = null;
-      });
-      _controller.forward();
     } catch (e) {
-      debugPrint("❌ Statistics load failed: $e");
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-        loadError = e;
-      });
+      print("Error: $e");
+    } finally {
+      setState(() => isLoading = false);
       _controller.forward();
     }
   }
@@ -2206,7 +1990,7 @@ class _StatsPageState extends State<StatsPage>
     final bool isCustomRange = selectedPeriod == "Custom Range";
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: Colors.white,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
         child: AppBar(
@@ -2215,119 +1999,55 @@ class _StatsPageState extends State<StatsPage>
           elevation: 0,
           flexibleSpace: Container(
             decoration: const BoxDecoration(
-              gradient: AppColors.headerGradient,
+              gradient: LinearGradient(
+                  colors: [Color(0xFF003F88), Color(0xFF00509D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight),
               boxShadow: [
                 BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3))
               ],
             ),
-            // AUDIT FIX: `fromLTRB(20, 30, …)` hard-coded a 30px top inset,
-            // which collided with the status bar on devices with a taller cut-
-            // out and left a gap on devices without one. Uses the real inset.
-            padding: EdgeInsets.fromLTRB(
-              20,
-              MediaQuery.of(context).padding.top + 10,
-              8,
-              10,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Text("Statistics", style: AppTextStyles.headerLarge),
-                ),
-                IconButton(
-                  tooltip: 'Refresh',
-                  onPressed: isLoading ? null : fetchDashboardData,
-                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 30, 16, 10),
+            alignment: Alignment.bottomLeft,
+            child: const Text("Statistics",
+                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700)),
           ),
         ),
       ),
-      body: RefreshIndicator(
-        // AUDIT FIX: this screen had no refresh affordance at all.
-        color: AppColors.primary,
-        onRefresh: fetchDashboardData,
-        child: _body(isCustomRange),
-      ),
-    );
-  }
-
-  Widget _body(bool isCustomRange) {
-    // AUDIT FIX: was a bare centred CircularProgressIndicator.
-    if (isLoading) return const StatsShimmer();
-
-    if (loadError != null) {
-      // AUDIT FIX (bug 4): a genuine error state instead of confident zeroes.
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          const SizedBox(height: 60),
-          AppErrorState(
-            expand: false,
-            title: "Couldn't load your statistics",
-            message: loadError is StatsException
-                ? (loadError as StatsException).message
-                : AppErrorState.messageFor(loadError),
-            onRetry: fetchDashboardData,
-          ),
-        ],
-      );
-    }
-
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              _topStatsCards(),
-              const SizedBox(height: 20),
-              _sharedRangeDropdown(),
-              const SizedBox(height: 25),
-
-              if (!isCustomRange) ...[
-                _sectionHeader("Leads"),
-                const SizedBox(height: 10),
-                _animatedChartForLeads(),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : FadeTransition(
+        opacity: _fadeAnim,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 const SizedBox(height: 30),
-
-                _sectionHeader("Impressions"),
-                const SizedBox(height: 10),
-                _animatedChartForImpressions(),
-                const SizedBox(height: 30),
-
-                _sectionHeader("Profile Views"),
-                const SizedBox(height: 10),
-                _animatedChartForProfileViews(),
+                _topStatsCards(),
                 const SizedBox(height: 20),
-              ] else
-                // AUDIT FIX: selecting "Custom Range" hid every chart and put
-                // nothing in their place, so if the vendor dismissed the date
-                // picker the screen went blank with no way back except
-                // reselecting a period from the dropdown.
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 40),
-                  child: AppEmptyState(
-                    expand: false,
-                    icon: Icons.picture_as_pdf_outlined,
-                    title: _exporting
-                        ? 'Preparing your report…'
-                        : 'Custom range report',
-                    message: _exporting
-                        ? 'This will only take a moment.'
-                        : 'Pick a date range to export a PDF report,\n'
-                            'or choose a period above to see charts.',
-                    actionLabel: _exporting ? null : 'Choose dates',
-                    onAction: _exporting ? null : _openCustomRangePicker,
-                  ),
-                ),
-            ],
+                _sharedRangeDropdown(),
+                const SizedBox(height: 25),
+
+                if (!isCustomRange) ...[
+                  _sectionHeader("Leads"),
+                  const SizedBox(height: 10),
+                  _animatedChartForLeads(),
+                  const SizedBox(height: 30),
+
+                  _sectionHeader("Impressions"),
+                  const SizedBox(height: 10),
+                  _animatedChartForImpressions(),
+                  const SizedBox(height: 30),
+
+                  _sectionHeader("Profile Views"),
+                  const SizedBox(height: 10),
+                  _animatedChartForProfileViews(),
+                  const SizedBox(height: 20),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -2338,58 +2058,32 @@ class _StatsPageState extends State<StatsPage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        if (_exporting) ...[
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          const SizedBox(width: 10),
-          Text("Generating report…", style: AppTextStyles.caption),
-          const SizedBox(width: 12),
-        ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(6),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: selectedPeriod,
-              icon: const Icon(Icons.keyboard_arrow_down,
-                  color: AppColors.textSecondary),
-              style: AppTextStyles.bodyMedium,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              icon: const Icon(Icons.keyboard_arrow_down),
               items: periods
                   .map((e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(e, style: AppTextStyles.bodyMedium),
-                      ))
+                value: e,
+                child: Text(e, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ))
                   .toList(),
-              // AUDIT FIX: disabled while an export is running, so a second
-              // PDF cannot be started on top of the first.
-              onChanged: _exporting
-                  ? null
-                  : (value) async {
-                      if (value == null) return;
-                      if (value == "Custom Range") {
-                        await _openCustomRangePicker();
-                      } else {
-                        if (!mounted) return;
-                        setState(() => selectedPeriod = value);
-                        // AUDIT FIX (bug 2): `_regenerateAllCharts` used to be
-                        // able to throw a FormatException straight out of this
-                        // callback, where nothing caught it. Its date parsing
-                        // is now non-throwing, and this is belt-and-braces.
-                        try {
-                          _regenerateAllCharts(value);
-                        } catch (e) {
-                          debugPrint("❌ Chart regeneration failed: $e");
-                        }
-                        _controller.forward(from: 0);
-                      }
-                    },
+              onChanged: (value) async {
+                if (value == null) return;
+                if (value == "Custom Range") {
+                  await _openCustomRangePicker();
+                } else {
+                  setState(() => selectedPeriod = value);
+                  _regenerateAllCharts(value);
+                  _controller.forward(from: 0);
+                }
+              },
             ),
           ),
         ),
@@ -2397,11 +2091,13 @@ class _StatsPageState extends State<StatsPage>
     );
   }
 
+
   List<dynamic> _getFilteredLeads() {
     // ✅ Custom Range ONLY when selected
     if (selectedPeriod == "Custom Range" &&
         customStartDate != null &&
         customEndDate != null) {
+
       final DateTime start = DateTime(
         customStartDate!.year,
         customStartDate!.month,
@@ -2415,84 +2111,83 @@ class _StatsPageState extends State<StatsPage>
         23, 59, 59, 999,
       );
 
-      return _inRange(start, end);
+      return apiRequests.where((req) {
+        final DateTime d = DateTime.parse(req["createdAt"]);
+        return !d.isBefore(start) && !d.isAfter(end);
+      }).toList();
     }
 
-    // AUDIT FIX: the 18-line if/else chain here was a fourth copy of the same
-    // period → range logic; it now shares `_rangeFor` with the chart builders.
-    final range = _rangeFor(selectedPeriod);
-    if (range == null) return apiRequests;
+    DateTime now = DateTime.now();
+    late DateTime start, end;
 
-    final (rawStart, rawEnd) = range;
-    final start = DateTime(rawStart.year, rawStart.month, rawStart.day);
-    final end =
-        DateTime(rawEnd.year, rawEnd.month, rawEnd.day, 23, 59, 59, 999);
+    if (selectedPeriod == "This Week") {
+      start = now.subtract(Duration(days: now.weekday - 1));
+      end = start.add(const Duration(days: 6));
+    } else if (selectedPeriod == "This Month") {
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    } else if (selectedPeriod == "Last Month") {
+      start = now.month == 1
+          ? DateTime(now.year - 1, 12, 1)
+          : DateTime(now.year, now.month - 1, 1);
+      end = now.month == 1
+          ? DateTime(now.year - 1, 12, 31)
+          : DateTime(now.year, now.month, 0);
+    } else {
+      return apiRequests;
+    }
 
-    return _inRange(start, end);
-  }
+    start = DateTime(start.year, start.month, start.day);
+    end = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
 
-  /// AUDIT FIX (bug 2): `DateTime.parse(req["createdAt"])` here threw on any
-  /// null/malformed date. Rows without a usable date are skipped.
-  List<dynamic> _inRange(DateTime start, DateTime end) {
     return apiRequests.where((req) {
-      if (req is! Map) return false;
-      final d = _parseDate(req["createdAt"]);
-      if (d == null) return false;
+      final DateTime d = DateTime.parse(req["createdAt"]);
       return !d.isBefore(start) && !d.isAfter(end);
     }).toList();
   }
 
   Widget _sectionHeader(String title) =>
-      Text(title, style: AppTextStyles.sectionTitle);
+      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold));
 
   Widget _topStatsCards() {
-    // `CrossAxisAlignment.stretch` on its own asks the children for an infinite
-    // height here, because this Row lives in a Column inside a vertical
-    // SingleChildScrollView. IntrinsicHeight resolves the tallest card first so
-    // the stretch has a finite height to work with.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _statCard(
-              title: "TOTAL LEADS",
-              value: visibleLeadCount.toString(),
-              icon: Icons.group,
-              iconBg: AppColors.successTint,
-              iconColor: AppColors.success,
-              onTap: () {
-                // AUDIT FIX: guarded push — the leads list is protected content.
-                AuthGuard.push(
-                  context,
-                  (_) => LeadsListScreen(leads: _getFilteredLeads()),
-                  debugLabel: 'LeadsListScreen',
-                );
-              },
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: _statCard(
+            title: "TOTAL LEADS",
+            value: visibleLeadCount.toString(),
+            icon: Icons.group,
+            iconBg: const Color(0xFFE8F5E9),
+            iconColor: const Color(0xFF2E7D32),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => LeadsListScreen(leads: _getFilteredLeads())),
+              );
+            },
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _statCard(
-              title: "PROFILE VIEWS",
-              value: visibleProfileViewCount.toString(),
-              icon: Icons.remove_red_eye,
-              iconBg: AppColors.infoTint,
-              iconColor: AppColors.info,
-            ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _statCard(
+            title: "PROFILE VIEWS",
+            value: visibleProfileViewCount.toString(),
+            icon: Icons.remove_red_eye,
+            iconBg: const Color(0xFFE3F2FD),
+            iconColor: const Color(0xFF1565C0),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _statCard(
-              title: "IMPRESSIONS",
-              value: visibleImpressionCount.toString(),
-              icon: Icons.favorite,
-              iconBg: AppColors.accentPinkTint,
-              iconColor: AppColors.accentPink,
-            ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _statCard(
+            title: "IMPRESSIONS",
+            value: visibleImpressionCount.toString(),
+            icon: Icons.favorite,
+            iconBg: const Color(0xFFFCE4EC),
+            iconColor: const Color(0xFFC2185B),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -2504,71 +2199,62 @@ class _StatsPageState extends State<StatsPage>
     required Color iconColor,
     VoidCallback? onTap,
   }) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-            border: Border.all(color: AppColors.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              )
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 🔝 VALUE + ICON ROW
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    // AUDIT FIX (RenderFlex/text overflow): three of these
-                    // cards share the screen width, so on a 320dp device each
-                    // gets ~90dp. A five-digit figure at 22sp overflowed its
-                    // Expanded and clipped. FittedBox scales it down instead.
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(value, style: AppTextStyles.statValue),
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🔝 VALUE + ICON ROW
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Container(
-                    height: 38,
-                    width: 38,
-                    decoration: BoxDecoration(
-                      color: iconBg,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, color: iconColor, size: 20),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+              ],
+            ),
 
-              const SizedBox(height: 10),
+            const SizedBox(height: 10),
 
-              Text(
-                title,
-                // AUDIT FIX: "PROFILE VIEWS" wrapped to two lines on narrow
-                // devices while its neighbours stayed at one, so the three
-                // cards ended up different heights inside the Row.
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.statLabel,
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+                fontWeight: FontWeight.w600,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -2600,77 +2286,36 @@ class _StatsPageState extends State<StatsPage>
 
   Widget _chartContainer(List<String> labels, List<double> values, {Key? key}) {
     const double pointWidth = 55;
-
-    // AUDIT FIX (bug 3): with no labels the old code built
-    // `SizedBox(width: 0, height: 260)`, so the chart drew nothing inside a
-    // 260px bordered rectangle — an empty frame with no explanation. A vendor
-    // with no activity in the selected period now gets a proper empty state.
-    if (labels.isEmpty) {
-      return Container(
-        key: key,
-        height: 200,
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-        ),
-        child: AppEmptyState(
-          icon: Icons.show_chart_rounded,
-          title: 'No activity yet',
-          message: 'Nothing recorded for "$selectedPeriod".',
-        ),
-      );
-    }
-
-    // AUDIT FIX: `values.reduce(...)` throws `Bad state: No element` on an
-    // empty list. It was previously guarded only by the `values.isEmpty ? 5`
-    // ternary, which is correct — but `labels` and `values` are built
-    // independently, so a mismatched pair could still reach `reduce`.
-    final double maxValue =
-        values.isEmpty ? 0 : values.reduce((a, b) => a > b ? a : b);
-
-    // A flat all-zero series produced maxY = 5 with a horizontalInterval of 5,
-    // i.e. exactly two grid lines. Scaling the interval keeps small charts
-    // readable.
-    final double maxY = maxValue <= 0 ? 5 : maxValue + (maxValue * 0.25) + 1;
-    final double gridInterval = (maxY / 4).ceilToDouble().clamp(1, 1000);
-
     return Container(
       key: key,
-      padding: const EdgeInsets.fromLTRB(4, 14, 12, 14),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SizedBox(
-          // Never narrower than the viewport, so a 7-point week chart fills
-          // the card instead of hugging the left edge.
-          width: (labels.length * pointWidth)
-              .clamp(MediaQuery.of(context).size.width - 60, double.infinity),
+          width: labels.length * pointWidth,
           height: 260,
           child: LineChart(
             LineChartData(
-              maxY: maxY,
+              maxY: values.isEmpty ? 5 : values.reduce((a, b) => a > b ? a : b) + 5,
               minY: 0,
               lineBarsData: [
                 LineChartBarData(
                   isCurved: true,
                   curveSmoothness: 0.25,
-                  spots: List.generate(
-                    values.length,
-                    (i) => FlSpot(i.toDouble(), values[i]),
-                  ),
-                  color: AppColors.secondary,
+                  spots: List.generate(values.length, (i) => FlSpot(i.toDouble(), values[i])),
+                  color: const Color(0xFF4682B4),
                   dotData: const FlDotData(show: true),
                   barWidth: 2.5,
                   belowBarData: BarAreaData(
                     show: true,
                     gradient: LinearGradient(
                       colors: [
-                        AppColors.secondary.withValues(alpha: 0.35),
-                        AppColors.secondary.withValues(alpha: 0.05),
+                        const Color(0xFF4682B4).withOpacity(0.35),
+                        const Color(0xFF4682B4).withOpacity(0.05),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -2683,68 +2328,44 @@ class _StatsPageState extends State<StatsPage>
                   sideTitles: SideTitles(
                     showTitles: true,
                     interval: 1,
-                    reservedSize: 44,
+                    reservedSize: 60,
                     getTitlesWidget: (value, meta) {
                       final index = value.toInt();
                       if (index >= 0 && index < labels.length) {
                         return Padding(
                           padding: const EdgeInsets.only(top: 10),
-                          child: Text(
-                            labels[index],
-                            style: AppTextStyles.labelSmall,
-                          ),
+                          child: Text(labels[index], style: const TextStyle(fontSize: 11)),
                         );
                       }
-                      return const SizedBox.shrink();
+                      return const SizedBox();
                     },
                   ),
                 ),
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 34,
-                    interval: gridInterval,
-                    getTitlesWidget: (v, m) => Text(
-                      v.toInt().toString(),
-                      style: AppTextStyles.labelSmall,
-                    ),
+                    reservedSize: 30,
+                    getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 10)),
                   ),
                 ),
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: FlGridData(
                 show: true,
-                horizontalInterval: gridInterval,
+                horizontalInterval: 5,
                 drawVerticalLine: false,
-                getDrawingHorizontalLine: (v) => const FlLine(
-                  color: AppColors.divider,
-                  strokeWidth: 1,
-                ),
+                getDrawingHorizontalLine: (v) => FlLine(color: Colors.grey.shade300, strokeWidth: 0.8),
               ),
               borderData: FlBorderData(show: false),
               lineTouchData: LineTouchData(
                 handleBuiltInTouches: true,
                 touchTooltipData: LineTouchTooltipData(
-                  getTooltipColor: (_) => AppColors.textPrimary,
                   getTooltipItems: (spots) => spots.map((spot) {
                     final idx = spot.x.toInt();
-                    final label =
-                        idx >= 0 && idx < labels.length ? labels[idx] : "";
-                    return LineTooltipItem(
-                      "$label\n${spot.y.toInt()}",
-                      AppTextStyles.captionMedium.copyWith(
-                        // AUDIT FIX: the tooltip drew BLACK text, and fl_chart's
-                        // default tooltip background is a dark grey — black on
-                        // dark grey was effectively unreadable.
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    );
+                    final label = idx >= 0 && idx < labels.length ? labels[idx] : "";
+                    return LineTooltipItem("$label\n${spot.y.toInt()}",
+                        const TextStyle(color: Colors.black, fontWeight: FontWeight.bold));
                   }).toList(),
                 ),
               ),
@@ -2754,14 +2375,4 @@ class _StatsPageState extends State<StatsPage>
       ),
     );
   }
-}
-
-/// Carries user-facing copy for a failed statistics load, so a status code or
-/// a stack trace never reaches the screen.
-class StatsException implements Exception {
-  final String message;
-  const StatsException(this.message);
-
-  @override
-  String toString() => message;
 }
