@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'SignUp.dart';
 import 'HomeScreen.dart';
 import 'new_screens/forget_password_screen.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class Login extends StatefulWidget {
   const Login({Key? key}) : super(key: key);
@@ -33,7 +34,7 @@ class _LoginState extends State<Login> {
   void _loadSavedCredentials() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _emailC.text = prefs.getString('email') ?? '';
+      _emailC.text = prefs.getString('rememberedEmail') ?? '';
       _passwordC.text = prefs.getString('savedPassword') ?? '';
       _rememberMe = _emailC.text.isNotEmpty && _passwordC.text.isNotEmpty;
     });
@@ -60,7 +61,7 @@ class _LoginState extends State<Login> {
 
     setState(() => _isLoading = true);
 
-    final url = Uri.parse('https://happywedz.com/api/vendor/login');
+    final url = Uri.parse('${ApiConfig.baseUrl}/vendor/login');
     final body = {
       "email": _emailC.text.trim(),
       "password": _passwordC.text.trim(),
@@ -95,15 +96,17 @@ class _LoginState extends State<Login> {
         await prefs.setInt('vendorTypeId', vendorData['vendor_type_id']);
         await prefs.setString('businessName', vendorData['businessName'] ?? "");
         // ================= REMEMBER ME =================
+        // (controls login-form autofill only, not the profile email below)
         if (_rememberMe) {
-          await prefs.setString('email', _emailC.text.trim());
+          await prefs.setString('rememberedEmail', _emailC.text.trim());
           await prefs.setString('savedPassword', _passwordC.text.trim());
         } else {
-          await prefs.remove('email');
+          await prefs.remove('rememberedEmail');
           await prefs.remove('savedPassword');
         }
 
-        // await prefs.setString('email', vendorData['email'] ?? "");
+        // ✅ Always store the vendor's actual profile email (used in drawer, etc.)
+        await prefs.setString('email', vendorData['email'] ?? _emailC.text.trim());
         await prefs.setString('phone', vendorData['phone'] ?? "");
         await prefs.setString('profileImage', vendorData['profileImage'] ?? "");
         await prefs.setBool(
@@ -115,7 +118,7 @@ class _LoginState extends State<Login> {
         try {
           final typeRes = await http.get(
             Uri.parse(
-              'https://happywedz.com/api/vendor-types/${vendorData['vendor_type_id']}',
+              '${ApiConfig.baseUrl}/vendor-types/${vendorData['vendor_type_id']}',
             ),
           );
           if (typeRes.statusCode == 200) {
@@ -139,20 +142,46 @@ class _LoginState extends State<Login> {
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       } else {
-        _showSnack(data["message"] ?? "Login failed");
+        _showSnack(data["message"] ?? "Login failed", isError: true);
       }
     } catch (e) {
       print("❌ Login error: $e");
-      _showSnack("An error occurred. Please try again.");
+      _showSnack("An error occurred. Please try again.", isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  void _showSnack(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  void _showSnack(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor:
+        isError ? const Color(0xFFD32F2F) : const Color(0xFF00509D),
+        behavior: SnackBarBehavior.floating,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   String? _validateEmail(String? value) {
@@ -263,7 +292,7 @@ class _LoginState extends State<Login> {
                                     if (!_rememberMe) {
                                       // ❌ If unchecked → clear saved password
                                       await prefs.remove('savedPassword');
-                                      await prefs.remove('email');
+                                      await prefs.remove('rememberedEmail');
                                     }
                                   },
                                 ),

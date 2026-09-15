@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 
 
@@ -94,7 +95,7 @@ class ProfileCompletionService {
     }
 
     final url = Uri.parse(
-      "https://happywedz.com/api/vendor-services/$serviceId/storefront-completion",
+      "${ApiConfig.baseUrl}/vendor-services/$serviceId/storefront-completion",
     );
 
     final response = await http.get(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class SocialNetworkPage extends StatefulWidget {
   const SocialNetworkPage({super.key});
@@ -52,7 +53,7 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
 
     try {
       final response = await http.get(
-        Uri.parse("https://happywedz.com/api/vendor/$vendorId"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor/$vendorId"),
         headers: {
           "Authorization": "Bearer $token",
         },
@@ -119,7 +120,7 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
 
     try {
       final response = await http.put(
-        Uri.parse("https://happywedz.com/api/vendor/$vendorId"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor/$vendorId"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",

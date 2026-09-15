@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../api_services/storefront_completion_service.dart';
 import '../../utils/common_app_bar.dart';
 import 'storefront_percentage_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 // ===== MODEL =====
 class VendorQuestion {
@@ -468,7 +469,7 @@ class _WeddingDjScreenState extends State<WeddingDjScreen> {
 
     try {
       final res = await http.get(
-        Uri.parse("https://happywedz.com/api/faq-answers/$vendorId"),
+        Uri.parse("${ApiConfig.baseUrl}/faq-answers/$vendorId"),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
@@ -584,7 +585,7 @@ class _WeddingDjScreenState extends State<WeddingDjScreen> {
     }
 
     await http.post(
-      Uri.parse("https://happywedz.com/api/faq-answers/save"),
+      Uri.parse("${ApiConfig.baseUrl}/faq-answers/save"),
       headers: {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",

@@ -1,14 +1,19 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
 import '../api_services/api_service_vendor.dart';
+import '../widgets/app_shimmer.dart';
 
 class LocationPage extends StatefulWidget {
+  const LocationPage({super.key});
+
   @override
   State<LocationPage> createState() => _LocationPageState();
 }
@@ -18,12 +23,19 @@ class _LocationPageState extends State<LocationPage> {
   final addressController = TextEditingController();
   final stateController = TextEditingController();
   final pincodeController = TextEditingController();
- // final landmarkController = TextEditingController();
+  final landmarkController = TextEditingController();
   final latitudeController = TextEditingController();
   final longitudeController = TextEditingController();
 
+  /// The website keeps these two alongside the address, and mirrors them into
+  /// `venue_master.identity` for venues. They were missing here entirely.
+  final exactLocationController = TextEditingController();
+  final mapPinController = TextEditingController();
+
   // ---------------- Location ----------------
-  LatLng selectedLocation = LatLng(20.5937, 78.9629);
+  /// Centre of India — the fallback until the vendor's saved coordinates load.
+  static const LatLng _indiaCentre = LatLng(20.5937, 78.9629);
+  LatLng selectedLocation = _indiaCentre;
 
   // ---------------- Country / City ----------------
   List<String> countries = [];
@@ -46,7 +58,50 @@ class _LocationPageState extends State<LocationPage> {
   Map<String, dynamic> currentAttributes = {};
 
   final VendorServiceApi _vendorApi = VendorServiceApi();
-  final MapController _mapController = MapController();
+
+  /// AUDIT NOTE (resolved): this used to be a flutter_map `MapController` that
+  /// was never attached to anything. It is now the live GoogleMap handle and is
+  /// used by `_recentreMap` to re-centre on the vendor's saved coordinates once
+  /// they arrive — the behaviour the old note said the screen should have.
+  GoogleMapController? _mapController;
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  /// `attributes.venue_master.identity`, or an empty map when this vendor is
+  /// not a venue.
+  Map<String, dynamic> _venueIdentity() {
+    final vm = currentAttributes['venue_master'];
+    if (vm is Map && vm['identity'] is Map) {
+      return Map<String, dynamic>.from(vm['identity'] as Map);
+    }
+    return {};
+  }
+
+  /// Keeps the map link in step with the pin, the way the website does when a
+  /// marker is dragged or a search result is picked.
+  void _applyPin(LatLng p) {
+    setState(() {
+      selectedLocation = p;
+      latitudeController.text = p.latitude.toString();
+      longitudeController.text = p.longitude.toString();
+      mapPinController.text =
+          'https://www.google.com/maps?q=${p.latitude},${p.longitude}';
+    });
+  }
+
+  /// Moves the camera onto [selectedLocation]. Safe to call before the map has
+  /// been created — `onMapCreated` calls it again once the controller exists.
+  void _recentreMap({double zoom = 14}) {
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: selectedLocation, zoom: zoom),
+      ),
+    );
+  }
 
   // ================= INIT =================
   @override
@@ -65,7 +120,7 @@ class _LocationPageState extends State<LocationPage> {
     serviceId = prefs.getInt('serviceId');
     token = prefs.getString('token');
 
-    print("🔍 vendorId=$vendorId, subCat=$vendorSubcategoryId, serviceId=$serviceId");
+    debugPrint("🔍 vendorId=$vendorId, subCat=$vendorSubcategoryId, serviceId=$serviceId");
 
     if (vendorId != null && token != null) {
       await _ensureServiceId();
@@ -213,18 +268,32 @@ class _LocationPageState extends State<LocationPage> {
       stateController.text = location['state'] ?? '';
       pincodeController.text = location['pincode'] ?? '';
 
-     // landmarkController.text = currentAttributes['landmark'] ?? '';
+      landmarkController.text =
+          (location['landmark'] ?? currentAttributes['landmark'] ?? '').toString();
+
+      // Same fallback chain the website uses: the location object first, then
+      // the venue master's identity block.
+      final identity = _venueIdentity();
+      exactLocationController.text = (location['exact_location_text'] ??
+              identity['exact_location_text'] ??
+              '')
+          .toString();
+      mapPinController.text =
+          (location['map_pin_url'] ?? identity['map_pin_url'] ?? '').toString();
+
       latitudeController.text = currentAttributes['latitude'] ?? '';
       longitudeController.text = currentAttributes['longitude'] ?? '';
 
-      if (latitudeController.text.isNotEmpty &&
-          longitudeController.text.isNotEmpty) {
-        selectedLocation = LatLng(
-          double.parse(latitudeController.text),
-          double.parse(longitudeController.text),
-        );
+      final lat = double.tryParse(latitudeController.text);
+      final lng = double.tryParse(longitudeController.text);
+      if (lat != null && lng != null) {
+        selectedLocation = LatLng(lat, lng);
       }
     });
+
+    // The camera is only seeded from `initialCameraPosition` at creation time,
+    // so the saved pin has to be pushed to the map explicitly when it arrives.
+    _recentreMap();
 
     if (selectedCountry != null) {
       fetchCities(selectedCountry!);
@@ -296,16 +365,40 @@ class _LocationPageState extends State<LocationPage> {
       Map<String, dynamic>.from(latest?['attributes'] ?? {});
 
       // 🔥 location object (IMPORTANT)
-      currentAttributes['location'] = {
+      // Merged, not replaced: this used to assign a fresh map holding only
+      // state and pincode, which wiped every other key the website keeps in
+      // here (address, city, country, exact_location_text, map_pin_url).
+      final location =
+          Map<String, dynamic>.from(currentAttributes['location'] ?? {});
+      location.addAll({
+        "address": addressController.text.trim(),
+        "city": selectedCity,
+        "country": selectedCountry,
         "state": stateController.text.trim(),
         "pincode": pincodeController.text.trim(),
-      };
+        "landmark": landmarkController.text.trim(),
+        "exact_location_text": exactLocationController.text.trim(),
+        "map_pin_url": mapPinController.text.trim(),
+      });
+      currentAttributes['location'] = location;
+
+      // Venues keep a second copy under the venue master's identity block;
+      // the website writes both, so a venue edited here stays in step.
+      final venueMaster = currentAttributes['venue_master'];
+      if (venueMaster is Map) {
+        final vm = Map<String, dynamic>.from(venueMaster);
+        final identity = Map<String, dynamic>.from(vm['identity'] ?? {});
+        identity['exact_location_text'] = exactLocationController.text.trim();
+        identity['map_pin_url'] = mapPinController.text.trim();
+        vm['identity'] = identity;
+        currentAttributes['venue_master'] = vm;
+      }
 
       currentAttributes.addAll({
         "address": addressController.text.trim(),
         "city": selectedCity,
         "country": selectedCountry,
-       // "landmark": landmarkController.text.trim(),
+        "landmark": landmarkController.text.trim(),
         "latitude": latitudeController.text.trim(),
         "longitude": longitudeController.text.trim(),
       });
@@ -325,12 +418,16 @@ class _LocationPageState extends State<LocationPage> {
         await StorefrontCompletionService.refreshCompletion(
           serviceId: serviceId!,
         );
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Location saved successfully")),
         );
       }
     } catch (e) {
-      print("❌ Save error: $e");
+      debugPrint("❌ Save error: $e");
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to save location")),
       );
@@ -433,7 +530,7 @@ class _LocationPageState extends State<LocationPage> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Location & Service Areas"),
       body: loadingVendorData
-          ? Center(child: CircularProgressIndicator())
+          ? const FormShimmer(fields: 4)
           : Column(
             children: [
               Expanded(
@@ -451,7 +548,28 @@ class _LocationPageState extends State<LocationPage> {
                   field("State", stateController, required: true),
                   field("Pincode", pincodeController,
                       required: true, type: TextInputType.number),
-                 // field("Landmark", landmarkController),
+                  field("Landmark", landmarkController),
+                  field("Exact location (text)", exactLocationController),
+                  field("Google Map link / pin URL", mapPinController),
+                  if (mapPinController.text.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            final uri =
+                                Uri.tryParse(mapPinController.text.trim());
+                            if (uri != null) {
+                              await launchUrl(uri,
+                                  mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_new, size: 16),
+                          label: const Text('Open map link'),
+                        ),
+                      ),
+                    ),
                   field("Latitude", latitudeController,
                       type: TextInputType.number),
                   field("Longitude", longitudeController,
@@ -459,34 +577,36 @@ class _LocationPageState extends State<LocationPage> {
                   SizedBox(height: 10),
                   SizedBox(
                     height: 250,
-                    child: FlutterMap(
-                      options: MapOptions(
-                        initialCenter: selectedLocation,
-                        initialZoom: 5,
-                        onTap: (_, p) {
-                          setState(() {
-                            selectedLocation = p;
-                            latitudeController.text =
-                                p.latitude.toString();
-                            longitudeController.text =
-                                p.longitude.toString();
-                          });
-                        },
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: selectedLocation,
+                        // Country-wide until a real pin is known, then
+                        // `_recentreMap` zooms in on it.
+                        zoom: selectedLocation == _indiaCentre ? 5 : 14,
                       ),
-                      children: [
-                        TileLayer(
-                          urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                          userAgentPackageName: 'com.happy.happy_weds_vendors',
-                          //userAgentPackageName: 'com.happy.happy_weds_vendors',
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                        if (selectedLocation != _indiaCentre) _recentreMap();
+                      },
+                      onTap: _applyPin,
+                      markers: {
+                        Marker(
+                          markerId: const MarkerId('selected-location'),
+                          position: selectedLocation,
+                          draggable: true,
+                          onDragEnd: _applyPin,
                         ),
-                        MarkerLayer(markers: [
-                          Marker(
-                            point: selectedLocation,
-                            child: Icon(Icons.location_pin,
-                                color: Colors.red, size: 40),
-                          )
-                        ])
-                      ],
+                      },
+                      // The map sits inside a SingleChildScrollView; without
+                      // this the parent steals the vertical drag and the map
+                      // cannot be panned.
+                      gestureRecognizers: {
+                        Factory<OneSequenceGestureRecognizer>(
+                          EagerGestureRecognizer.new,
+                        ),
+                      },
+                      myLocationButtonEnabled: false,
+                      zoomControlsEnabled: false,
                     ),
                   ),
                   SizedBox(height: 20),

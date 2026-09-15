@@ -66,7 +66,7 @@
 //         });
 //       }
 //     } catch (e) {
-//       print("❌ Error loading data: $e");
+//       debugPrint("❌ Error loading data: $e");
 //     }
 //   }
 //
@@ -109,7 +109,7 @@
 //             .showSnackBar(SnackBar(content: Text("Update failed")));
 //       }
 //     } catch (e) {
-//       print("❌ Error: $e");
+//       debugPrint("❌ Error: $e");
 //     }
 //   }
 //
@@ -182,7 +182,7 @@
 //             .showSnackBar(SnackBar(content: Text("Password update failed")));
 //       }
 //     } catch (e) {
-//       print("❌ ERROR: $e");
+//       debugPrint("❌ ERROR: $e");
 //     }
 //   }
 //
@@ -370,17 +370,34 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../Screens/ViewPlanScreen.dart';
+import '../api_services/vendor_access_api.dart';
+import '../api_services/vendor_verification_api.dart';
+import '../providers/vendor_access_provider.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_shimmer.dart';
+import '../widgets/verification_status_banner.dart';
+import 'kyc_documents_section.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
-class BusinessDetailsPage extends StatefulWidget {
+class BusinessDetailsPage extends ConsumerStatefulWidget {
+  const BusinessDetailsPage({super.key});
+
   @override
+  /// AUDIT NOTE: `createState` returning the private State type is the
+  /// pattern Flutter's own `flutter create` template uses. Making the State
+  /// public purely to satisfy `library_private_types_in_public_api` would be
+  /// a wider refactor than this audit's brief allows, so the lint is silenced
+  /// locally with this note rather than left as unexplained noise.
+  // ignore: library_private_types_in_public_api
   _BusinessDetailsPageState createState() => _BusinessDetailsPageState();
 }
 
-class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
+class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
   TextEditingController businessName = TextEditingController();
   TextEditingController email = TextEditingController();
   TextEditingController phone = TextEditingController();
@@ -402,53 +419,219 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
   bool isSaving = false;
   bool isLoading = true;
 
+  // ---------------- KYC / VERIFICATION STATE ----------------
+  final VendorVerificationApi _verificationApi = VendorVerificationApi();
+  VendorAccess? _access;
+  Map<String, dynamic> _existingDocs = {};
+  File? _aadhaar;
+  File? _pan;
+  List<BusinessDocEntry> _businessDocs = [BusinessDocEntry()];
+  Map<String, String> _kycErrors = {};
+  bool _submittingVerification = false;
+
+  bool get _isUnderReview => _access?.stage == 'kyc_pending';
+  bool get _needsVerification => _access?.canSubmitVerification ?? false;
+
+  /// Lets the verification banner's button scroll to the documents section.
+  final GlobalKey _kycSectionKey = GlobalKey();
+
+  /// What the banner's button does, by stage. Verification stages have nothing
+  /// to navigate to — the vendor is already on the right screen — so those
+  /// scroll to the upload section instead; everything else is a plan problem.
+  void _handleBannerAction() {
+    final stage = _access?.stage;
+
+    if (stage == 'kyc_required' || stage == 'kyc_rejected') {
+      final target = _kycSectionKey.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+          alignment: 0.1,
+        );
+      }
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ViewPlansScreen()),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     loadData();
-    _loadBusinessDetails();
-
+    _loadVerificationStatus();
   }
 
-  // ---------------- LOAD DATA ----------------
-  Future<void> loadData() async {
+  Future<void> _loadVerificationStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    final vendorId = prefs.getInt("vendorId");
-    final token = prefs.getString("token");
+    final token = prefs.getString('token');
+    if (token == null) return;
 
-    if (vendorId == null || token == null) return;
+    final data = await _verificationApi.getStatus(token);
+    if (!mounted) return;
 
-    final response = await http.get(
-      Uri.parse("https://happywedz.com/api/vendor/$vendorId"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final access = data['access'] as Map<String, dynamic>?;
+    final documents = List<dynamic>.from(data['documents'] ?? const []);
+    final grouped = <String, dynamic>{'business': <dynamic>[]};
+    for (final doc in documents) {
+      if (doc['doc_type'] == 'business') {
+        (grouped['business'] as List).add(doc);
+      } else {
+        grouped[doc['doc_type']] = doc;
+      }
+    }
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
+    setState(() {
+      _access = access != null ? VendorAccess.fromJson(access) : null;
+      _existingDocs = grouped;
+    });
+  }
+
+  /// Returns field -> message; empty when the submission is valid.
+  Map<String, String> _validateKyc() {
+    final errors = <String, String>{};
+    final filled = _businessDocs.where((d) => d.file != null || d.label.trim().isNotEmpty).toList();
+
+    if (_aadhaar == null && _existingDocs['aadhaar'] == null) {
+      errors['aadhaar'] = 'Please upload your Aadhaar card.';
+    }
+    if (_pan == null && _existingDocs['pan'] == null) {
+      errors['pan'] = 'Please upload your PAN card.';
+    }
+
+    final hasExistingBusiness = (_existingDocs['business'] as List? ?? const []).isNotEmpty;
+    if (filled.isEmpty && !hasExistingBusiness) {
+      errors['businessDocs'] = 'Please add at least one business document.';
+    }
+
+    for (int i = 0; i < _businessDocs.length; i++) {
+      final doc = _businessDocs[i];
+      final hasLabel = doc.label.trim().isNotEmpty;
+      final hasFile = doc.file != null;
+      if (hasFile && !hasLabel) errors['businessDocLabel-$i'] = 'Give this document a name.';
+      if (hasLabel && !hasFile) errors['businessDocFile-$i'] = 'Choose a file for this document.';
+    }
+
+    return errors;
+  }
+
+  Future<void> _submitVerification() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) return;
+    if (!mounted) return;
+
+    final requiredFieldErrors = <String, String>{};
+    if (businessName.text.trim().isEmpty) requiredFieldErrors['businessName'] = 'This field is required';
+    if (email.text.trim().isEmpty) requiredFieldErrors['email'] = 'This field is required';
+    if (phone.text.trim().isEmpty) requiredFieldErrors['phone'] = 'This field is required';
+    if (city.text.trim().isEmpty) requiredFieldErrors['city'] = 'This field is required';
+
+    final docErrors = _validateKyc();
+
+    if (requiredFieldErrors.isNotEmpty || docErrors.isNotEmpty) {
+      setState(() => _kycErrors = docErrors);
+      final first = requiredFieldErrors.values.isNotEmpty
+          ? requiredFieldErrors.values.first
+          : docErrors.values.first;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(first)));
+      return;
+    }
+
+    setState(() => _submittingVerification = true);
+
+    try {
+      final labeledDocs = _businessDocs
+          .where((d) => d.file != null && d.label.trim().isNotEmpty)
+          .map((d) => LabeledDocument(label: d.label.trim(), file: d.file!))
+          .toList();
+
+      final data = await _verificationApi.submit(
+        token: token,
+        fields: {
+          'businessName': businessName.text.trim(),
+          'phone': phone.text.trim(),
+          'city': city.text.trim(),
+          'state': stateCtrl.text.trim(),
+          'zip': zip.text.trim(),
+          'firstName': firstName.text.trim(),
+          'lastName': lastName.text.trim(),
+          'website': website.text.trim(),
+        },
+        aadhaar: _aadhaar,
+        pan: _pan,
+        businessDocs: labeledDocs,
+      );
+
+      if (!mounted) return;
       setState(() {
-        businessName.text = data["businessName"] ?? "";
-        email.text = data["email"] ?? "";
-        phone.text = data["phone"] ?? "";
-        city.text = data["city"] ?? "";
-        stateCtrl.text = data["state"] ?? "";
-        zip.text = data["zip"] ?? "";
-        website.text = data["website"] ?? "";
-        yearsInBusi.text = data["years_in_business"]?.toString() ?? "";
-        firstName.text = data["firstName"] ?? "";
-        lastName.text = data["lastName"] ?? "";
-        profileImageUrl = data["profileImage"];
+        _aadhaar = null;
+        _pan = null;
+        _businessDocs = [BusinessDocEntry()];
+        _kycErrors = {};
       });
+
+      await _loadVerificationStatus();
+      ref.invalidate(vendorAccessProvider);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(data['message'] ?? 'Documents submitted for verification')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _submittingVerification = false);
     }
   }
 
+  // ---------------- LOAD DATA ----------------
+  /// Drives `isLoading`, and so the skeleton, off the real request. It used to
+  /// be a fixed one-second `Future.delayed`, which meant the page revealed
+  /// itself on a timer whether or not the vendor's details had arrived.
+  Future<void> loadData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final vendorId = prefs.getInt("vendorId");
+      final token = prefs.getString("token");
 
-  Future<void> _loadBusinessDetails() async {
-    setState(() => isLoading = true);
+      if (vendorId == null || token == null) return;
 
-    // 🔹 fetch data here
-    await Future.delayed(const Duration(seconds: 1)); // example
+      final response = await http.get(
+        Uri.parse("${ApiConfig.baseUrl}/vendor/$vendorId"),
+        headers: {"Authorization": "Bearer $token"},
+      );
 
-    setState(() => isLoading = false);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (!mounted) return;
+        setState(() {
+          businessName.text = data["businessName"] ?? "";
+          email.text = data["email"] ?? "";
+          phone.text = data["phone"] ?? "";
+          city.text = data["city"] ?? "";
+          stateCtrl.text = data["state"] ?? "";
+          zip.text = data["zip"] ?? "";
+          website.text = data["website"] ?? "";
+          yearsInBusi.text = data["years_in_business"]?.toString() ?? "";
+          firstName.text = data["firstName"] ?? "";
+          lastName.text = data["lastName"] ?? "";
+          profileImageUrl = data["profileImage"];
+        });
+      }
+    } catch (e) {
+      debugPrint("❌ Business details load failed: $e");
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
   }
 
   // ---------------- PICK IMAGE ----------------
@@ -473,7 +656,7 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
 
     final request = http.MultipartRequest(
       "PUT",
-      Uri.parse("https://happywedz.com/api/vendor/$vendorId"),
+      Uri.parse("${ApiConfig.baseUrl}/vendor/$vendorId"),
     );
 
     request.headers["Authorization"] = "Bearer $token";
@@ -517,11 +700,15 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
         profileImage = null;
       });
 
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Profile Updated Successfully")),
       );
     } else {
       debugPrint(res.body);
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Update Failed")),
       );
@@ -537,7 +724,7 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
     if (vendorId == null || token == null) return;
 
     final response = await http.post(
-      Uri.parse("https://happywedz.com/api/vendor/change-password"),
+      Uri.parse("${ApiConfig.baseUrl}/vendor/change-password"),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $token",
@@ -550,6 +737,8 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
     );
 
     if (response.statusCode == 200) {
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Password Updated Successfully")),
       );
@@ -601,11 +790,7 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
       backgroundColor: Color(0xffF2F2F2),
       appBar: CommonAppBar(title: 'Business Details'),
       body:isLoading
-          ? const Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 3,
-        ),
-      )
+          ? const FormShimmer(fields: 8, avatarHeader: true)
           :
 
 
@@ -630,6 +815,10 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      VerificationStatusBanner(
+                        access: _access,
+                        onAction: _handleBannerAction,
+                      ),
                       Row(
                         children: [
                           CircleAvatar(
@@ -666,6 +855,20 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
                       field("Years in Business", yearsInBusi),
                       field("First Name", firstName),
                       field("Last Name", lastName),
+
+                      if (_access != null && _access!.verificationStatus != 'approved')
+                        KycDocumentsSection(
+                          key: _kycSectionKey,
+                          aadhaar: _aadhaar,
+                          pan: _pan,
+                          businessDocs: _businessDocs,
+                          existing: _existingDocs,
+                          errors: _kycErrors,
+                          disabled: _isUnderReview || _submittingVerification,
+                          onAadhaarChange: (f) => setState(() => _aadhaar = f),
+                          onPanChange: (f) => setState(() => _pan = f),
+                          onBusinessDocsChange: (docs) => setState(() => _businessDocs = docs),
+                        ),
 
                       SizedBox(height: 10),
 
@@ -733,17 +936,26 @@ class _BusinessDetailsPageState extends State<BusinessDetailsPage> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isSaving ? null : saveData,
+                // One button, three meanings: while onboarding is outstanding,
+                // saving business fields and submitting for verification are
+                // the same action from the vendor's point of view.
+                onPressed: _isUnderReview
+                    ? null
+                    : (isSaving || _submittingVerification)
+                        ? null
+                        : (_needsVerification ? _submitVerification : saveData),
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(vertical: 14),
                   backgroundColor: Color(0xFF00509D),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15)),
                 ),
-                child: isSaving
+                child: (isSaving || _submittingVerification)
                     ? CircularProgressIndicator(color: Colors.white)
                     : Text(
-                  "Save Business Details",
+                  _isUnderReview
+                      ? "Under review"
+                      : (_needsVerification ? "Submit for verification" : "Save Business Details"),
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,

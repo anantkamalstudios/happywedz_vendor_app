@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../chat_screen/chat_screenn.dart';
 import '../../utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class LeadDetailScreen extends StatefulWidget {
   final dynamic lead;
@@ -82,7 +84,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
         return;
       }
 
-      final url = Uri.parse("https://happywedz.com/api/inbox/request/$leadId/status");
+      final url = Uri.parse("${ApiConfig.baseUrl}/inbox/request/$leadId/status");
       print("🟢 PATCH -> $url");
 
       final body = jsonEncode({"newStatus": newStatus.toLowerCase()});
@@ -137,7 +139,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
 
 
       final url = Uri.parse(
-        "https://happywedz.com/api/request-pricing/vendor/quotation-history?userId=$userId",
+        "${ApiConfig.baseUrl}/request-pricing/vendor/quotation-history?userId=$userId",
       );
 
       final response = await http.get(
@@ -179,7 +181,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
         return;
       }
 
-      final url = Uri.parse("https://happywedz.com/api/request-pricing/requests/$leadId/quotation");
+      final url = Uri.parse("${ApiConfig.baseUrl}/request-pricing/requests/$leadId/quotation");
 
       final servicesList = services
           .split(',')
@@ -241,6 +243,14 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       setState(() => _isLoading = false);
     }
   }
+
+  String _formatDateTime(dynamic rawDate) {
+    if (rawDate == null) return 'N/A';
+    final parsed = DateTime.tryParse(rawDate.toString());
+    if (parsed == null) return rawDate.toString();
+    return DateFormat('dd MMM yyyy, hh:mm a').format(parsed.toLocal());
+  }
+
   @override
   Widget build(BuildContext context) {
     final lead = widget.lead;
@@ -249,7 +259,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
     final email = lead['email'] ?? 'N/A';
     final phone = lead['phone'] ?? lead['phoneNumber'] ?? 'N/A';
     final eventDate = lead['eventDate'] ?? 'N/A';
-    final receivedDate = lead['createdAt'] ?? 'N/A';
+    final receivedDate = _formatDateTime(lead['createdAt']);
     final message = lead['message'] ?? 'No message';
 
     Color statusColor = _getStatusColor(currentStatus);

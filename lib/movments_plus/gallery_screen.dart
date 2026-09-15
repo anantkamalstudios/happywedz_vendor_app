@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 /// ================= EVENT MODEL =================
 class EventModel {
@@ -80,7 +81,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     final token = await _getToken();
 
     final res = await http.get(
-      Uri.parse('https://happywedz.com/api/events'),
+      Uri.parse('${ApiConfig.baseUrl}/events'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -104,7 +105,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     final token = await _getToken();
 
     final res = await http.get(
-      Uri.parse('https://happywedz.com/api/media?event_id=$eventId'),
+      Uri.parse('${ApiConfig.baseUrl}/media?event_id=$eventId'),
       headers: {'Authorization': 'Bearer $token'},
     );
 

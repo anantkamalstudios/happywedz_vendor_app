@@ -1571,6 +1571,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'new_screens/leads_list_stats.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({Key? key}) : super(key: key);
@@ -1938,7 +1939,7 @@ class _StatsPageState extends State<StatsPage>
       }
 
       final leadRes = await http.get(
-        Uri.parse("https://happywedz.com/api/request-pricing/vendor/dashboard"),
+        Uri.parse("${ApiConfig.baseUrl}/request-pricing/vendor/dashboard"),
         headers: {"Authorization": "Bearer $token"},
       );
       if (leadRes.statusCode == 200) {
@@ -1947,7 +1948,7 @@ class _StatsPageState extends State<StatsPage>
 
       if (vendorId != null) {
         final pvRes = await http.get(
-          Uri.parse("https://happywedz.com/api/vendor/profile-views/$vendorId"),
+          Uri.parse("${ApiConfig.baseUrl}/vendor/profile-views/$vendorId"),
           headers: {"Authorization": "Bearer $token"},
         );
         if (pvRes.statusCode == 200) {
@@ -1959,7 +1960,7 @@ class _StatsPageState extends State<StatsPage>
         }
 
         final impRes = await http.get(
-          Uri.parse("https://happywedz.com/api/wishlist/vendor/stats/$vendorId"),
+          Uri.parse("${ApiConfig.baseUrl}/wishlist/vendor/stats/$vendorId"),
           headers: {"Authorization": "Bearer $token"},
         );
         if (impRes.statusCode == 200) {

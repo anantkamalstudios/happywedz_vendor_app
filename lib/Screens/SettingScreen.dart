@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -54,7 +55,7 @@ class SettingsPage extends StatelessWidget {
       return;
     }
 
-    final url = Uri.parse("https://happywedz.com/api/vendor/change-password");
+    final url = Uri.parse("${ApiConfig.baseUrl}/vendor/change-password");
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("authToken") ?? "";

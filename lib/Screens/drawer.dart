@@ -8,8 +8,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../Storefront/StoreFront.dart';
-import '../movments_plus/bottom_bar.dart';
+// import '../movments_plus/bottom_bar.dart';
 import 'Login.dart';
+import 'subscription_history_screen.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class BusinessDrawer extends StatefulWidget {
   const BusinessDrawer({Key? key}) : super(key: key);
@@ -275,23 +277,37 @@ Future<void> _loadVendorId() async {
                       );
                     },
                   ),
-                  if (isPhotographer)
-                    ListTile(
-                      leading: const Icon(
-                        Icons.auto_awesome,
-                        color: Color(0xFF4682B4),
-                      ),
-                      title: const Text("Moments+"),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MainHomeScreen(),
-                          ),
-                        );
-                      },
-                    ),
+                  ListTile(
+                    leading: const Icon(Icons.credit_card_outlined,
+                        color: Color(0xFF4682B4)),
+                    title: const Text("Payments & Subscription"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SubscriptionHistoryScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  // if (isPhotographer)
+                  //   ListTile(
+                  //     leading: const Icon(
+                  //       Icons.auto_awesome,
+                  //       color: Color(0xFF4682B4),
+                  //     ),
+                  //     title: const Text("Moments+"),
+                  //     onTap: () {
+                  //       Navigator.pop(context);
+                  //       Navigator.push(
+                  //         context,
+                  //         MaterialPageRoute(
+                  //           builder: (_) => const MainHomeScreen(),
+                  //         ),
+                  //       );
+                  //     },
+                  //   ),
                   ListTile(
                     leading: const Icon(
                       Icons.reviews,
@@ -399,7 +415,7 @@ Future<void> _loadVendorId() async {
                 // 🔐 Check if Remember Me was enabled
                 final rememberMe =
                     prefs.getString('savedPassword') != null &&
-                        prefs.getString('email') != null;
+                        prefs.getString('rememberedEmail') != null;
 
                 // ❌ Clear session data only
                 await prefs.remove('isLoggedIn');
@@ -412,10 +428,11 @@ Future<void> _loadVendorId() async {
                 await prefs.remove('profileImage');
                 await prefs.remove('profileCompleted');
                 await prefs.remove('vendorTypeName');
+                await prefs.remove('email');
 
-                // ❌ Clear credentials ONLY if remember me was OFF
+                // ❌ Clear remembered login credentials ONLY if remember me was OFF
                 if (!rememberMe) {
-                  await prefs.remove('email');
+                  await prefs.remove('rememberedEmail');
                   await prefs.remove('savedPassword');
                 }
 
@@ -460,7 +477,7 @@ Future<void> _loadVendorId() async {
 
     final res = await http.get(
       Uri.parse(
-          "https://happywedz.com/api/vendor-services/vendor/$vendorId"),
+          "${ApiConfig.baseUrl}/vendor-services/vendor/$vendorId"),
       headers: {
         "Authorization": "Bearer $token",
       },
@@ -489,7 +506,7 @@ Future<void> _loadVendorId() async {
     setState(() {
       loadingLink = false;
       reviewLink = serviceId != null
-          ? "https://happywedz.com/write-review/$serviceId"
+          ? "${ApiConfig.websiteUrl}/write-review/$serviceId"
           : null;
     });
   }

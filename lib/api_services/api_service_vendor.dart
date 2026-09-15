@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class VendorServiceApi {
-  final String baseUrl = "https://happywedz.com/api";
+  final String baseUrl = ApiConfig.baseUrl;
 
   Future<int?> getServiceIdByVendorId({
     required int vendorId,

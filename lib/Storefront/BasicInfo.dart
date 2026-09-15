@@ -5,10 +5,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class BasicInfoPage extends StatefulWidget {
   @override
   _BasicInfoPageState createState() => _BasicInfoPageState();
+}
+
+String stripHtmlTags(String value) {
+  return value
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<[^>]*>'), '')
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .trim();
 }
 
 class _BasicInfoPageState extends State<BasicInfoPage> {
@@ -82,7 +96,7 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
       currentAttributes = Map<String, dynamic>.from(data["attributes"] ?? {});
 
       businessNameController.text = currentAttributes["name"] ?? "";
-      aboutController.text = currentAttributes["about_us"] ?? "";
+      aboutController.text = stripHtmlTags(currentAttributes["about_us"] ?? "");
 
       vendorSubcategoryId = data["vendor_subcategory_id"];
       if (vendorSubcategoryId != null) {
@@ -104,7 +118,7 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
     print("Fetching vendor data from API...");
     try {
       final response = await http.get(
-        Uri.parse('https://happywedz.com/api/vendor/$vendorId'),
+        Uri.parse('${ApiConfig.baseUrl}/vendor/$vendorId'),
         headers: {"Authorization": "Bearer $token"},
       );
 
@@ -136,7 +150,7 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
     try {
       final response = await http.get(
         Uri.parse(
-          'https://happywedz.com/api/vendor-types/with-subcategories/all',
+          '${ApiConfig.baseUrl}/vendor-types/with-subcategories/all',
         ),
       );
 

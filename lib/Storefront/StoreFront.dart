@@ -78,11 +78,11 @@
 //           isLoading = false;
 //         });
 //       } else {
-//         print("Error Fetching");
+//         debugPrint("Error Fetching");
 //         setState(() => isLoading = false);
 //       }
 //     } catch (e) {
-//       print("Error Fetching");
+//       debugPrint("Error Fetching");
 //       setState(() => isLoading = false);
 //     }
 //   }
@@ -154,7 +154,7 @@
 //   Widget build(BuildContext context) {
 //     if (isLoading) {
 //       return const Scaffold(
-//         body: Center(child: CircularProgressIndicator()),
+//         body: const Center(child: CircularProgressIndicator()),
 //       );
 //     }
 //
@@ -280,8 +280,14 @@
 // }
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../auth/auth_guard.dart';
+import '../providers/vendor_access_provider.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/locked_tab_overlay.dart';
 import 'BasicInfo.dart';
 import 'BusinessDetailScreen.dart';
 import 'ContactDetailsScreen.dart';
@@ -309,6 +315,7 @@ import 'PromotionsPage.dart';
 import 'Availability&SlotsPage.dart';
 import 'SocialNetwork.dart';
 import 'VideosScreen.dart';
+import '../widgets/app_shimmer.dart';
 
 class Storefront extends StatefulWidget {
   final int vendorId;
@@ -323,8 +330,9 @@ class _StorefrontState extends State<Storefront> {
   int? vendorTypeId;
   bool get canShowMenus => vendorTypeId == 2 || vendorTypeId == 7;
 
-
-  static const Color steelAzure = Color(0xFF4682B4);
+  // AUDIT NOTE: kept as a named constant (several widgets below reference it)
+  // but now sourced from the central palette instead of a re-typed hex.
+  static const Color steelAzure = AppColors.secondary;
 
   @override
   void initState() {
@@ -366,7 +374,9 @@ class _StorefrontState extends State<Storefront> {
     if (page != null) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => page()),
+        MaterialPageRoute(
+          builder: (_) => LockedTabOverlay(tabId: 'faq', child: page()),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -379,7 +389,7 @@ class _StorefrontState extends State<Storefront> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: ListShimmer(itemCount: 8, showAvatar: false, itemHeight: 62),
       );
     }
 
@@ -387,124 +397,187 @@ class _StorefrontState extends State<Storefront> {
       {
         "title": "Business Details",
         "icon": Icons.business_center_outlined,
-        "page": BusinessDetailsPage()
+        "tabId": "business",
+        "page": BusinessDetailsPage(),
       },
       {
         "title": "Basic Information",
         "icon": Icons.info_outline,
-        "page": BasicInfoPage()
+        "tabId": "vendor-basic",
+        "page": BasicInfoPage(),
       },
-      {"title": "FAQ", "icon": Icons.help_center_outlined, "page": "faq"},
+      {
+        "title": "FAQ",
+        "icon": Icons.help_center_outlined,
+        "tabId": "faq",
+        "page": "faq",
+      },
       {
         "title": "Contact Details",
         "icon": Icons.call_outlined,
+        "tabId": "vendor-contact",
         "page": ContactDetailsPage(),
-
       },
       {
         "title": "Location & Service Areas",
         "icon": Icons.location_on_outlined,
-        "page": LocationPage()
+        "tabId": "vendor-location",
+        "page": LocationPage(),
       },
       {
         "title": "Photos",
         "icon": Icons.photo_library_outlined,
-        "page": GalleryUploadPage()
+        "tabId": "photos",
+        "page": GalleryUploadPage(),
       },
       {
         "title": "Videos",
         "icon": Icons.video_collection_outlined,
-        "page": VideoUploadPage()
+        "tabId": "videos",
+        "page": VideoUploadPage(),
       },
       {
         "title": "Preferred Vendors",
         "icon": Icons.group_outlined,
-        "page": PreferredVendorsPage()
+        "tabId": "preferred-vendors",
+        "page": PreferredVendorsPage(),
       },
       {
         "title": "Social Network",
         "icon": Icons.public_outlined,
-        "page": SocialNetworkPage()
+        "tabId": "social",
+        "page": SocialNetworkPage(),
       },
       {
         "title": "Facilities & Features",
         "icon": Icons.widgets_outlined,
-        "page": FacilitiesPage()
+        "tabId": "vendor-facilities",
+        "page": FacilitiesPage(),
       },
 
       if (canShowMenus)
         {
           "title": "Menus",
           "icon": Icons.restaurant_menu,
-          "page": MenusPage()
+          "tabId": "vendor-menus",
+          "page": MenusPage(),
         },
 
       {
         "title": "Promotions",
         "icon": Icons.local_offer_outlined,
-        "page": PromotionsPage()
+        "tabId": "promotions",
+        "page": PromotionsPage(),
       },
       {
         "title": "Policies & Terms",
         "icon": Icons.shield_outlined,
-        "page": PoliciesPage()
+        "tabId": "vendor-policies",
+        "page": PoliciesPage(),
       },
       {
         "title": "Availability & Slots",
         "icon": Icons.schedule_outlined,
-        "page": SlotsPage()
+        "tabId": "vendor-availability",
+        "page": SlotsPage(),
       },
       {
         "title": "Pricing & Packages",
         "icon": Icons.attach_money,
-        "page": PricingPage()
+        "tabId": "vendor-pricing",
+        "page": PricingPage(),
       },
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xffF7F8FA),
+      backgroundColor: AppColors.background,
       appBar: CommonAppBar(
         title: "Storefront",
         onBack: () {
           Navigator.pop(context, true); // 🔥 notify refresh
         },
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(14),
-        itemCount: menuItems.length,
-        itemBuilder: (context, index) {
-          final item = menuItems[index];
-          return Container(
-            margin: const EdgeInsets.symmetric(vertical: 7),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: ListTile(
-              leading: Icon(item["icon"], color: steelAzure, size: 26),
-              title: Text(
-                item["title"],
-                style:
-                const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios,
-                  color: steelAzure, size: 18),
-              onTap: () {
-                if (item["page"] == "faq") {
-                  openFaq(context);
-                } else {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => item["page"]),
-                  );
-                }
-              },
-            ),
+      body: Consumer(
+        builder: (context, ref, _) {
+          // A lock glyph on the rows the current plan does not cover, so the
+          // vendor sees what is locked before opening it — same affordance the
+          // website's sidebar uses.
+          final access = ref.watch(vendorAccessProvider).value;
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(14),
+            itemCount: menuItems.length,
+            itemBuilder: (context, index) {
+              final item = menuItems[index];
+              final locked =
+                  access != null && !access.canEditTab(item["tabId"] as String);
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: ListTile(
+                  leading: Icon(
+                    item["icon"],
+                    color: locked ? AppColors.textTertiary : steelAzure,
+                    size: 24,
+                  ),
+                  title: Text(
+                    item["title"],
+                    // AUDIT FIX: long section names ("Location & Service Areas",
+                    // "Facilities & Features") had no maxLines and wrapped
+                    // awkwardly under the trailing chevron on narrow devices.
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: locked ? AppColors.textSecondary : null,
+                    ),
+                  ),
+                  trailing: Icon(
+                    locked
+                        ? Icons.lock_outline_rounded
+                        : Icons.arrow_forward_ios,
+                    color: locked ? AppColors.textTertiary : steelAzure,
+                    size: locked ? 18 : 16,
+                  ),
+                  // AUDIT FIX: every one of the 15 storefront sections reads and
+                  // writes vendor-scoped data through authenticated endpoints, and
+                  // all of them were opened with a bare `Navigator.push`. Routing
+                  // them through [AuthGuard] here covers the whole subtree from a
+                  // single call site — the guard verifies the session before
+                  // pushing and re-verifies on every app resume, so a section left
+                  // open in the background cannot survive a logout.
+                  onTap: () {
+                    if (item["page"] == "faq") {
+                      openFaq(context);
+                    } else if (item["tabId"] == "business") {
+                      // Business Details always stays editable and shows its own
+                      // richer verification banner, so it skips the generic lock
+                      // wrapper — same as the website.
+                      AuthGuard.push(
+                        context,
+                        (_) => item["page"] as Widget,
+                        debugLabel: 'Storefront/${item["title"]}',
+                      );
+                    } else {
+                      AuthGuard.push(
+                        context,
+                        (_) => LockedTabOverlay(
+                          tabId: item["tabId"] as String,
+                          child: item["page"] as Widget,
+                        ),
+                        debugLabel: 'Storefront/${item["title"]}',
+                      );
+                    }
+                  },
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
 }
-
-

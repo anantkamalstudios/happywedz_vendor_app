@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'bottom_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 /// ======================= MODEL =======================
 class Event {
@@ -37,7 +38,7 @@ class Event {
 /// ======================= SERVICE =======================
 
 class EventsService {
-  static const _url = 'https://happywedz.com/api/events';
+  static const _url = '${ApiConfig.baseUrl}/events';
 
   static Future<List<Event>> fetchEvents() async {
     final prefs = await SharedPreferences.getInstance();

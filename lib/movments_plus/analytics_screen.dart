@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 // ======================= SERVICE =======================
 class AnalyticsService {
   static const String _url =
-      "https://happywedz.com/api/vendor/dashboard/analytics";
+      "${ApiConfig.baseUrl}/vendor/dashboard/analytics";
 
   static Future<Map<String, dynamic>> fetchAnalytics() async {
     final prefs = await SharedPreferences.getInstance();

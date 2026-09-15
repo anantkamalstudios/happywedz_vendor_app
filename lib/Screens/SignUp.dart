@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'Login.dart';
 import 'HomeScreen.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class VendorType {
   final int id;
@@ -59,7 +60,7 @@ class _SignUpState extends State<SignUp> {
   Future<void> _fetchVendorTypes() async {
     try {
       final response =
-      await http.get(Uri.parse('https://happywedz.com/api/vendor-types'));
+      await http.get(Uri.parse('${ApiConfig.baseUrl}/vendor-types'));
       if (response.statusCode == 200) {
         final List data = json.decode(response.body);
         setState(() {
@@ -144,7 +145,7 @@ class _SignUpState extends State<SignUp> {
 
     setState(() => _isSubmitting = true);
 
-    final url = Uri.parse('https://happywedz.com/api/vendor/register');
+    final url = Uri.parse('${ApiConfig.baseUrl}/vendor/register');
 
     print("📢 Vendor Type Selected: ${_selectedVendorType?.name ?? 'No vendor type selected'}");
 
@@ -241,7 +242,7 @@ class _SignUpState extends State<SignUp> {
       };
 
       final response = await http.post(
-        Uri.parse("https://happywedz.com/api/faq-answers/save"),
+        Uri.parse("${ApiConfig.baseUrl}/faq-answers/save"),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
@@ -270,7 +271,7 @@ class _SignUpState extends State<SignUp> {
       return;
     }
 
-    final url = Uri.parse('https://happywedz.com/api/vendor/submit-faq'); // replace with your actual endpoint
+    final url = Uri.parse('${ApiConfig.baseUrl}/vendor/submit-faq'); // replace with your actual endpoint
 
     final body = {
       "vendor_id": vendorId,

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
+import 'new_screens/review_collector.dart';
 
 class ReviewsPage extends StatefulWidget {
   const ReviewsPage({Key? key}) : super(key: key);
@@ -22,7 +24,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
 
   // ✅ FETCH REVIEWS
   Future<void> fetchReviews() async {
-    print('📡 Fetching reviews from: https://happywedz.com/api/reviews/my-reviews');
+    print('📡 Fetching reviews from: ${ApiConfig.baseUrl}/reviews/my-reviews');
 
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -38,7 +40,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://happywedz.com/api/reviews/my-reviews'),
+        Uri.parse('${ApiConfig.baseUrl}/reviews/my-reviews'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -77,7 +79,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
 
   // ✅ SEND REPLY
   Future<void> _sendReply(int reviewId, String message) async {
-    final url = Uri.parse('https://happywedz.com/api/reviews/reply/$reviewId');
+    final url = Uri.parse('${ApiConfig.baseUrl}/reviews/reply/$reviewId');
     print('✉️ Sending reply for review ID $reviewId...');
     print('🌍 PUT URL: $url');
     print('📝 Message to send: "$message"');
@@ -277,6 +279,18 @@ class _ReviewsPageState extends State<ReviewsPage> {
       expandedHeight: 70,
       backgroundColor: Colors.transparent,
       automaticallyImplyLeading: false,
+      actions: [
+        IconButton(
+          tooltip: 'Collect reviews',
+          icon: const Icon(Icons.person_add_alt_outlined, color: Colors.white),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ReviewCollectorScreen()),
+            );
+          },
+        ),
+      ],
       flexibleSpace: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

@@ -12,6 +12,7 @@ import 'bottom_bar.dart';
 import 'gallery_screen.dart';
 import 'package_page.dart';
 import 'analytics_screen.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -49,7 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (token == null) throw Exception("Auth token missing");
 
       final response = await http.get(
-        Uri.parse('https://happywedz.com/api/vendor/dashboard/analytics'),
+        Uri.parse('${ApiConfig.baseUrl}/vendor/dashboard/analytics'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',

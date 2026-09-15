@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../utils/common_app_bar.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class PreferredVendorsPage extends StatefulWidget {
   const PreferredVendorsPage({super.key});
@@ -114,7 +115,7 @@ class _PreferredVendorsPageState extends State<PreferredVendorsPage> {
 
     try {
       final response = await http.get(
-        Uri.parse("https://happywedz.com/api/vendor-services?search=$query"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor-services?search=$query"),
         headers: token != null ? {"Authorization": "Bearer $token"} : {},
       );
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'new_screens/leaddetails_screen.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class LeadsPage extends StatefulWidget {
   const LeadsPage({super.key});
@@ -55,7 +56,7 @@ class _LeadsPageState extends State<LeadsPage> {
       if (token == null || token.isEmpty) return false;
 
       final res = await http.patch(
-        Uri.parse('https://happywedz.com/api/inbox/$inboxId/archive'),
+        Uri.parse('${ApiConfig.baseUrl}/inbox/$inboxId/archive'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -79,7 +80,7 @@ class _LeadsPageState extends State<LeadsPage> {
       if (token == null || token.isEmpty) return;
 
       await http.patch(
-        Uri.parse('https://happywedz.com/api/inbox/$inboxId/read'),
+        Uri.parse('${ApiConfig.baseUrl}/inbox/$inboxId/read'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -100,7 +101,7 @@ class _LeadsPageState extends State<LeadsPage> {
       if (token == null || token.isEmpty) return false;
 
       final res = await http.delete(
-        Uri.parse('https://happywedz.com/api/inbox/$inboxId'),
+        Uri.parse('${ApiConfig.baseUrl}/inbox/$inboxId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -231,7 +232,7 @@ class _LeadsPageState extends State<LeadsPage> {
       if (token == null || token.isEmpty) return;
 
       final res = await http.get(
-        Uri.parse('https://happywedz.com/api/inbox'),
+        Uri.parse('${ApiConfig.baseUrl}/inbox'),
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token'
@@ -261,7 +262,7 @@ class _LeadsPageState extends State<LeadsPage> {
       if (token == null) return;
 
       final res = await http.get(
-        Uri.parse("https://happywedz.com/api/messages/vendor/conversations"),
+        Uri.parse("${ApiConfig.baseUrl}/messages/vendor/conversations"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",

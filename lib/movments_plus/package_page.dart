@@ -749,6 +749,7 @@ import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class PackageStoragePage extends StatefulWidget {
   const PackageStoragePage({Key? key}) : super(key: key);
@@ -792,7 +793,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     String? currentPackageName;
     try {
       final dashboardRes = await http.get(
-        Uri.parse('https://happywedz.com/api/vendor/dashboard/analytics'),
+        Uri.parse('${ApiConfig.baseUrl}/vendor/dashboard/analytics'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -809,7 +810,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     }
 
     final response = await http.get(
-      Uri.parse('https://happywedz.com/api/admin/package'),
+      Uri.parse('${ApiConfig.baseUrl}/admin/package'),
     );
 
     final body = jsonDecode(response.body);
@@ -1009,9 +1010,11 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     );
   }
 
+  static const double _cardHeight = 300;
+
   Widget _buildPackageCarousel() {
     return SizedBox(
-      height: 280,
+      height: _cardHeight,
       child: PageView.builder(
         controller: _pageController,
         itemCount: packages.length,
@@ -1025,9 +1028,12 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
                 value = (1 - (value.abs() * 0.15)).clamp(0.85, 1.0);
               }
               return Center(
-                child: SizedBox(
-                  height: Curves.easeOut.transform(value) * 280,
-                  child: child,
+                child: Transform.scale(
+                  scale: Curves.easeOut.transform(value),
+                  child: SizedBox(
+                    height: _cardHeight,
+                    child: child,
+                  ),
                 ),
               );
             },
@@ -1546,7 +1552,7 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
       }
 
       final response = await http.post(
-        Uri.parse('https://happywedz.com/api/vendor/request-package-upgrade'),
+        Uri.parse('${ApiConfig.baseUrl}/vendor/request-package-upgrade'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

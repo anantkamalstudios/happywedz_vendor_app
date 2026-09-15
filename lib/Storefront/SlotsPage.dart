@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class SlotsPage extends StatefulWidget {
   const SlotsPage({super.key});
@@ -71,7 +72,7 @@ class _SlotsPageState extends State<SlotsPage> {
 
     try {
       final response = await http.get(
-        Uri.parse("https://happywedz.com/api/vendor-services/vendor/$vendorId"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor-services/vendor/$vendorId"),
         headers: {"Authorization": "Bearer $token"},
       );
 
@@ -132,7 +133,7 @@ class _SlotsPageState extends State<SlotsPage> {
 
     try {
       final response = await http.put(
-        Uri.parse("https://happywedz.com/api/vendor-services/$serviceId"),
+        Uri.parse("${ApiConfig.baseUrl}/vendor-services/$serviceId"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",

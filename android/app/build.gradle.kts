@@ -32,8 +32,16 @@ android {
         applicationId = "com.happy.happy_weds_vendors"
         minSdk = flutter.minSdkVersion
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.0.8"
+        versionCode = 7
+        versionName = "1.0.6"
+
+        // Google Maps key comes from the gitignored key.properties rather than
+        // living in AndroidManifest.xml, so it is not committed to the repo.
+        // NOTE: it is still embedded in the built APK — that is unavoidable for
+        // the Maps SDK. Restrict the key by package name + SHA-1 in Google
+        // Cloud Console; that, not hiding it, is what stops misuse.
+        manifestPlaceholders["MAPS_API_KEY"] =
+            (keystoreProperties["MAPS_API_KEY"] as String?) ?: ""
     }
 
     signingConfigs {

@@ -29,6 +29,7 @@ import 'FAQs/Venues.dart';
 import 'FAQs/WeddingDj.dart';
 import 'FAQs/WeddingGift.dart';
 import 'new_screens/review_collector.dart';
+import 'package:happy_weds_vendors/utils/api_config.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -419,7 +420,7 @@ class _HomeTabState extends State<HomeTab> {
       if (token == null || token.isEmpty) return 0;
 
       final res = await http.get(
-        Uri.parse('https://happywedz.com/api/inbox'),
+        Uri.parse('${ApiConfig.baseUrl}/inbox'),
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',

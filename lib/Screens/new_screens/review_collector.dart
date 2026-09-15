@@ -1,791 +1,312 @@
-// import 'dart:convert';
-// import 'package:flutter/material.dart';
-// import 'package:http/http.dart' as http;
-// import 'package:shared_preferences/shared_preferences.dart';
-// import '../../utils/common_app_bar.dart';
-// import 'package:flutter/services.dart';
-//
-//
-// class ReviewCollectorScreen extends StatefulWidget {
-//   const ReviewCollectorScreen({Key? key}) : super(key: key);
-//
-//   @override
-//   State<ReviewCollectorScreen> createState() => _ReviewCollectorScreenState();
-// }
-//
-// class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
-//   static const Color primaryBlue = Color(0xFF00509D);
-//   static const Color lightBlue = Color(0xFF4682B4);
-//
-//   bool isLoading = true;
-//   bool sending = false;
-//
-//   List<dynamic> bookedInbox = [];
-//   dynamic selectedCustomer;
-//
-//   final TextEditingController messageCtrl = TextEditingController();
-//   final TextEditingController nameCtrl = TextEditingController();
-//   final TextEditingController emailCtrl = TextEditingController();
-//
-//   String reviewLink = "";
-//
-//   // ================= INIT =================
-//   @override
-//   void initState() {
-//     super.initState();
-//     _fetchBookedInbox();
-//   }
-//
-//   // ================= GET BOOKED INBOX =================
-//   Future<void> _fetchBookedInbox() async {
-//     final prefs = await SharedPreferences.getInstance();
-//     final token = prefs.getString('token');
-//
-//     if (token == null) return;
-//
-//     try {
-//       final res = await http.get(
-//         Uri.parse("https://happywedz.com/api/inbox?filter=booked"),
-//         headers: {"Authorization": "Bearer $token"},
-//       );
-//
-//       if (res.statusCode == 200) {
-//         final data = json.decode(res.body);
-//         setState(() {
-//           bookedInbox = data['inbox'] ?? [];
-//           isLoading = false;
-//         });
-//       } else {
-//         isLoading = false;
-//       }
-//     } catch (e) {
-//       isLoading = false;
-//     }
-//   }
-//
-//   // ================= SEND REVIEW REQUEST =================
-//   Future<void> _sendReviewRequest() async {
-//     if (selectedCustomer == null || messageCtrl.text.trim().isEmpty) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         const SnackBar(content: Text("Select customer & write message")),
-//       );
-//       return;
-//     }
-//
-//     setState(() => sending = true);
-//
-//     final prefs = await SharedPreferences.getInstance();
-//     final token = prefs.getString('token');
-//
-//     final request = selectedCustomer['request'];
-//     final int requestId = request['id'];
-//     final int vendorId = request['vendorId'];
-//
-//     final res = await http.post(
-//       Uri.parse(
-//           "https://happywedz.com/api/reviews/send-review-request/$requestId"),
-//       headers: {
-//         "Authorization": "Bearer $token",
-//         "Content-Type": "application/json",
-//       },
-//       body: jsonEncode({
-//         "message": messageCtrl.text.trim(),
-//         "reviewLink": "https://happywedz.com/write-review/$vendorId",
-//       }),
-//     );
-//
-//     setState(() => sending = false);
-//
-//     if (res.statusCode == 200) {
-//       final data = json.decode(res.body);
-//       if (data['success'] == true) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           const SnackBar(content: Text("Review request sent successfully")),
-//         );
-//         messageCtrl.clear();
-//         nameCtrl.clear();
-//         emailCtrl.clear();
-//         setState(() {
-//           selectedCustomer = null;
-//           reviewLink = "";
-//         });
-//       }
-//     }
-//   }
-//
-//   // ================= UI =================
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: Colors.white,
-//       appBar: CommonAppBar(title: "Review Collector"),
-//       body: isLoading
-//           ? const Center(child: CircularProgressIndicator())
-//           : SingleChildScrollView(
-//         padding: const EdgeInsets.all(16),
-//         child: Column(
-//           children: [
-//             const Text(
-//               "Send review requests to your happy clients and grow your reputation",
-//               textAlign: TextAlign.center,
-//               style: TextStyle(color: Colors.black54),
-//             ),
-//             const SizedBox(height: 20),
-//             _sendReviewCard(),
-//             const SizedBox(height: 20),
-//             _shareLinkCard(),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   // ================= SEND REVIEW CARD =================
-//   Widget _sendReviewCard() {
-//     return Container(
-//       decoration: _cardDecoration(),
-//       child: Column(
-//         children: [
-//           Container(
-//             padding: const EdgeInsets.all(12),
-//             decoration: const BoxDecoration(
-//               color: primaryBlue,
-//               borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-//             ),
-//             child: const Row(
-//               children: [
-//                 Icon(Icons.send, color: Colors.white),
-//                 SizedBox(width: 8),
-//                 Text("Send Review Request",
-//                     style: TextStyle(color: Colors.white)),
-//               ],
-//             ),
-//           ),
-//           Padding(
-//             padding: const EdgeInsets.all(14),
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 const Text("Select Customer"),
-//                 const SizedBox(height: 6),
-//                 _customerDropdown(),
-//                 const SizedBox(height: 14),
-//                 _customerInfoBox(),
-//                 const SizedBox(height: 14),
-//                 const Text("Personalized Message"),
-//                 const SizedBox(height: 6),
-//                 _messageField(),
-//                 const SizedBox(height: 16),
-//                 _sendButton(),
-//               ],
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   // ================= CUSTOMER DROPDOWN =================
-//   Widget _customerDropdown() {
-//     return Container(
-//       padding: const EdgeInsets.symmetric(horizontal: 12),
-//       decoration: BoxDecoration(
-//         border: Border.all(color: Colors.grey.shade300),
-//         borderRadius: BorderRadius.circular(8),
-//       ),
-//       child: DropdownButtonHideUnderline(
-//         child: DropdownButton<dynamic>(
-//           dropdownColor: Colors.white,
-//           isExpanded: true,
-//           hint: const Text("Choose booked customer"),
-//           value: selectedCustomer,
-//           items: bookedInbox.map((item) {
-//             final request = item['request'];
-//             final String fullName =
-//                 "${request['firstName']} ${request['lastName']}";
-//             final String phone = request['eventDate'] ?? "";
-//             return DropdownMenuItem(
-//               value: item,
-//               child: Text("$fullName • $phone"),
-//             );
-//           }).toList(),
-//           onChanged: (val) {
-//             final request = val['request'];
-//
-//             final String fullName =
-//                 "${request['firstName']} ${request['lastName']}";
-//             final String eventDate = request['eventDate'];
-//             final String email = request['email'] ?? "";
-//
-//             setState(() {
-//               selectedCustomer = val;
-//               nameCtrl.text = fullName;
-//               emailCtrl.text = email;
-//
-//               reviewLink =
-//               "https://happywedz.com/write-review/${request['vendorId']}";
-//
-//               messageCtrl.text =
-//               "Hi $fullName,\n\n"
-//                   "Thank you for choosing our services for your event on $eventDate.\n"
-//                   "We would love to hear your feedback!\n\n"
-//                   "Thanks & Regards";
-//             });
-//           },
-//         ),
-//       ),
-//     );
-//   }
-//
-//   // ================= CUSTOMER INFO BOX =================
-//   Widget _customerInfoBox() {
-//     if (selectedCustomer == null) return const SizedBox();
-//
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         const Text("Customer Details"),
-//         const SizedBox(height: 8),
-//         Row(
-//           children: [
-//             Expanded(
-//               child: TextField(
-//                 controller: nameCtrl,
-//                 readOnly: true,
-//                 decoration: InputDecoration(
-//                   labelText: "Customer Name",
-//                   prefixIcon: const Icon(Icons.person),
-//                   border: OutlineInputBorder(
-//                     borderRadius: BorderRadius.circular(8),
-//                   ),
-//                   enabledBorder: OutlineInputBorder(
-//                     borderRadius: BorderRadius.circular(8),
-//                     borderSide: const BorderSide(
-//                       color: Colors.grey, // lightBlue
-//                       width: 1.2,
-//                     ),
-//                   ),
-//
-//                   // 🔹 When focused (purple ko override karega)
-//                   focusedBorder: OutlineInputBorder(
-//                     borderRadius: BorderRadius.circular(8),
-//                     borderSide: const BorderSide(
-//                       color: Color(0xFF4682B4), // lightBlue
-//                       width: 1.5,
-//                     ),
-//                   ),
-//                 ),
-//
-//               ),
-//             ),
-//             const SizedBox(width: 10),
-//             Expanded(
-//               child: TextField(
-//                 controller: emailCtrl,
-//                 readOnly: true,
-//                 decoration: InputDecoration(
-//                   labelText: "Email Address",
-//                   prefixIcon: const Icon(Icons.email),
-//                   border: OutlineInputBorder(
-//                     borderRadius: BorderRadius.circular(8),
-//                   ),
-//
-//                   // 🔹 Normal border
-//                   enabledBorder: OutlineInputBorder(
-//                     borderRadius: BorderRadius.circular(8),
-//                     borderSide: const BorderSide(
-//                       color: Colors.grey, // lightBlue
-//                       width: 1.2,
-//                     ),
-//                   ),
-//
-//                   // 🔹 When focused (purple ko override karega)
-//                   focusedBorder: OutlineInputBorder(
-//                     borderRadius: BorderRadius.circular(8),
-//                     borderSide: const BorderSide(
-//                       color: Color(0xFF4682B4), // lightBlue
-//                       width: 1.5,
-//                     ),
-//                   ),
-//                 ),
-//               ),
-//             ),
-//
-//           ],
-//         ),
-//       ],
-//     );
-//   }
-//
-//   // ================= MESSAGE FIELD =================
-//   Widget _messageField() {
-//     return TextField(
-//       controller: messageCtrl,
-//       maxLines: 5,
-//       decoration: InputDecoration(
-//         hintText: "Write message...",
-//         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-//         focusedBorder: OutlineInputBorder(
-//           borderRadius: BorderRadius.circular(8),
-//           borderSide: const BorderSide(color: primaryBlue),
-//         ),
-//       ),
-//     );
-//   }
-//
-//   // ================= SEND BUTTON =================
-//   Widget _sendButton() {
-//     return SizedBox(
-//       width: double.infinity,
-//       child: ElevatedButton(
-//         style: ElevatedButton.styleFrom(
-//           backgroundColor: primaryBlue,
-//           padding: const EdgeInsets.symmetric(vertical: 14),
-//         ),
-//         onPressed: sending ? null : _sendReviewRequest,
-//         child: sending
-//             ? const SizedBox(
-//           height: 18,
-//           width: 18,
-//           child: CircularProgressIndicator(
-//             strokeWidth: 2,
-//             color: Colors.white,
-//           ),
-//         )
-//             : const Text(
-//           "Send Review Request",
-//           style: TextStyle(color: Colors.white),
-//         ),
-//       ),
-//     );
-//   }
-//
-//   // ================= SHARE LINK CARD =================
-//   Widget _shareLinkCard() {
-//     return Container(
-//       decoration: _cardDecoration(),
-//       padding: const EdgeInsets.all(14),
-//       child: Row(
-//         children: [
-//           Expanded(
-//             child: Text(
-//               reviewLink.isEmpty ? "Select customer to get link" : reviewLink,
-//               overflow: TextOverflow.ellipsis,
-//             ),
-//           ),
-//           IconButton(
-//             icon: const Icon(Icons.copy, color: primaryBlue),
-//             onPressed: reviewLink.isEmpty
-//                 ? null
-//                 : () async {
-//               await Clipboard.setData(
-//                 ClipboardData(text: reviewLink),
-//               );
-//
-//               ScaffoldMessenger.of(context).showSnackBar(
-//                 const SnackBar(content: Text("Link copied")),
-//               );
-//             },
-//
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   // ================= CARD DECORATION =================
-//   BoxDecoration _cardDecoration() {
-//     return BoxDecoration(
-//       color: Colors.white,
-//       borderRadius: BorderRadius.circular(12),
-//       boxShadow: [
-//         BoxShadow(
-//           color: Colors.black.withOpacity(0.05),
-//           blurRadius: 12,
-//         ),
-//       ],
-//     );
-//   }
-// }
-
-
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../utils/common_app_bar.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../api_services/api_service_vendor.dart';
+import '../../api_services/review_request_api.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_text_styles.dart';
+import '../../utils/api_config.dart';
+import '../../utils/common_app_bar.dart';
 
+/// Lets a vendor send a review-request link to a past booked customer.
+/// Ported from the website's `subVendors/ReviewsCollector.jsx`.
 class ReviewCollectorScreen extends StatefulWidget {
-  const ReviewCollectorScreen({Key? key}) : super(key: key);
+  const ReviewCollectorScreen({super.key});
 
   @override
   State<ReviewCollectorScreen> createState() => _ReviewCollectorScreenState();
 }
 
 class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
-  static const Color primaryBlue = Color(0xFF00509D);
-  static const Color lightBlue = Color(0xFF4682B4);
+  final ReviewRequestApi _reviewApi = ReviewRequestApi();
+  final VendorServiceApi _vendorApi = VendorServiceApi();
+  final TextEditingController _messageController = TextEditingController();
 
-  bool isLoading = true;
-  bool sending = false;
-  bool loadingLink = false;
+  String? _token;
+  int? _vendorId;
+  dynamic _serviceId;
+  String? _serviceSlug;
 
-  List<dynamic> bookedInbox = [];
-  dynamic selectedCustomer;
+  bool _loading = true;
+  bool _sending = false;
+  bool _copied = false;
 
-  final TextEditingController messageCtrl = TextEditingController();
-  final TextEditingController nameCtrl = TextEditingController();
-  final TextEditingController emailCtrl = TextEditingController();
+  List<dynamic> _bookedLeads = [];
+  Map<String, dynamic>? _selectedLead;
 
-  String reviewLink = "";
-
-  // ================= INIT =================
   @override
   void initState() {
     super.initState();
-    _fetchBookedInbox();
-    _generateReviewLinkOnce(); // 🔥 LINK LOAD ONCE
+    _init();
   }
 
-  // ================= GET BOOKED INBOX =================
-  Future<void> _fetchBookedInbox() async {
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  String get _reviewUrl {
+    final base = '${ApiConfig.websiteUrl}/write-review/$_serviceId';
+    return _serviceSlug != null ? '$base/$_serviceSlug' : base;
+  }
+
+  Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-    if (token == null) return;
+    _token = prefs.getString('token');
+    _vendorId = prefs.getInt('vendorId');
 
-    try {
-      final res = await http.get(
-        Uri.parse("https://happywedz.com/api/inbox?filter=booked"),
-        headers: {"Authorization": "Bearer $token"},
-      );
-
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        setState(() {
-          bookedInbox = data['inbox'] ?? [];
-          isLoading = false;
-        });
-      } else {
-        isLoading = false;
-      }
-    } catch (e) {
-      isLoading = false;
-    }
-  }
-
-  // ================= GET VENDOR SERVICE ID =================
-  Future<int?> _getVendorServiceId(int vendorId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-    if (token == null) return null;
-
-    final res = await http.get(
-      Uri.parse(
-          "https://happywedz.com/api/vendor-services/vendor/$vendorId"),
-      headers: {
-        "Authorization": "Bearer $token",
-      },
-    );
-
-    if (res.statusCode == 200) {
-      final List data = json.decode(res.body);
-      if (data.isNotEmpty) {
-        return data[0]['id'];
-      }
-    }
-    return null;
-  }
-
-  // ================= GENERATE REVIEW LINK ONCE =================
-  Future<void> _generateReviewLinkOnce() async {
-    final prefs = await SharedPreferences.getInstance();
-    final vendorId = prefs.getInt("vendorId"); // must be saved earlier
-    if (vendorId == null) return;
-
-    setState(() => loadingLink = true);
-
-    final serviceId = await _getVendorServiceId(vendorId);
-
-    setState(() {
-      loadingLink = false;
-      reviewLink = serviceId != null
-          ? "https://happywedz.com/write-review/$serviceId"
-          : "";
-    });
-  }
-
-  // ================= SEND REVIEW REQUEST =================
-  Future<void> _sendReviewRequest() async {
-    if (selectedCustomer == null || messageCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Select customer & write message")),
-      );
+    if (_token == null) {
+      if (mounted) setState(() => _loading = false);
       return;
     }
 
-    setState(() => sending = true);
+    try {
+      final results = await Future.wait([
+        _reviewApi.getBookedLeads(_token!),
+        if (_vendorId != null)
+          _vendorApi.getByVendorId(vendorId: _vendorId!, token: _token!)
+        else
+          Future.value(null),
+      ]);
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+      _bookedLeads = List<dynamic>.from(results[0] as List<dynamic>);
+      final service = results[1] as Map<String, dynamic>?;
+      _serviceId = service?['id'];
+      _serviceSlug = service?['slug'];
+    } catch (e) {
+      debugPrint('ReviewCollector init error: $e');
+    }
 
-    final request = selectedCustomer['request'];
-    final int requestId = request['id'];
+    if (mounted) setState(() => _loading = false);
+  }
 
-    final res = await http.post(
-      Uri.parse(
-          "https://happywedz.com/api/reviews/send-review-request/$requestId"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode({
-        "message": messageCtrl.text.trim(),
-        "reviewLink": reviewLink, // 🔥 SAME LINK ALWAYS
-      }),
-    );
+  void _onLeadSelected(dynamic lead) {
+    final request = lead['request'] ?? {};
+    final user = request['user'] ?? {};
+    final name = (user['name'] ?? '').toString();
+    final eventDate = (request['eventDate'] ?? '').toString();
 
-    setState(() => sending = false);
+    setState(() {
+      _selectedLead = Map<String, dynamic>.from(lead);
+      _messageController.text = 'Hi $name,\n\n'
+          'Thank you for choosing us for your event on $eventDate.\n'
+          'We would love to hear your feedback on our services!\n\n'
+          'Please review us on HappyWedz.\n\n'
+          'Thanks & Regards';
+    });
+  }
 
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      if (data['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Review request sent successfully")),
-        );
-        messageCtrl.clear();
-        nameCtrl.clear();
-        emailCtrl.clear();
-        setState(() {
-          selectedCustomer = null;
-        });
-      }
+  Future<void> _send() async {
+    final lead = _selectedLead;
+    if (lead == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a booked customer')));
+      return;
+    }
+
+    final request = lead['request'] ?? {};
+    final user = request['user'] ?? {};
+    final requestId = request['id'];
+    final email = user['email'];
+
+    if (requestId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User not found for this booking')));
+      return;
+    }
+    if (email == null || email.toString().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email found for this customer')));
+      return;
+    }
+    if (_messageController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message cannot be empty')));
+      return;
+    }
+    if (_token == null || _serviceId == null) return;
+
+    setState(() => _sending = true);
+    try {
+      await _reviewApi.sendReviewRequest(
+        token: _token!,
+        requestId: requestId,
+        message: _messageController.text.trim(),
+        reviewLink: _reviewUrl,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Review request sent successfully!')));
+      setState(() {
+        _selectedLead = null;
+        _messageController.clear();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
-  // ================= UI =================
+  Future<void> _copyLink() async {
+    await Clipboard.setData(ClipboardData(text: _reviewUrl));
+    setState(() => _copied = true);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: CommonAppBar(title: "Review Collector"),
-      body: isLoading
+      backgroundColor: AppColors.background,
+      appBar: CommonAppBar(title: 'Review Collector'),
+      body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const Text(
-              "Send review requests to your happy clients and grow your reputation",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54),
-            ),
-            const SizedBox(height: 20),
-            _sendReviewCard(),
-            const SizedBox(height: 20),
-            _shareLinkCard(),
-          ],
-        ),
-      ),
-    );
-  }
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Send Review Request', style: AppTextStyles.h3),
+                      const SizedBox(height: 4),
+                      Text('Send review requests to your happy clients and grow your reputation.', style: AppTextStyles.bodySecondary),
+                      const SizedBox(height: 16),
 
-  // ================= SEND REVIEW CARD =================
-  Widget _sendReviewCard() {
-    return Container(
-      decoration: _cardDecoration(),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: primaryBlue,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.send, color: Colors.white),
-                SizedBox(width: 8),
-                Text("Send Review Request",
-                    style: TextStyle(color: Colors.white)),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Select Customer"),
-                const SizedBox(height: 6),
-                _customerDropdown(),
-                const SizedBox(height: 14),
-                _customerInfoBox(),
-                const SizedBox(height: 14),
-                const Text("Personalized Message"),
-                const SizedBox(height: 6),
-                _messageField(),
+                      Text('Select customer', style: AppTextStyles.bodyMedium),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        value: _selectedLead != null
+                            ? _bookedLeads.indexWhere((l) => l['id'] == _selectedLead!['id'])
+                            : null,
+                        hint: const Text('Choose a booked customer...'),
+                        items: List.generate(_bookedLeads.length, (i) {
+                          final lead = _bookedLeads[i];
+                          final request = lead['request'] ?? {};
+                          final name = '${request['firstName'] ?? ''} ${request['lastName'] ?? ''}'.trim();
+                          final eventDate = request['eventDate'] ?? '';
+                          return DropdownMenuItem(
+                            value: i,
+                            child: Text(
+                              '${name.isEmpty ? 'No Name' : name} - $eventDate',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }),
+                        onChanged: (i) {
+                          if (i != null) _onLeadSelected(_bookedLeads[i]);
+                        },
+                      ),
+
+                      if (_selectedLead != null) ...[
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _InfoChip(
+                                label: 'Customer name',
+                                value: (_selectedLead!['request']?['user']?['name'] ?? '').toString(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _InfoChip(
+                                label: 'Email',
+                                value: (_selectedLead!['request']?['user']?['email'] ?? '').toString(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      const SizedBox(height: 16),
+                      Text('Personalized message', style: AppTextStyles.bodyMedium),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _messageController,
+                        maxLines: 8,
+                        decoration: const InputDecoration(hintText: 'Write a personalized message to your client...'),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _sending ? null : _send,
+                          icon: _sending
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.send),
+                          label: Text(_sending ? 'Sending…' : 'Send Review Request'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
-                _sendButton(),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Share Your Review Link', style: AppTextStyles.h3),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Share this personalized URL with your past clients via WhatsApp, SMS or social media.',
+                        style: AppTextStyles.bodySecondary,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              decoration: BoxDecoration(color: AppColors.inputFill, borderRadius: BorderRadius.circular(10)),
+                              child: Text(_reviewUrl, style: AppTextStyles.caption, overflow: TextOverflow.ellipsis),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: _copyLink,
+                            icon: Icon(_copied ? Icons.check : Icons.copy, size: 18),
+                          ),
+                        ],
+                      ),
+                      if (_copied) ...[
+                        const SizedBox(height: 8),
+                        Text('Link copied to clipboard!', style: AppTextStyles.caption.copyWith(color: AppColors.success)),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
+}
 
-  // ================= CUSTOMER DROPDOWN =================
-  Widget _customerDropdown() {
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<dynamic>(
-          isExpanded: true,
-          hint: const Text("Choose booked customer"),
-          value: selectedCustomer,
-          items: bookedInbox.map((item) {
-            final request = item['request'];
-            final String fullName =
-                "${request['firstName']} ${request['lastName']}";
-            final String eventDate = request['eventDate'] ?? "";
-            return DropdownMenuItem(
-              value: item,
-              child: Text("$fullName • $eventDate"),
-            );
-          }).toList(),
-          onChanged: (val) {
-            final request = val['request'];
-
-            setState(() {
-              selectedCustomer = val;
-              nameCtrl.text =
-              "${request['firstName']} ${request['lastName']}";
-              emailCtrl.text = request['email'] ?? "";
-              messageCtrl.text =
-              // "Hi ${nameCtrl.text},\n\n"
-                  "Thank you for choosing our services for your event on ${request['eventDate']}.\n"
-                  "We would love to hear your feedback!\n\n"
-                  "Thanks & Regards";
-            });
-          },
-        ),
-      ),
-    );
-  }
-
-  // ================= CUSTOMER INFO =================
-  Widget _customerInfoBox() {
-    if (selectedCustomer == null) return const SizedBox();
-
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: nameCtrl,
-            readOnly: true,
-            decoration: _inputDecoration("Customer Name", Icons.person),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: TextField(
-            controller: emailCtrl,
-            readOnly: true,
-            decoration: _inputDecoration("Email Address", Icons.email),
-          ),
-        ),
-      ],
-    );
-  }
-
-  InputDecoration _inputDecoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: lightBlue, width: 1.5),
-      ),
-    );
-  }
-
-  // ================= MESSAGE =================
-  Widget _messageField() {
-    return TextField(
-      controller: messageCtrl,
-      maxLines: 5,
-      decoration: InputDecoration(
-        hintText: "Write message...",
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-
-  // ================= SEND BUTTON =================
-  Widget _sendButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryBlue,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        onPressed: sending ? null : _sendReviewRequest,
-        child: sending
-            ? const CircularProgressIndicator(color: Colors.white)
-            : const Text("Send Review Request",
-            style: TextStyle(color: Colors.white)),
-      ),
-    );
-  }
-
-  // ================= SHARE LINK =================
-  Widget _shareLinkCard() {
-    return Container(
-      decoration: _cardDecoration(),
-      padding: const EdgeInsets.all(14),
-      child: Row(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: AppColors.inputFill, borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: loadingLink
-                ? const Text("Generating review link...")
-                : Text(
-              reviewLink.isEmpty
-                  ? "Review link not available"
-                  : reviewLink,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.copy, color: primaryBlue),
-            onPressed: reviewLink.isEmpty
-                ? null
-                : () async {
-              await Clipboard.setData(
-                  ClipboardData(text: reviewLink));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Link copied")),
-              );
-            },
-          ),
+          Text(label, style: AppTextStyles.caption),
+          const SizedBox(height: 2),
+          Text(value.isEmpty ? '—' : value, style: AppTextStyles.bodyMedium, overflow: TextOverflow.ellipsis),
         ],
       ),
-    );
-  }
-
-  BoxDecoration _cardDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12),
-      ],
     );
   }
 }
