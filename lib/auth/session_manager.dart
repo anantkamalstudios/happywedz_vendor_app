@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// ============================================================================
 /// SessionManager — the single source of truth for "is this vendor logged in?"
-/// ============================================================================
+/// =================================================== =========================
 ///
 /// AUDIT NOTE — WHAT WAS WRONG BEFORE
 ///
