@@ -2,7 +2,7 @@ name: happy_weds_vendors
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+7
+version: 1.0.0+9
 
 environment:
   sdk: ^3.8.1
@@ -20,6 +20,15 @@ dependencies:
 
   shared_preferences: ^2.1.1
   image_picker: ^1.1.1
+  # PLAY POLICY — PHOTO AND VIDEO PERMISSIONS.
+  # Declared directly (not left transitive) so `main()` can flip
+  # `ImagePickerAndroid.useAndroidPhotoPicker`. That routes every gallery pick
+  # through the system Android photo picker, which returns only the images the
+  # user selected and needs no permission — letting the app drop
+  # READ_MEDIA_IMAGES, which Google Play restricts to apps with a frequent,
+  # library-wide need. This app only ever picks images to upload.
+  image_picker_android: ^0.8.12+25
+  image_picker_platform_interface: ^2.10.1
   video_player: ^2.7.0
   youtube_player_flutter: ^9.0.1
   share_plus: ^10.0.5
@@ -64,6 +73,8 @@ dependencies:
   # Pinned to the versions already in pubspec.lock so resolution is unchanged.
   file_picker: ^10.3.7
   http_parser: ^4.1.2
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:

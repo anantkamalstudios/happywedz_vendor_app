@@ -32,8 +32,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data["status"] == "success") {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data["message"])),
         );
@@ -47,15 +45,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
         );
       } else {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data["message"] ?? "Something went wrong")),
         );
       }
     } catch (e) {
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please try again later")),
       );

@@ -84,8 +84,8 @@ class UploadMediaScreen extends StatefulWidget {
   final String? preselectedEventId;
   final String? preselectedEventName;
 
-  const UploadMediaScreen({super.key,   this.preselectedEventId,
-    this.preselectedEventName,});
+  const UploadMediaScreen({Key? key,   this.preselectedEventId,
+    this.preselectedEventName,}) : super(key: key);
 
   @override
   State<UploadMediaScreen> createState() =>
@@ -120,8 +120,11 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
 
   late Future<List<Event>> eventsFuture;
   late Future<List<dynamic>> tokensFuture;
+  /// The website's Token dropdown lists every active, non-expired token
+  /// regardless of the selected Visibility — it does not cross-filter by
+  /// type. Kept as a method name for minimal diff even though it no longer
+  /// filters on `visibility`.
   List<dynamic> _filterTokensByVisibility(List<dynamic> tokens) {
-    final selectedVisibility = visibility.toLowerCase();
     final now = DateTime.now();
 
     return tokens.where((t) {
@@ -130,12 +133,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         return false;
       }
 
-      // 2️⃣ visibility/type match
-      if (t['type']?.toString().toLowerCase() != selectedVisibility) {
-        return false;
-      }
-
-      // 3️⃣ expiry check (optional but safe)
+      // 2️⃣ expiry check (optional but safe)
       if (t['expires_at'] != null) {
         final expiry = DateTime.tryParse(t['expires_at']);
         if (expiry != null && expiry.isBefore(now)) {
@@ -146,17 +144,6 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       return true;
     }).toList();
   }
-
-  // List<dynamic> _filterTokensByVisibility(List<dynamic> tokens) {
-  //   final selected = visibility.toLowerCase();
-  //
-  //   return tokens.where((t) {
-  //     final v1 = t['visibility']?.toString().toLowerCase();
-  //     final v2 = t['type']?.toString().toLowerCase();
-  //
-  //     return v1 == selected || v2 == selected;
-  //   }).toList();
-  // }
 
 
   List<Map<String, dynamic>> selectedFiles = [];
@@ -225,7 +212,12 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
 
     if (result != null) {
       setState(() {
-        selectedFiles = result.files.map((f) {
+        final existingPaths =
+        selectedFiles.map((f) => (f['file'] as File).path).toSet();
+
+        final newFiles = result.files
+            .where((f) => !existingPaths.contains(f.path))
+            .map((f) {
           final mime = lookupMimeType(f.path!);
           return {
             'file': File(f.path!),
@@ -236,7 +228,9 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
                 ? 'video'
                 : 'image',
           };
-        }).toList();
+        });
+
+        selectedFiles = [...selectedFiles, ...newFiles];
       });
     }
   }
@@ -245,9 +239,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   Future<void> uploadMedia() async {
     if (selectedFiles.isEmpty ||
         selectedToken == null ||
-        selectedEventId == null) {
-      return;
-    }
+        selectedEventId == null) return;
 
     setState(() => isUploading = true);
 
@@ -256,10 +248,10 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       final vendorId = prefs.getInt('vendorId');
       final authToken =
           prefs.getString('token') ?? prefs.getString('authToken');
-      debugPrint("👤 Vendor IDddddddddddddddddddddddddddddddddddddddd: $vendorId");
-      debugPrint("🔑 AUTH TOKENnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $authToken");
-      debugPrint("📦 Selected Event IDddddddddddddddddddddddddddddddddd: $selectedEventId");
-      debugPrint("🎟 Selected Tokennnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $selectedToken");
+      print("👤 Vendor IDddddddddddddddddddddddddddddddddddddddd: $vendorId");
+      print("🔑 AUTH TOKENnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $authToken");
+      print("📦 Selected Event IDddddddddddddddddddddddddddddddddd: $selectedEventId");
+      print("🎟 Selected Tokennnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $selectedToken");
       final uri =
       Uri.parse('https://happywedz.com/api/vendor/upload-media');
 
@@ -309,8 +301,6 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         //   freeMB = limitMB - usedMB;
         //   packageName = storage['packageName'];
         // });
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Media uploaded successfully')),
         );
@@ -320,8 +310,6 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       }
     } catch (e) {
       debugPrint("❌ UPLOAD ERROR: $e");
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
@@ -348,6 +336,9 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
                   crossAxisAlignment:
                   CrossAxisAlignment.start,
                   children: [
+                    _label('Select a Token to Upload'),
+                    _tokenQuickPickList(),
+                    const SizedBox(height: 24),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -382,14 +373,11 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
 
                     // _tokenDropdown(),
                     const SizedBox(height: 30),
-                    // _uploadPicker(),
-                    // const SizedBox(height: 24),
-                    if (selectedFiles.isEmpty) ...[
-                      _uploadPicker(),
+                    _uploadPicker(),
+                    if (selectedFiles.isNotEmpty) ...[
                       const SizedBox(height: 24),
-                    ],
-                    if (selectedFiles.isNotEmpty)
                       _filesList(),
+                    ],
                   ],
                 ),
               ),
@@ -413,7 +401,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         color: Color(0xFF00509D),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00509D).withValues(alpha: 0.3),
+            color: const Color(0xFF00509D).withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -509,9 +497,9 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+        color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       child: Column(
         children: [
@@ -535,7 +523,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.white.withValues(alpha: 0.3),
+              backgroundColor: Colors.white.withOpacity(0.3),
               valueColor:
               const AlwaysStoppedAnimation<Color>(Colors.white),
               minHeight: 6,
@@ -637,7 +625,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
 
         return DropdownButtonFormField<String>(
           // value: selectedEventId,
-            initialValue: selectedEventId,
+            value: selectedEventId,
           hint: const Text('Select Event'),
           items: events.map((e) {
             return DropdownMenuItem<String>(
@@ -676,14 +664,13 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         canvasColor: Colors.white,
       ),
       child: DropdownButtonFormField<String>(
-        initialValue: visibility,
+        value: visibility,
         items: ['Public', 'Private']
             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
             .toList(),
         onChanged: (v) {
           setState(() {
             visibility = v!;
-            selectedToken = null; // 🔥 reset token
           });
         },
         decoration: InputDecoration(
@@ -709,6 +696,145 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
     );
   }
 
+  Widget _tokenQuickPickList() {
+    return FutureBuilder<List<dynamic>>(
+      future: tokensFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 80,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return const Text('Token load failed');
+        }
+
+        final tokens = snapshot.data ?? [];
+
+        if (tokens.isEmpty) {
+          return Text(
+            'No tokens yet',
+            style: TextStyle(color: Colors.grey[600]),
+          );
+        }
+
+        return Container(
+          constraints: const BoxConstraints(maxHeight: 260),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: tokens.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 1,
+              color: Colors.grey.shade200,
+            ),
+            itemBuilder: (context, i) {
+              final t = tokens[i];
+              final isPublic =
+                  t['type']?.toString().toLowerCase() == 'public';
+              final isActive =
+                  t['status']?.toString().toLowerCase() == 'active';
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${t['token']}',
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: (isPublic
+                                      ? const Color(0xFF00509D)
+                                      : Colors.orange)
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  t['type']?.toString().toUpperCase() ?? '',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: isPublic
+                                        ? const Color(0xFF00509D)
+                                        : Colors.orange,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Event #${t['event_id']}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                t['status']?.toString().toUpperCase() ?? '',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: isActive
+                                      ? const Color(0xFF10B981)
+                                      : Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() => selectedToken = t['token']);
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: const Color(0xFF00509D),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Use for Upload',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
 
   Widget _tokenDropdown() {
     return FutureBuilder<List<dynamic>>(
@@ -727,20 +853,29 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         final allTokens = snapshot.data ?? [];
         final tokens = _filterTokensByVisibility(allTokens);
 
+        // The quick-pick list above allows selecting any token, including
+        // disabled/expired ones this dropdown normally filters out. Make
+        // sure that selection still appears here so the DropdownButton's
+        // value always matches one of its items.
+        final dropdownTokens = tokens.any((t) => t['token'] == selectedToken)
+            ? tokens
+            : [
+          ...tokens,
+          ...allTokens.where((t) => t['token'] == selectedToken),
+        ];
 
         return Theme(
           data: Theme.of(context).copyWith(
             canvasColor: Colors.white, // 🔥 dropdown bg white
           ),
           child: DropdownButtonFormField<String>(
-            initialValue: selectedToken,
+            value: selectedToken,
             hint: const Text('Select Token'),
-            items: tokens.map((t) {
+            items: dropdownTokens.map((t) {
               return DropdownMenuItem<String>(
-          
                 value: t['token'],
                 child: Text(
-                  t['token'],
+                  "${t['token']} (${t['type']})",
                   style: const TextStyle(
                       fontFamily: 'monospace'),
                 ),
@@ -781,7 +916,9 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         child: OutlinedButton.icon(
           onPressed: pickFiles,
           icon: const Icon(Icons.upload, size: 18),
-          label: const Text('Upload Media'),
+          label: Text(
+            selectedFiles.isEmpty ? 'Select Photos/Videos' : 'Add More Files',
+          ),
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF00509D),
             side: const BorderSide(color: Color(0xFF00509D)),

@@ -265,6 +265,7 @@ class _TokensSharingScreenState extends State<TokensSharingScreen> {
       ),
 
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'tokens_fab',
         onPressed: () async {
           final result = await Navigator.push(
             context,

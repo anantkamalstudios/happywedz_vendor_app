@@ -78,11 +78,11 @@
 //           isLoading = false;
 //         });
 //       } else {
-//         debugPrint("Error Fetching");
+//         print("Error Fetching");
 //         setState(() => isLoading = false);
 //       }
 //     } catch (e) {
-//       debugPrint("Error Fetching");
+//       print("Error Fetching");
 //       setState(() => isLoading = false);
 //     }
 //   }
@@ -154,7 +154,7 @@
 //   Widget build(BuildContext context) {
 //     if (isLoading) {
 //       return const Scaffold(
-//         body: const Center(child: CircularProgressIndicator()),
+//         body: Center(child: CircularProgressIndicator()),
 //       );
 //     }
 //
@@ -281,9 +281,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../auth/auth_guard.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text_styles.dart';
 import '../utils/common_app_bar.dart';
 import 'BasicInfo.dart';
 import 'BusinessDetailScreen.dart';
@@ -312,7 +309,6 @@ import 'PromotionsPage.dart';
 import 'Availability&SlotsPage.dart';
 import 'SocialNetwork.dart';
 import 'VideosScreen.dart';
-import '../widgets/app_shimmer.dart';
 
 class Storefront extends StatefulWidget {
   final int vendorId;
@@ -328,9 +324,7 @@ class _StorefrontState extends State<Storefront> {
   bool get canShowMenus => vendorTypeId == 2 || vendorTypeId == 7;
 
 
-  // AUDIT NOTE: kept as a named constant (several widgets below reference it)
-  // but now sourced from the central palette instead of a re-typed hex.
-  static const Color steelAzure = AppColors.secondary;
+  static const Color steelAzure = Color(0xFF4682B4);
 
   @override
   void initState() {
@@ -385,7 +379,7 @@ class _StorefrontState extends State<Storefront> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: ListShimmer(itemCount: 8, showAvatar: false, itemHeight: 62),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -468,7 +462,7 @@ class _StorefrontState extends State<Storefront> {
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xffF7F8FA),
       appBar: CommonAppBar(
         title: "Storefront",
         onBack: () {
@@ -481,40 +475,27 @@ class _StorefrontState extends State<Storefront> {
         itemBuilder: (context, index) {
           final item = menuItems[index];
           return Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
+            margin: const EdgeInsets.symmetric(vertical: 7),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
             ),
             child: ListTile(
-              leading: Icon(item["icon"], color: steelAzure, size: 24),
+              leading: Icon(item["icon"], color: steelAzure, size: 26),
               title: Text(
                 item["title"],
-                // AUDIT FIX: long section names ("Location & Service Areas",
-                // "Facilities & Features") had no maxLines and wrapped
-                // awkwardly under the trailing chevron on narrow devices.
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyMedium,
+                style:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
               ),
               trailing: const Icon(Icons.arrow_forward_ios,
-                  color: steelAzure, size: 16),
-              // AUDIT FIX: every one of the 15 storefront sections reads and
-              // writes vendor-scoped data through authenticated endpoints, and
-              // all of them were opened with a bare `Navigator.push`. Routing
-              // them through [AuthGuard] here covers the whole subtree from a
-              // single call site — the guard verifies the session before
-              // pushing and re-verifies on every app resume, so a section left
-              // open in the background cannot survive a logout.
+                  color: steelAzure, size: 18),
               onTap: () {
                 if (item["page"] == "faq") {
                   openFaq(context);
                 } else {
-                  AuthGuard.push(
+                  Navigator.push(
                     context,
-                    (_) => item["page"] as Widget,
-                    debugLabel: 'Storefront/${item["title"]}',
+                    MaterialPageRoute(builder: (_) => item["page"]),
                   );
                 }
               },

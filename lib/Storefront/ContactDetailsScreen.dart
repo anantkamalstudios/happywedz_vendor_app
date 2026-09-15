@@ -1,27 +1,22 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
-import '../widgets/app_shimmer.dart';
 class ContactDetailsPage extends StatefulWidget {
   final int? vendorId;
   final int? vendorSubcategoryId;
 
   const ContactDetailsPage({
-    super.key,
+    Key? key,
     this.vendorId,
     this.vendorSubcategoryId,
-  });
+  }) : super(key: key);
 
   @override
-  /// AUDIT NOTE: `createState` returning the private State type is the
-  /// pattern Flutter's own `flutter create` template uses. Making the State
-  /// public purely to satisfy `library_private_types_in_public_api` would be
-  /// a wider refactor than this audit's brief allows, so the lint is silenced
-  /// locally with this note rather than left as unexplained noise.
-  // ignore: library_private_types_in_public_api
   _ContactDetailsPageState createState() => _ContactDetailsPageState();
 }
 
@@ -66,7 +61,7 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
       await prefs.setInt("vendor_subcategory_id", widget.vendorSubcategoryId!);
     }
 
-    debugPrint("✔ Constructor values saved");
+    print("✔ Constructor values saved");
   }
 
   Future<void> _loadCredentials() async {
@@ -77,13 +72,13 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
     vendorSubcategoryId = prefs.getInt("vendor_subcategory_id");
     serviceId = prefs.getInt("serviceId");
 
-    debugPrint("🔐 Token: $token");
-    debugPrint("🆔 VendorId: $vendorId");
-    debugPrint("🏷 SubcategoryId: $vendorSubcategoryId");
-    debugPrint("📌 ServiceId: $serviceId");
+    print("🔐 Token: $token");
+    print("🆔 VendorId: $vendorId");
+    print("🏷 SubcategoryId: $vendorSubcategoryId");
+    print("📌 ServiceId: $serviceId");
 
     if (token == null || serviceId == null) {
-      debugPrint("⚠ ERROR: Token or ServiceId missing. Contact details cannot be loaded.");
+      print("⚠ ERROR: Token or ServiceId missing. Contact details cannot be loaded.");
       setState(() => isLoading = false);
       return;
     }
@@ -163,8 +158,6 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
       await StorefrontCompletionService.refreshCompletion(
         serviceId: serviceId!,
       );
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Contact updated successfully")),
       );
@@ -295,7 +288,7 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
       appBar: CommonAppBar(title:"Contact Details"),
       backgroundColor: Color(0xffF2F2F2),
       body: isLoading
-          ? const FormShimmer(fields: 5)
+          ? Center(child: CircularProgressIndicator())
           : Column(
             children: [
               Expanded(
@@ -315,7 +308,7 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      field("Contact Person Name", contactPersonController, required: true),
+                      field("Contact Person Name             ", contactPersonController, required: true),
                       field("Primary Phone", primaryPhoneController, required: true, keyboardType: TextInputType.phone),
                       field("Alternative Phone", alternativePhoneController, keyboardType: TextInputType.phone),
                       field("WhatsApp Number", whatsappController, keyboardType: TextInputType.phone),

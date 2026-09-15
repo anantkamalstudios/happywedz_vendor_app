@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/common_app_bar.dart';
 
 class TokenGeneratorPage extends StatefulWidget {
-  const TokenGeneratorPage({super.key});
+  const TokenGeneratorPage({Key? key}) : super(key: key);
 
   @override
   State<TokenGeneratorPage> createState() => _TokenGeneratorPageState();
@@ -49,8 +49,6 @@ class _TokenGeneratorPageState extends State<TokenGeneratorPage> {
 
       if ((response.statusCode == 200 || response.statusCode == 201) &&
           data['success'] == true) {
-        // AUDIT FIX: context used after an await — guard added.
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Token generated successfully!'),
@@ -64,8 +62,6 @@ class _TokenGeneratorPageState extends State<TokenGeneratorPage> {
         throw Exception('Failed to generate token');
       }
     } catch (e) {
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
@@ -140,7 +136,7 @@ class _TokenGeneratorPageState extends State<TokenGeneratorPage> {
                         color: const Color(0xFFE3F2FD),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: const Color(0xFF2196F3).withValues(alpha: 0.3),
+                          color: const Color(0xFF2196F3).withOpacity(0.3),
                         ),
                       ),
                       child: Row(
@@ -173,7 +169,7 @@ class _TokenGeneratorPageState extends State<TokenGeneratorPage> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withOpacity(0.05),
                     blurRadius: 10,
                     offset: const Offset(0, -5),
                   ),
@@ -278,14 +274,14 @@ class _TokenGeneratorPageState extends State<TokenGeneratorPage> {
           boxShadow: isSelected
               ? [
             BoxShadow(
-              color: iconColor.withValues(alpha: 0.15),
+              color: iconColor.withOpacity(0.15),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ]
               : [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withOpacity(0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -299,7 +295,7 @@ class _TokenGeneratorPageState extends State<TokenGeneratorPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.1),
+                    color: iconColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: iconColor, size: 24),

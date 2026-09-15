@@ -11,8 +11,14 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
 
-    <!-- Android 13+ -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- Android 13+: no media permission is declared on purpose.
+         Every gallery pick goes through the system Android photo picker
+         (enabled in lib/main.dart), which returns only the user-selected
+         images and grants access to those alone. Saving to the gallery uses
+         `gal`, which needs no permission on Android 10+. Do not re-add
+         READ_MEDIA_IMAGES: Google Play's Photo and Video Permissions policy
+         restricts it to apps with a frequent, library-wide need, and this app
+         only picks images to upload. -->
     <application
         android:label="HappyWedz Bussiness"
         android:name="${applicationName}"
