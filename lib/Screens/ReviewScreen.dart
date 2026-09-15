@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import 'new_screens/review_collector.dart';
 
 class ReviewsPage extends StatefulWidget {
   const ReviewsPage({Key? key}) : super(key: key);
@@ -278,6 +279,18 @@ class _ReviewsPageState extends State<ReviewsPage> {
       expandedHeight: 70,
       backgroundColor: Colors.transparent,
       automaticallyImplyLeading: false,
+      actions: [
+        IconButton(
+          tooltip: 'Collect reviews',
+          icon: const Icon(Icons.person_add_alt_outlined, color: Colors.white),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ReviewCollectorScreen()),
+            );
+          },
+        ),
+      ],
       flexibleSpace: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

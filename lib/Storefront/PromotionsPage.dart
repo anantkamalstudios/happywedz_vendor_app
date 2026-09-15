@@ -452,6 +452,8 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../utils/common_app_bar.dart';
 import '../widgets/app_shimmer.dart';
 
@@ -476,10 +478,18 @@ class _PromotionsPageState extends State<PromotionsPage> {
   final TextEditingController _valueController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  bool _isActive = false;
+  bool _isActive = true;
   bool _termsAccepted = false;
   DateTime? _startDate;
   DateTime? _endDate;
+
+  /// "percentage" or "fixed" — the website stores this on every deal and
+  /// renders "10% OFF" or "₹5,000 OFF" from it. Without it a fixed-amount
+  /// offer cannot be created here at all.
+  String _discountType = 'percentage';
+
+  /// Field name -> message, shown under the field it belongs to.
+  Map<String, String> _errors = {};
 
   final VendorServiceApi _vendorApi = VendorServiceApi();
 
@@ -551,14 +561,37 @@ class _PromotionsPageState extends State<PromotionsPage> {
     setState(() => loading = false);
   }
 
+  /// Mirrors the website's `validate()` — every rule it enforces, enforced here.
+  bool _validate() {
+    final errs = <String, String>{};
+
+    if (_offerTitleController.text.trim().isEmpty) {
+      errs['title'] = 'Offer title is required.';
+    }
+    if (_codeController.text.trim().isEmpty) {
+      errs['code'] = 'Promo code is required.';
+    }
+
+    final value = num.tryParse(_valueController.text.trim());
+    if (value == null || value <= 0) {
+      errs['value'] = 'Enter a valid positive discount value.';
+    }
+
+    if (_startDate == null) errs['startDate'] = 'Start date is required.';
+    if (_endDate == null) errs['endDate'] = 'End date is required.';
+    if (_startDate != null && _endDate != null && _startDate!.isAfter(_endDate!)) {
+      errs['endDate'] = 'End date cannot be earlier than start date.';
+    }
+
+    if (!_termsAccepted) errs['terms'] = 'You must confirm this offer.';
+
+    setState(() => _errors = errs);
+    return errs.isEmpty;
+  }
+
   // ================= SAVE / UPDATE PROMOTION =================
   Future<void> _savePromotion() async {
-    if (!_termsAccepted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please accept terms")),
-      );
-      return;
-    }
+    if (!_validate()) return;
 
     setState(() => saving = true);
 
@@ -575,11 +608,16 @@ class _PromotionsPageState extends State<PromotionsPage> {
       final promotionData = {
         "title": _offerTitleController.text.trim(),
         "code": _codeController.text.trim(),
-        "value": int.tryParse(_valueController.text.trim()),
+        "type": _discountType,
+        // Kept as typed: `int.tryParse` turned "10.5" into null, silently
+        // dropping the discount.
+        "value": _valueController.text.trim(),
         "description": _descriptionController.text.trim(),
         "active": _isActive,
-        "startDate": _startDate?.toIso8601String(),
-        "endDate": _endDate?.toIso8601String(),
+        // Plain YYYY-MM-DD, the shape the website writes and prints. A full
+        // ISO timestamp showed up as "2026-03-05T00:00:00.000" in its table.
+        "startDate": _formatDate(_startDate),
+        "endDate": _formatDate(_endDate),
       };
 
       List<Map<String, dynamic>> deals =
@@ -625,6 +663,25 @@ class _PromotionsPageState extends State<PromotionsPage> {
 
   // ================= DELETE =================
   Future<void> _deletePromotion(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete this promotion?'),
+        content: const Text('This will remove the offer from your storefront.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Yes, delete it'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     setState(() => saving = true);
 
     try {
@@ -662,16 +719,59 @@ class _PromotionsPageState extends State<PromotionsPage> {
   }
 
   // ================= HELPERS =================
+  String? _formatDate(DateTime? d) =>
+      d == null ? null : DateFormat('yyyy-MM-dd').format(d);
+
+  /// Accepts both the website's `YYYY-MM-DD` and the full ISO timestamps this
+  /// screen used to write, so older promotions still open for editing.
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
+  String _discountLabel(Map promo) {
+    final value = promo['value']?.toString() ?? '';
+    if (value.isEmpty) return '—';
+    if (promo['type'] == 'fixed') {
+      final n = num.tryParse(value);
+      final pretty = n == null ? value : NumberFormat.decimalPattern('en_IN').format(n);
+      return '₹$pretty OFF';
+    }
+    return '$value% OFF';
+  }
+
+  /// Loads an existing offer into the form. The old version copied the title,
+  /// code, value, description and status but NOT the dates — so editing an
+  /// offer and saving wiped its validity period.
+  void _startEditing(int index, Map<String, dynamic> promo) {
+    setState(() {
+      editIndex = index;
+      _offerTitleController.text = promo['title']?.toString() ?? '';
+      _codeController.text =
+          (promo['code'] ?? promo['promoCode'] ?? '').toString();
+      _valueController.text = promo['value']?.toString() ?? '';
+      _descriptionController.text = promo['description']?.toString() ?? '';
+      _discountType = promo['type']?.toString() == 'fixed' ? 'fixed' : 'percentage';
+      _isActive = promo['active'] != false;
+      _startDate = _parseDate(promo['startDate']);
+      _endDate = _parseDate(promo['endDate']);
+      _termsAccepted = true;
+      _errors = {};
+    });
+  }
+
   void _resetForm() {
     _offerTitleController.clear();
     _codeController.clear();
     _valueController.clear();
     _descriptionController.clear();
     setState(() {
-      _isActive = false;
+      _isActive = true;
       _termsAccepted = false;
       _startDate = null;
       _endDate = null;
+      _discountType = 'percentage';
+      _errors = {};
       editIndex = null;
     });
   }
@@ -695,16 +795,126 @@ class _PromotionsPageState extends State<PromotionsPage> {
       OutlineInputBorder(borderRadius: BorderRadius.circular(12));
 
   InputDecoration _dec(String label,
-      {Widget? suffixIcon, String? suffixText}) {
+      {Widget? suffixIcon,
+      String? suffixText,
+      String? prefixText,
+      String? hintText,
+      String? errorText}) {
     return InputDecoration(
       labelText: label,
+      hintText: hintText,
+      errorText: errorText,
       border: _border(),
       enabledBorder: _border(),
       focusedBorder: _border(),
       suffixIcon: suffixIcon,
       suffixText: suffixText,
+      prefixText: prefixText,
       contentPadding:
       const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    );
+  }
+
+  /// One saved offer: title, code, discount, validity and status — the same
+  /// columns the website's Existing Offers table shows, stacked for mobile.
+  Widget _offerCard(int index, Map<String, dynamic> promo) {
+    final isEditing = editIndex == index;
+    final active = promo['active'] != false;
+    final code = (promo['code'] ?? promo['promoCode'] ?? '-').toString();
+    final start = _parseDate(promo['startDate']);
+    final end = _parseDate(promo['endDate']);
+    String pretty(DateTime? d) =>
+        d == null ? '—' : DateFormat('d MMM yyyy').format(d);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isEditing ? AppColors.primaryTint : AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: isEditing ? AppColors.primary : AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (promo['title'] ?? promo['name'] ?? 'Offer ${index + 1}')
+                      .toString(),
+                  style: AppTextStyles.bodyMedium
+                      .copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined,
+                    color: AppColors.primary, size: 20),
+                tooltip: 'Edit offer',
+                onPressed: () => _startEditing(index, promo),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline,
+                    color: AppColors.error, size: 20),
+                tooltip: 'Delete offer',
+                onPressed: () => _deletePromotion(index),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(code,
+                    style: AppTextStyles.caption.copyWith(
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary)),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.successTint,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(_discountLabel(promo),
+                    style: AppTextStyles.caption.copyWith(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w700)),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: active ? AppColors.primaryTint : AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(active ? 'Active' : 'Inactive',
+                    style: AppTextStyles.caption.copyWith(
+                        color: active
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('${pretty(start)} — ${pretty(end)}',
+              style: AppTextStyles.caption),
+        ],
+      ),
     );
   }
 
@@ -728,72 +938,88 @@ class _PromotionsPageState extends State<PromotionsPage> {
                   children: [
                     /// EXISTING PROMOTIONS
                     if (existingPromotions.isNotEmpty) ...[
-                      const Align(
+                      Align(
                         alignment: Alignment.centerLeft,
-                        child: Text(
-                          "Existing Offers",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
+                        child: Text("Existing Offers", style: AppTextStyles.h3),
                       ),
                       const SizedBox(height: 10),
                       ...existingPromotions.asMap().entries.map((entry) {
-                        int index = entry.key;
-                        var promo = entry.value;
-                        return Card(
-                          elevation: 3,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: ListTile(
-                            title: Text(promo["title"] ?? ""),
-                            subtitle:
-                            Text("Code: ${promo["code"] ?? ""}"),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit,
-                                      color: Colors.blue),
-                                  onPressed: () {
-                                    setState(() {
-                                      editIndex = index;
-                                      _offerTitleController.text =
-                                          promo["title"] ?? "";
-                                      _codeController.text =
-                                          promo["code"] ?? "";
-                                      _valueController.text =
-                                          promo["value"]?.toString() ?? "";
-                                      _descriptionController.text =
-                                          promo["description"] ?? "";
-                                      _isActive = promo["active"] ?? false;
-                                      _termsAccepted = true;
-                                    });
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.red),
-                                  onPressed: () =>
-                                      _deletePromotion(index),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
+                        final index = entry.key;
+                        final promo = entry.value;
+                        return _offerCard(index, promo);
                       }),
                       const SizedBox(height: 20),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                    ],
+
+                    /// Which offer the form is currently editing, so a filled
+                    /// form is never mistaken for a new one.
+                    if (editIndex != null) ...[
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryTint,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text('Editing Offer #${editIndex! + 1}',
+                                style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: _resetForm,
+                            child: const Text('Cancel Edit'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                     ],
 
                     TextFormField(
                       controller: _offerTitleController,
-                      decoration: _dec("Offer Title"),
+                      decoration: _dec("Offer Title *",
+                          errorText: _errors['title']),
                     ),
                     const SizedBox(height: 12),
 
                     TextFormField(
                       controller: _codeController,
-                      decoration: _dec("Promo Code"),
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: _dec("Promo Code *",
+                          hintText: "e.g. WEDDING10",
+                          errorText: _errors['code']),
+                    ),
+                    const SizedBox(height: 12),
+
+                    DropdownButtonFormField<String>(
+                      value: _discountType,
+                      decoration: _dec("Discount Type"),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'percentage', child: Text('Percentage (%)')),
+                        DropdownMenuItem(
+                            value: 'fixed', child: Text('Fixed Amount (₹)')),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _discountType = v ?? 'percentage'),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _valueController,
+                      keyboardType: TextInputType.number,
+                      decoration: _dec(
+                        "Discount Value *",
+                        hintText: _discountType == 'percentage' ? '10' : '5000',
+                        prefixText: _discountType == 'percentage' ? null : '₹ ',
+                        suffixText: _discountType == 'percentage' ? '%' : null,
+                        errorText: _errors['value'],
+                      ),
                     ),
                     const SizedBox(height: 12),
 
@@ -801,19 +1027,13 @@ class _PromotionsPageState extends State<PromotionsPage> {
                       children: [
                         Switch(
                           value: _isActive,
-                          onChanged: (v) =>
-                              setState(() => _isActive = v),
+                          onChanged: (v) => setState(() => _isActive = v),
                         ),
-                        Text(_isActive ? "Active" : "Inactive"),
+                        Text(_isActive ? "Active" : "Inactive",
+                            style: AppTextStyles.bodySecondary),
                       ],
                     ),
-
-                    TextFormField(
-                      controller: _valueController,
-                      keyboardType: TextInputType.number,
-                      decoration: _dec("Discount Value", suffixText: "%"),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
 
                     TextFormField(
                       readOnly: true,
@@ -863,9 +1083,17 @@ class _PromotionsPageState extends State<PromotionsPage> {
                       value: _termsAccepted,
                       onChanged: (v) =>
                           setState(() => _termsAccepted = v ?? false),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
                       title: const Text(
                           "I confirm this offer and its terms"),
                     ),
+                    if (_errors['terms'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(_errors['terms']!,
+                            style: AppTextStyles.errorText),
+                      ),
 
                   ],
                 ),

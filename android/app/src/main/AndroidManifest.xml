@@ -18,13 +18,14 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
-        <!-- Required by google_maps_flutter (LocationScreen). "Maps SDK for
-             Android" is enabled on this key. It is shared with iOS
-             (AppDelegate.swift), so it cannot carry an Android app
-             restriction — split it into per-platform keys before release. -->
+        <!-- Required by google_maps_flutter (LocationScreen). The value is
+             injected at build time from android/key.properties (gitignored)
+             via manifestPlaceholders in app/build.gradle.kts, so the key is
+             not committed. It still ships inside the APK, so restrict it by
+             package name + SHA-1 in Google Cloud Console. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyBn2KZPZa4KlkMSxVKkeNcWErtEeFeeclI" />
+            android:value="${MAPS_API_KEY}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

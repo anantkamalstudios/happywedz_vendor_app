@@ -12,6 +12,19 @@ class BasicInfoPage extends StatefulWidget {
   _BasicInfoPageState createState() => _BasicInfoPageState();
 }
 
+String stripHtmlTags(String value) {
+  return value
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<[^>]*>'), '')
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .trim();
+}
+
 class _BasicInfoPageState extends State<BasicInfoPage> {
   final TextEditingController businessNameController = TextEditingController();
   final TextEditingController aboutController = TextEditingController();
@@ -83,7 +96,7 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
       currentAttributes = Map<String, dynamic>.from(data["attributes"] ?? {});
 
       businessNameController.text = currentAttributes["name"] ?? "";
-      aboutController.text = currentAttributes["about_us"] ?? "";
+      aboutController.text = stripHtmlTags(currentAttributes["about_us"] ?? "");
 
       vendorSubcategoryId = data["vendor_subcategory_id"];
       if (vendorSubcategoryId != null) {

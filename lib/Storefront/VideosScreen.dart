@@ -47,14 +47,38 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
       await fetchCurrentAttributes();
     }
 
-    if (vendorId != null) {
+    // The server is the source of truth. The local list is only a fallback for
+    // when the service could not be read at all — it used to run
+    // unconditionally and overwrote whatever the server had just returned,
+    // which is why videos added on the website showed up as an empty gallery.
+    if (videoURLs.isEmpty && vendorId != null) {
       videoURLs = prefs.getStringList("videos_$vendorId") ?? [];
-      for (var url in videoURLs) {
-        thumbnails[url] = await getThumbnail(url);
-      }
+    }
+
+    for (var url in videoURLs) {
+      thumbnails[url] = await getThumbnail(url);
     }
 
     setState(() => loadingVendorData = false);
+  }
+
+  /// Videos arrive as plain strings or as `{url}` / `{path}` objects, under
+  /// `video`, the legacy misspelling `vedio`, or `media.videos`. The website
+  /// reads all three; so does this, or a gallery saved by an older client
+  /// looks empty here.
+  List<String> _normalizeVideos(dynamic raw) {
+    if (raw is! List) return [];
+    return raw
+        .map((v) {
+          if (v is String) return v;
+          if (v is Map) return (v['url'] ?? v['path'] ?? '').toString();
+          return '';
+        })
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty)
+        // Relative upload paths are stored without a host.
+        .map((v) => v.startsWith('/uploads/') ? '${ApiConfig.baseUrl}$v' : v)
+        .toList();
   }
 
   Future<void> fetchCurrentAttributes() async {
@@ -67,13 +91,19 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
       if (response.statusCode == 200) {
         final parsed = jsonDecode(response.body);
         currentAttributes = Map<String, dynamic>.from(parsed["attributes"] ?? {});
-        if (currentAttributes.containsKey("video") &&
-            currentAttributes["video"] is List) {
-          videoURLs = List<String>.from(currentAttributes["video"]);
-        }
+
+        final fromAttributes = <String>[
+          ..._normalizeVideos(currentAttributes["video"]),
+          ..._normalizeVideos(currentAttributes["vedio"]),
+        ];
+
+        final media = parsed["media"];
+        final fromMedia = media is Map ? _normalizeVideos(media["videos"]) : <String>[];
+
+        videoURLs = {...fromAttributes, ...fromMedia}.toList();
       }
     } catch (e) {
-      print("Error fetching video attributes: $e");
+      debugPrint("Error fetching video attributes: $e");
     }
   }
 

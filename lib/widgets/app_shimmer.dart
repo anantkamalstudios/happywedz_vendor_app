@@ -414,7 +414,12 @@ class GridShimmer extends StatelessWidget {
 /// ---------------------------------------------------------------------------
 class FormShimmer extends StatelessWidget {
   final int fields;
-  const FormShimmer({super.key, this.fields = 5});
+
+  /// Mirrors the avatar + "Choose File" row that Business Details puts above
+  /// its fields, so that page does not jump when the data lands.
+  final bool avatarHeader;
+
+  const FormShimmer({super.key, this.fields = 5, this.avatarHeader = false});
 
   @override
   Widget build(BuildContext context) {
@@ -422,6 +427,16 @@ class FormShimmer extends StatelessWidget {
       child: _SkeletonBody(
         padding: const EdgeInsets.all(16),
         children: [
+          if (avatarHeader) ...[
+            Row(
+              children: const [
+                ShimmerBox(width: 90, height: 90, circle: true),
+                SizedBox(width: 15),
+                ShimmerBox(width: 120, height: 40, radius: AppTheme.radiusSm),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
           for (int i = 0; i < fields; i++) ...[
             const ShimmerBox(width: 120, height: 13),
             const SizedBox(height: 8),

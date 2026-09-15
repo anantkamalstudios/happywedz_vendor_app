@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../Storefront/StoreFront.dart';
 // import '../movments_plus/bottom_bar.dart';
 import 'Login.dart';
+import 'subscription_history_screen.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class BusinessDrawer extends StatefulWidget {
@@ -272,6 +273,20 @@ Future<void> _loadVendorId() async {
                         context,
                         MaterialPageRoute(
                           builder: (_) => Storefront(vendorId: vendorId!),
+                        ),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.credit_card_outlined,
+                        color: Color(0xFF4682B4)),
+                    title: const Text("Payments & Subscription"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SubscriptionHistoryScreen(),
                         ),
                       );
                     },
