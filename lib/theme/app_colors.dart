@@ -23,7 +23,7 @@ class AppColors {
   // BRAND (verbatim from the existing app)
   // ==========================================================================
 
-  /// French Blue — used as the dark end of every header gradient and as the
+  /// French Blue — used as the dark end of every header g radient and as the
   /// HomeTab AppBar background in the existing app.
   static const Color primaryDark = Color(0xFF003F88);
 

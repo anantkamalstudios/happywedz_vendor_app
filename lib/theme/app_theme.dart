@@ -8,7 +8,7 @@ import 'app_text_styles.dart';
 /// AppTheme — the single ThemeData for HappyWedz Business
 /// ============================================================================
 ///
-/// AUDIT NOTE — WHY THIS FILE EXISTS
+/// AUDIT NOTE — WH Y THIS FILE EXISTS
 /// Before this audit, `MaterialApp` in main.dart had NO `theme:` property at
 /// all. Consequences that were observed:
 ///   • Every piece of text rendered in Flutter's default font (Roboto), so the

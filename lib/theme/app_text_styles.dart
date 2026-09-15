@@ -9,7 +9,7 @@ import 'app_colors.dart';
 /// The app previously had NO `theme:` on MaterialApp, so every `TextStyle`
 /// inherited Flutter's default (Roboto). Poppins TTFs are now bundled under
 /// `assets/fonts/` and declared in pubspec.yaml, and `AppTheme` sets
-/// `fontFamily: AppTextStyles.fontFamily` globally.
+/// `fontFamily: AppTextStyles.fontFamily` gl obally.
 ///
 /// That means EXISTING screens get Poppins automatically without editing
 /// their individual TextStyle calls — a `TextStyle(fontSize: 16)` on any
