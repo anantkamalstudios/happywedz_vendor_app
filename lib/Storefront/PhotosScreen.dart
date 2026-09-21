@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_shimmer.dart';
 
 class GalleryUploadPage extends StatefulWidget {
   const GalleryUploadPage({super.key});
@@ -70,10 +70,13 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
   // PICK IMAGES
   // ----------------------------------------------------------
   Future<void> pickImages() async {
-    final List<XFile>? files =
-    await picker.pickMultiImage(imageQuality: 80);
+    // AUDIT FIX: `pickMultiImage()` returns a non-nullable List<XFile>, so the
+    // `?` type and the `!= null` half of the guard were dead code. The
+    // emptiness check is what actually matters — the picker returns an EMPTY
+    // list (not null) when the user cancels.
+    final List<XFile> files = await picker.pickMultiImage(imageQuality: 80);
 
-    if (files != null && files.isNotEmpty) {
+    if (files.isNotEmpty) {
       setState(() {
         selectedImages.addAll(files.map((e) => File(e.path)));
       });
@@ -140,16 +143,22 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
           selectedImages.clear();
         });
 
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Gallery saved successfully")),
         );
       } else {
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to save gallery")),
         );
       }
     } catch (e) {
       debugPrint("❌ Upload error: $e");
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Upload failed")),
       );
@@ -204,7 +213,7 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
       backgroundColor: Colors.white,
       appBar: const CommonAppBar(title: "Upload Gallery"),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const GridShimmer(itemCount: 9)
           : Column(
             children: [
               Expanded(

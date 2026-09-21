@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_shimmer.dart';
 
 class PoliciesPage extends StatefulWidget {
   const PoliciesPage({super.key});
@@ -32,7 +32,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
   @override
   void initState() {
     super.initState();
-    print("🔔 PoliciesPage.initState()");
+    debugPrint("🔔 PoliciesPage.initState()");
     _attachListeners();
     _loadCredentialsAndData();
   }
@@ -63,7 +63,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
 
   Future<void> _loadCredentialsAndData() async {
     setState(() => loading = true);
-    print("📥 Loading SharedPreferences credentials & local data...");
+    debugPrint("📥 Loading SharedPreferences credentials & local data...");
     final prefs = await SharedPreferences.getInstance();
 
     vendorId = prefs.getInt('vendorId');
@@ -71,27 +71,27 @@ class _PoliciesPageState extends State<PoliciesPage> {
     serviceId = prefs.getInt('serviceId');
     vendorSubcategoryId = prefs.getInt('vendor_subcategory_id');
 
-    print("🔑 Loaded: vendorId=$vendorId, serviceId=$serviceId, vendor_subcategory_id=$vendorSubcategoryId, token=${token != null ? 'present' : 'null'}");
+    debugPrint("🔑 Loaded: vendorId=$vendorId, serviceId=$serviceId, vendor_subcategory_id=$vendorSubcategoryId, token=${token != null ? 'present' : 'null'}");
 
     // Load locally saved copy first (so UI is instant)
     final local = prefs.getString('policiesData');
     if (local != null) {
       try {
         final Map<String, dynamic> parsed = jsonDecode(local);
-        print("📦 Found local policiesData: $parsed");
+        debugPrint("📦 Found local policiesData: $parsed");
         _setFieldsFromMap(parsed);
       } catch (e) {
-        print("⚠️ Failed to parse local policiesData: $e");
+        debugPrint("⚠️ Failed to parse local policiesData: $e");
       }
     } else {
-      print("📭 No local policiesData found.");
+      debugPrint("📭 No local policiesData found.");
     }
 
     // If vendorId and token present, fetch server data (this may update serviceId & attributes)
     if (vendorId != null && token != null) {
       await _fetchVendorServiceAndPopulate();
     } else {
-      print("⚠ Skipping server fetch (vendorId or token missing).");
+      debugPrint("⚠ Skipping server fetch (vendorId or token missing).");
     }
 
     setState(() => loading = false);
@@ -100,7 +100,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
   void _setFieldsFromMap(Map<String, dynamic> data) {
     // Accept either an 'attributes' map or direct keys map
     final attributes = data.containsKey('attributes') ? data['attributes'] as Map<String, dynamic> : data;
-    print("🔧 _setFieldsFromMap attributes: $attributes");
+    debugPrint("🔧 _setFieldsFromMap attributes: $attributes");
 
     _cancellationController.text = attributes['cancellation_policy']?.toString() ?? '';
     _refundController.text = attributes['refund_policy']?.toString() ?? '';
@@ -145,7 +145,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
       "tnc": _tncController.text.trim(),
     };
     await prefs.setString('policiesData', jsonEncode(data));
-    print("💾 Autosaved policies locally: $data");
+    debugPrint("💾 Autosaved policies locally: $data");
   }
 
   Future<void> _savePoliciesToServer() async {
@@ -192,10 +192,14 @@ class _PoliciesPageState extends State<PoliciesPage> {
         serviceId: serviceId!,
       );
       await _saveLocallyFromControllers();
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Policies saved successfully")),
       );
     } else {
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to save policies")),
       );
@@ -206,7 +210,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
 
 
   void _resetForm() async {
-    print("♻️ Reset: clearing controllers and removing local storage");
+    debugPrint("♻️ Reset: clearing controllers and removing local storage");
     _cancellationController.clear();
     _refundController.clear();
     _paymentController.clear();
@@ -214,7 +218,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('policiesData');
-    print("🗑 Removed policiesData from SharedPreferences");
+    debugPrint("🗑 Removed policiesData from SharedPreferences");
     setState(() {}); // refresh
   }
 
@@ -251,7 +255,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: 'Policies & Terms'),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FormShimmer(fields: 4)
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Container(

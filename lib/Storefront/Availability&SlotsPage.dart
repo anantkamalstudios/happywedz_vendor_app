@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_shimmer.dart';
 
 class SlotsPage extends StatefulWidget {
   const SlotsPage({super.key});
@@ -136,14 +137,27 @@ class _SlotsPageState extends State<SlotsPage>
       serviceId = data["id"];
       vendorSubcategoryId = data["vendor_subcategory_id"];
 
-      final List<dynamic> apiSlots =
-          data["attributes"]?["available_slots"] ?? [];
+      final rawSlots = data["attributes"]?["available_slots"];
+      // AUDIT FIX: `data["attributes"]?["available_slots"] ?? []` was assigned
+      // straight into `List<dynamic>`, which throws a raw TypeError whenever
+      // the key holds anything but a list.
+      final List<dynamic> apiSlots = rawSlots is List ? rawSlots : const [];
 
+      // AUDIT FIX: `DateTime.parse(e["date"])` threw a FormatException on a
+      // null or malformed date, and because this runs inside
+      // `didChangeAppLifecycleState` it fired on EVERY app resume — one bad
+      // slot row made the calendar unusable until reinstall. Unparseable rows
+      // are skipped instead.
+      final parsed = <DateTime>{};
+      for (final e in apiSlots) {
+        final raw = (e is Map) ? e["date"] : null;
+        final d = raw == null ? null : DateTime.tryParse(raw.toString());
+        if (d != null) parsed.add(_normalize(d));
+      }
+
+      if (!mounted) return;
       setState(() {
-        availableDays = apiSlots
-            .map<DateTime>(
-                (e) => _normalize(DateTime.parse(e["date"])))
-            .toSet();
+        availableDays = parsed;
       });
 
       await _saveLocally();
@@ -198,10 +212,14 @@ class _SlotsPageState extends State<SlotsPage>
         serviceId: serviceId!,
       );
       await fetchVendorSlots();
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Slots saved successfully")),
       );
     } else {
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to save slots")),
       );
@@ -237,7 +255,7 @@ class _SlotsPageState extends State<SlotsPage>
         "$count",
         style: TextStyle(color: color, fontWeight: FontWeight.bold),
       ),
-      backgroundColor: color.withOpacity(0.1),
+      backgroundColor: color.withValues(alpha: 0.1),
     );
   }
 
@@ -272,7 +290,7 @@ class _SlotsPageState extends State<SlotsPage>
     backgroundColor: Colors.white,
       appBar: CommonAppBar(title: "Availability & Slots"),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ListShimmer(itemCount: 6, showAvatar: false, itemHeight: 84)
           : Column(
             children: [
               Expanded(

@@ -85,8 +85,8 @@ class UploadMediaScreen extends StatefulWidget {
   final String? preselectedEventId;
   final String? preselectedEventName;
 
-  const UploadMediaScreen({Key? key,   this.preselectedEventId,
-    this.preselectedEventName,}) : super(key: key);
+  const UploadMediaScreen({super.key,   this.preselectedEventId,
+    this.preselectedEventName,});
 
   @override
   State<UploadMediaScreen> createState() =>
@@ -240,7 +240,9 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
   Future<void> uploadMedia() async {
     if (selectedFiles.isEmpty ||
         selectedToken == null ||
-        selectedEventId == null) return;
+        selectedEventId == null) {
+      return;
+    }
 
     setState(() => isUploading = true);
 
@@ -249,10 +251,10 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       final vendorId = prefs.getInt('vendorId');
       final authToken =
           prefs.getString('token') ?? prefs.getString('authToken');
-      print("👤 Vendor IDddddddddddddddddddddddddddddddddddddddd: $vendorId");
-      print("🔑 AUTH TOKENnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $authToken");
-      print("📦 Selected Event IDddddddddddddddddddddddddddddddddd: $selectedEventId");
-      print("🎟 Selected Tokennnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $selectedToken");
+      debugPrint("👤 Vendor IDddddddddddddddddddddddddddddddddddddddd: $vendorId");
+      debugPrint("🔑 AUTH TOKENnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $authToken");
+      debugPrint("📦 Selected Event IDddddddddddddddddddddddddddddddddd: $selectedEventId");
+      debugPrint("🎟 Selected Tokennnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: $selectedToken");
       final uri =
       Uri.parse('${ApiConfig.baseUrl}/vendor/upload-media');
 
@@ -302,6 +304,8 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         //   freeMB = limitMB - usedMB;
         //   packageName = storage['packageName'];
         // });
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Media uploaded successfully')),
         );
@@ -311,6 +315,8 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
       }
     } catch (e) {
       debugPrint("❌ UPLOAD ERROR: $e");
+      // AUDIT FIX: context used after an await — guard added.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
@@ -402,7 +408,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         color: Color(0xFF00509D),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00509D).withOpacity(0.3),
+            color: const Color(0xFF00509D).withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -498,9 +504,9 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -524,7 +530,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.white.withOpacity(0.3),
+              backgroundColor: Colors.white.withValues(alpha: 0.3),
               valueColor:
               const AlwaysStoppedAnimation<Color>(Colors.white),
               minHeight: 6,
@@ -626,7 +632,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
 
         return DropdownButtonFormField<String>(
           // value: selectedEventId,
-            value: selectedEventId,
+            initialValue: selectedEventId,
           hint: const Text('Select Event'),
           items: events.map((e) {
             return DropdownMenuItem<String>(
@@ -665,7 +671,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
         canvasColor: Colors.white,
       ),
       child: DropdownButtonFormField<String>(
-        value: visibility,
+        initialValue: visibility,
         items: ['Public', 'Private']
             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
             .toList(),
@@ -870,7 +876,7 @@ class _UploadMediaScreenState extends State<UploadMediaScreen> {
             canvasColor: Colors.white, // 🔥 dropdown bg white
           ),
           child: DropdownButtonFormField<String>(
-            value: selectedToken,
+            initialValue: selectedToken,
             hint: const Text('Select Token'),
             items: dropdownTokens.map((t) {
               return DropdownMenuItem<String>(

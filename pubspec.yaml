@@ -2,7 +2,7 @@ name: happy_weds_vendors
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.8+8
+version: 1.0.10+11
 
 environment:
   sdk: ^3.8.1

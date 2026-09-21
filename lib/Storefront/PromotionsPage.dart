@@ -447,7 +447,6 @@
 //   }
 // }
 //
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -456,6 +455,7 @@ import '../api_services/storefront_completion_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_shimmer.dart';
 
 class PromotionsPage extends StatefulWidget {
   const PromotionsPage({super.key});
@@ -465,6 +465,12 @@ class PromotionsPage extends StatefulWidget {
 }
 
 class _PromotionsPageState extends State<PromotionsPage> {
+  /// AUDIT NOTE: this promotions form declares a form key but never wraps
+  /// its fields in a `Form`, so `validate()` is never called and the fields
+  /// have no validation at all (flagged `unused_field`). KEPT so the key is
+  /// in place when the fields are wrapped in a Form — see the audit report's
+  /// Forms section. Do not delete without project-owner approval.
+  // ignore: unused_field
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _offerTitleController = TextEditingController();
@@ -642,6 +648,8 @@ class _PromotionsPageState extends State<PromotionsPage> {
         );
         setState(() => existingPromotions = deals);
         _resetForm();
+        // AUDIT FIX: context used after an await — guard added.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Promotion saved successfully")),
         );
@@ -917,7 +925,7 @@ class _PromotionsPageState extends State<PromotionsPage> {
       backgroundColor: Colors.white,
       appBar: CommonAppBar(title: 'Promotion Details'),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FormShimmer(fields: 4)
           : RefreshIndicator(
         onRefresh: _fetchExistingPromotions,
         child: Column(

@@ -31,9 +31,9 @@ android {
     defaultConfig {
         applicationId = "com.happy.happy_weds_vendors"
         minSdk = flutter.minSdkVersion
-        targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.6"
+        targetSdk = 36
+        versionCode = 11
+        versionName = "1.0.10"
 
         // Google Maps key comes from the gitignored key.properties rather than
         // living in AndroidManifest.xml, so it is not committed to the repo.

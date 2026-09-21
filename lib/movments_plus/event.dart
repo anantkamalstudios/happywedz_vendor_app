@@ -9,6 +9,13 @@ import 'package:shimmer/shimmer.dart';
 import 'bottom_bar.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
 
+
+
+
+
+
+
+
 /// ======================= MODEL =======================
 class Event {
   final int id;
@@ -70,8 +77,8 @@ class EventsService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? prefs.getString('authToken');
-    print("📤 CREATE EVENT API CALLED");
-    print("🔑 Token: $token");
+    debugPrint("📤 CREATE EVENT API CALLED");
+    debugPrint("🔑 Token: $token");
 
     final res = await http.post(
       Uri.parse(_url),
@@ -86,10 +93,10 @@ class EventsService {
       }),
     );
 
-    print("📥 Status Code: ${res.statusCode}");
-    print("📥 Raw Response: ${res.body}");
+    debugPrint("📥 Status Code: ${res.statusCode}");
+    debugPrint("📥 Raw Response: ${res.body}");
     final body = jsonDecode(res.body);
-    print("📥 Parsed Response: $body");
+    debugPrint("📥 Parsed Response: $body");
 
     if ((res.statusCode != 200 && res.statusCode != 201) || body['success'] != true) {
       throw Exception(body['message'] ?? "Create failed");
@@ -100,7 +107,7 @@ class EventsService {
 /// ======================= PAGE =======================
 
 class EventsManagementPage extends StatefulWidget {
-  const EventsManagementPage({Key? key}) : super(key: key);
+  const EventsManagementPage({super.key});
 
   @override
   State<EventsManagementPage> createState() => _EventsManagementPageState();
@@ -246,7 +253,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
         decoration: BoxDecoration(
           color: const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.1)),
+          border: Border.all(color: color.withValues(alpha: 0.1)),
         ),
         child: Row(
           children: [
@@ -289,7 +296,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
             ),
             selectedColor: const Color(0xFF00509D),
             backgroundColor: Colors.white,
-            side: BorderSide(color: const Color(0xFF00509D).withOpacity(0.3)),
+            side: BorderSide(color: const Color(0xFF00509D).withValues(alpha: 0.3)),
           ),
         ),
       ),
@@ -329,7 +336,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -358,7 +365,7 @@ class _EventsManagementPageState extends State<EventsManagementPage> {
                     padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00509D).withOpacity(0.1),
+                      color: const Color(0xFF00509D).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(60),
                     ),
                     child: Text(
