@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../utils/common_app_bar.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import '../utils/subcategory_selection.dart';
 
 class PreferredVendorsPage extends StatefulWidget {
   const PreferredVendorsPage({super.key});
@@ -201,7 +202,7 @@ class _PreferredVendorsPageState extends State<PreferredVendorsPage> {
 
     final body = {
       "vendor_id": vendorId,
-      "vendor_subcategory_id": vendorSubcategoryId,
+      "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
       "attributes": attributes,
     };
 
@@ -236,7 +237,10 @@ class _PreferredVendorsPageState extends State<PreferredVendorsPage> {
       body: loadingVendorData
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+        // clear of the 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(16, 16, 16,
+            16 + MediaQuery.of(context).padding.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

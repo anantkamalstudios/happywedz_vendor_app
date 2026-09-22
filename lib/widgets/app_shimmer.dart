@@ -292,7 +292,13 @@ class ListShimmer extends StatelessWidget {
 
 /// ---------------------------------------------------------------------------
 /// STATISTICS SKELETON
-/// Mirrors: three stat cards in a row → range dropdown → chart panels.
+/// Mirrors: three stat cards in a row → range dropdown → three chart panels
+/// (Leads, Impressions, Profile Views), which is what StatsScreen renders for
+/// every period except Custom Range.
+///
+/// The numbers are taken from the real screen rather than guessed: the stat
+/// cards sit in a Row with 12px gaps, the charts are `SizedBox(height: 260)`,
+/// and the body padding is 12 — so the page does not jump when the data lands.
 /// ---------------------------------------------------------------------------
 class StatsShimmer extends StatelessWidget {
   const StatsShimmer({super.key});
@@ -303,7 +309,8 @@ class StatsShimmer extends StatelessWidget {
       child: _SkeletonBody(
         padding: const EdgeInsets.all(12),
         children: [
-          const SizedBox(height: 20),
+          // Matches the leading SizedBox(height: 30) on the real screen.
+          const SizedBox(height: 30),
           Row(
             children: const [
               Expanded(child: ShimmerBox(height: 106, radius: 12)),
@@ -319,7 +326,8 @@ class StatsShimmer extends StatelessWidget {
             child: ShimmerBox(width: 150, height: 44, radius: 6),
           ),
           const SizedBox(height: 25),
-          for (int i = 0; i < 2; i++) ...[
+          // Leads, Impressions, Profile Views.
+          for (int i = 0; i < 3; i++) ...[
             const ShimmerBox(width: 110, height: 16),
             const SizedBox(height: 10),
             const ShimmerBox(height: 260, radius: 6),

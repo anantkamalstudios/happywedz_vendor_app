@@ -292,7 +292,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                   _buildStatusButtons(),
                   const SizedBox(height: 40),
                   _actionButtons(name, lead),
-
+                  // Edge to edge (targetSdk 36): clears the 3-button
+                  // navigation bar at the end of the scroll.
+                  SizedBox(height: MediaQuery.of(context).padding.bottom),
                 ],
               ),
             ),

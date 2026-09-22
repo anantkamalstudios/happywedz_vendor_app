@@ -435,7 +435,10 @@ class _ViewPlansScreenState extends ConsumerState<ViewPlansScreen>
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView(
-                        padding: const EdgeInsets.all(16),
+                        // Edge to edge (targetSdk 36): keeps the last item clear of the
+                        // 3-button navigation bar.
+                        padding: EdgeInsets.fromLTRB(16, 16, 16,
+                            16 + MediaQuery.of(context).padding.bottom),
                         children: [
                           Text(
                             'Choose your plan',

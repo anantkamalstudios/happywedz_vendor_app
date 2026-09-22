@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
+import '../utils/subcategory_selection.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class BasicInfoPage extends StatefulWidget {
@@ -34,9 +35,12 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
   bool isUnderline = false;
   String vendorType = '';
   int? vendorTypeId;
-  int? vendorSubcategoryId;
-  String? primarySubcategory;
   List<Map<String, dynamic>> subcategories = [];
+
+  // Primary Subcategory is a multi-select, same as the website. The first id
+  // is the primary one the single-id API field carries.
+  List<int> selectedSubcategoryIds = [];
+  bool showSubcategoryPicker = false;
 
   String adStatus = 'hide';
   final Map<String, String> adStatusOptions = {
@@ -63,10 +67,10 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
     final prefs = await SharedPreferences.getInstance();
     vendorId = prefs.getInt('vendorId');
     token = prefs.getString('token');
-    vendorSubcategoryId = prefs.getInt('vendor_subcategory_id');
+    selectedSubcategoryIds = await SubcategorySelection.load();
 
     print(
-      "Loaded vendorId: $vendorId, token: $token, vendorSubcategoryId: $vendorSubcategoryId",
+      "Loaded vendorId: $vendorId, token: $token, subcategoryIds: $selectedSubcategoryIds",
     );
 
     if (vendorId != null && token != null) {
@@ -98,9 +102,12 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
       businessNameController.text = currentAttributes["name"] ?? "";
       aboutController.text = stripHtmlTags(currentAttributes["about_us"] ?? "");
 
-      vendorSubcategoryId = data["vendor_subcategory_id"];
-      if (vendorSubcategoryId != null) {
-        await prefs.setInt("vendor_subcategory_id", vendorSubcategoryId!);
+      // The service carries the primary in `vendor_subcategory_id` and the
+      // whole multi-select in `subcategories`.
+      final saved = SubcategorySelection.fromService(data);
+      if (saved.isNotEmpty) {
+        selectedSubcategoryIds = saved;
+        await SubcategorySelection.save(saved);
       }
 
       if (data["status"] != null &&
@@ -171,20 +178,18 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
                 .map((e) => {'id': e['id'], 'name': e['name']})
                 .toList();
 
-            if (vendorSubcategoryId != null) {
-              primarySubcategory =
-                  subcategories.firstWhere(
-                    (s) => s['id'] == vendorSubcategoryId,
-                    orElse: () => {'name': null},
-                  )['name'];
-            } else if (subcategories.isNotEmpty) {
-              primarySubcategory = subcategories[0]['name'];
-              vendorSubcategoryId = subcategories[0]['id'];
+            // Only default to the first option when nothing is selected yet.
+            // An id that this vendor type no longer lists is still kept, the
+            // way the single-select did and the way the website does — losing
+            // it here would quietly reassign the vendor on the next save.
+            if (selectedSubcategoryIds.isEmpty && subcategories.isNotEmpty) {
+              final first = subcategoryIdOf(subcategories.first);
+              if (first != null) selectedSubcategoryIds = [first];
             }
           });
 
           print(
-            "Loaded subcategories: $subcategories, primarySubcategory: $primarySubcategory",
+            "Loaded subcategories: $subcategories, selected: $selectedSubcategoryIds",
           );
         }
       }
@@ -214,7 +219,8 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
   Future<void> saveBasicInfo() async {
     if (vendorId == null || token == null) return;
 
-    if (businessNameController.text.isEmpty || vendorSubcategoryId == null) {
+    if (businessNameController.text.isEmpty ||
+        selectedSubcategoryIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill all required fields")),
       );
@@ -244,7 +250,10 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
 
     final body = {
       "vendor_id": vendorId,
-      "vendor_subcategory_id": vendorSubcategoryId,
+      // Comma separated when more than one is picked — the backend keeps the
+      // first as the primary and stores the rest alongside it.
+      "vendor_subcategory_id":
+          SubcategorySelection.payload(selectedSubcategoryIds),
       "status": adStatus,
       "attributes": currentAttributes,
     };
@@ -270,6 +279,10 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
     //   );
     // }
     if (success) {
+      // Keep the other storefront screens in step, so their saves carry the
+      // full set instead of collapsing it back to the primary.
+      await SubcategorySelection.save(selectedSubcategoryIds);
+
       await StorefrontCompletionService.refreshCompletion(
         serviceId: serviceId!,
       );
@@ -284,6 +297,138 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
     }
 
     setState(() => isSaving = false);
+  }
+
+  /// Subcategory ids arrive as numbers today, but a string id would throw on
+  /// a plain cast, so parse rather than cast.
+  int? subcategoryIdOf(Map<String, dynamic> sub) {
+    final id = sub['id'];
+    if (id is int) return id;
+    if (id is num) return id.toInt();
+    return int.tryParse("$id");
+  }
+
+  void toggleSubcategory(int id) {
+    setState(() {
+      final next = List<int>.from(selectedSubcategoryIds);
+      if (next.contains(id)) {
+        next.remove(id);
+      } else {
+        next.add(id);
+      }
+      selectedSubcategoryIds = next;
+    });
+  }
+
+  String subcategoryNameFor(int id) {
+    final match = subcategories.firstWhere(
+      (s) => subcategoryIdOf(s) == id,
+      orElse: () => {'name': '$id'},
+    );
+    return "${match['name'] ?? id}";
+  }
+
+  /// Multi-select subcategories, mirroring the website. The first pick is the
+  /// primary one.
+  Widget subcategoryPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(
+            () => showSubcategoryPicker = !showSubcategoryPicker,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade500),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedSubcategoryIds.isEmpty
+                        ? "-- Select subcategories --"
+                        : "${selectedSubcategoryIds.length} selected",
+                    style: TextStyle(
+                      color: selectedSubcategoryIds.isEmpty
+                          ? Colors.grey.shade600
+                          : Colors.black,
+                    ),
+                  ),
+                ),
+                Icon(
+                  showSubcategoryPicker
+                      ? Icons.arrow_drop_up
+                      : Icons.arrow_drop_down,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (showSubcategoryPicker)
+          Container(
+            margin: EdgeInsets.only(top: 6),
+            constraints: BoxConstraints(maxHeight: 220),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: subcategories.isEmpty
+                ? Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      "No subcategories available",
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  )
+                : ListView(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    children: subcategories.map((sub) {
+                      final id = subcategoryIdOf(sub);
+                      if (id == null) return SizedBox.shrink();
+                      return CheckboxListTile(
+                        dense: true,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                        activeColor: Color(0xFF00509D),
+                        value: selectedSubcategoryIds.contains(id),
+                        title: Text("${sub['name']}"),
+                        onChanged: (_) => toggleSubcategory(id),
+                      );
+                    }).toList(),
+                  ),
+          ),
+        if (selectedSubcategoryIds.isNotEmpty) ...[
+          SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: selectedSubcategoryIds.map((id) {
+              final isPrimary = id == selectedSubcategoryIds.first;
+              return Chip(
+                backgroundColor: isPrimary
+                    ? Color(0xFF00509D)
+                    : Colors.grey.shade600,
+                label: Text(
+                  isPrimary
+                      ? "${subcategoryNameFor(id)} • Primary"
+                      : subcategoryNameFor(id),
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
+                deleteIcon: Icon(Icons.close, size: 16, color: Colors.white),
+                onDeleted: () => toggleSubcategory(id),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
   }
 
   Widget field(
@@ -504,63 +649,40 @@ class _BasicInfoPageState extends State<BasicInfoPage> {
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           SizedBox(height: 5),
-                          DropdownButtonFormField<String>(
-                            value: primarySubcategory,
-                            isExpanded: true,
-                            items: subcategories
-                                .map(
-                                  (sub) => DropdownMenuItem<String>(
-                                    value: sub['name'],
-                                    child: Text(sub['name']),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                primarySubcategory = value;
-                                vendorSubcategoryId = subcategories.firstWhere(
-                                  (s) => s['name'] == value,
-                                )['id'];
-                              });
-                            },
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
+                          subcategoryPicker(),
                           SizedBox(height: 20),
                         ],
                       ),
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: isSaving ? null : saveBasicInfo,
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: Color(0xFF00509D),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
+                // Edge to edge (targetSdk 36): without this the button sits under
+                // the 3-button navigation bar.
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: isSaving ? null : saveBasicInfo,
+                        style: ElevatedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: Color(0xFF00509D),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
                         ),
-                      ),
-                      child: isSaving
-                          ? CircularProgressIndicator(color: Colors.white)
-                          : Text(
-                              "Save Basic Info",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
+                        child: isSaving
+                            ? CircularProgressIndicator(color: Colors.white)
+                            : Text(
+                                "Save Basic Info",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
                 ),

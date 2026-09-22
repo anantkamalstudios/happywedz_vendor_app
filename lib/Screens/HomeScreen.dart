@@ -158,7 +158,13 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 10,
         shape: isPhotographer ? const CircularNotchedRectangle() : null,
         notchMargin: isPhotographer ? 8 : 0,
-        child: SizedBox(
+        // `BottomAppBar` takes its padding from the widget/theme only — unlike
+        // `BottomNavigationBar` it never reads `MediaQuery.padding.bottom`. On
+        // targetSdk 36 Android draws edge to edge, so without this the whole
+        // 64px tab row sat under the 3-button navigation keys.
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
         height: 64,
         child: Row(
           children: [
@@ -208,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
 
+    ),
     ),
 
     );

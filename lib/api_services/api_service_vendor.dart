@@ -103,4 +103,56 @@ class VendorServiceApi {
     if (!success) debugPrint("Response body: ${res.body}");
     return success;
   }
+
+  /// UPDATE service with 360° video files attached.
+  ///
+  /// Videos cannot ride along in the JSON body, so this mirrors the shape the
+  /// website's `buildFormData` sends: `attributes` as a JSON string, the new
+  /// files under `view360_video`, and the URLs of the ones already stored
+  /// under `view360_video_urls`. That last field is what stops the server
+  /// dropping the videos the vendor is keeping.
+  Future<bool> updateServiceWith360Videos({
+    required int serviceId,
+    required String token,
+    required int vendorId,
+    required Object? vendorSubcategoryId,
+    required Map<String, dynamic> attributes,
+    required List<String> keptVideoUrls,
+    required List<String> newVideoPaths,
+  }) async {
+    final request = http.MultipartRequest(
+      "PUT",
+      Uri.parse("$baseUrl/vendor-services/$serviceId"),
+    );
+
+    request.headers["Authorization"] = "Bearer $token";
+    request.headers["Accept"] = "application/json";
+
+    request.fields["vendor_id"] = "$vendorId";
+    if (vendorSubcategoryId != null) {
+      request.fields["vendor_subcategory_id"] = "$vendorSubcategoryId";
+    }
+    request.fields["attributes"] = jsonEncode(attributes);
+    request.fields["view360_video_urls"] = jsonEncode(keptVideoUrls);
+
+    for (final path in newVideoPaths) {
+      request.files.add(
+        await http.MultipartFile.fromPath("view360_video", path),
+      );
+    }
+
+    try {
+      final streamed = await request.send();
+      final res = await http.Response.fromStream(streamed);
+      final success = res.statusCode >= 200 && res.statusCode < 300;
+      debugPrint(
+        "PUT (multipart) /vendor-services/$serviceId → ${res.statusCode} | success=$success",
+      );
+      if (!success) debugPrint("Response body: ${res.body}");
+      return success;
+    } catch (e) {
+      debugPrint("❌ 360 video upload error: $e");
+      return false;
+    }
+  }
 }

@@ -342,7 +342,10 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
       body: loadingVendorData
           ? Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        // Edge to edge (targetSdk 36): keeps Save Gallery clear of the
+        // 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(16, 16, 16,
+            16 + MediaQuery.of(context).padding.bottom),
         child: Column(
           children: [
             Row(

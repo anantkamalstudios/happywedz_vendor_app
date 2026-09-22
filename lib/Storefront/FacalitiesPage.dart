@@ -29,6 +29,7 @@ import 'Facilities/florist_facilities.dart';
 import 'Facilities/invites_gifts_subcatgory_facility/gifts_facilities.dart';
 import 'Facilities/pandit_facilities.dart';
 import 'Facilities/caterer_facilities.dart';
+import '../utils/subcategory_selection.dart';
 
 
 
@@ -253,7 +254,7 @@ class _FacilitiesPageState extends State<FacilitiesPage> {
         } else {
           final created = await _api.createService(
             token: token!,
-            body: {"vendor_id": vendorId, "vendor_subcategory_id": vendorSubcategoryId, "attributes": {}},
+            body: {"vendor_id": vendorId, "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId), "attributes": {}},
           );
           if (!created) throw "Service create failed";
           final fresh = await _api.getByVendorId(vendorId: vendorId!, token: token!);
@@ -386,7 +387,7 @@ class _FacilitiesPageState extends State<FacilitiesPage> {
         token: token!,
         body: {
           "vendor_id":            vendorId,
-          "vendor_subcategory_id":vendorSubcategoryId,
+          "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
           "attributes":           attributes,
         },
       );
@@ -445,7 +446,10 @@ class _FacilitiesPageState extends State<FacilitiesPage> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+              // clear of the 3-button navigation bar.
+              padding: EdgeInsets.fromLTRB(16, 16, 16,
+                  16 + MediaQuery.of(context).padding.bottom),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

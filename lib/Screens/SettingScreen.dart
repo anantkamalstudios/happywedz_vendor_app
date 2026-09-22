@@ -18,6 +18,10 @@ class SettingsPage extends StatelessWidget {
         elevation: 0,
       ),
       body: ListView(
+        // Edge to edge (targetSdk 36): keeps Sign out clear of the
+        // 3-button navigation bar.
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).padding.bottom),
         children: [
           const SizedBox(height: 8),
           _buildSectionTitle("Account"),

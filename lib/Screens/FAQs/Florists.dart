@@ -233,29 +233,35 @@ class _FloristFaqScreenState extends State<FloristFaqScreen> {
         itemCount: faqs.length,
         itemBuilder: (_, i) => _faqCard(faqs[i]),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _saveFaqAnswers,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              backgroundColor: const Color(0xFF00509D),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+      bottomNavigationBar: SafeArea(
+                             top: false,
+                             // Edge to edge (targetSdk 36): a raw Padding in
+                             // bottomNavigationBar gets no inset, so Submit sat under
+                             // the 3-button navigation bar.
+                             child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saveFaqAnswers,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                backgroundColor: const Color(0xFF00509D),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-            ),
-            child: const Text(
-              "Submit",
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold),
+              child: const Text(
+                "Submit",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ),
-      ),
+                           ),
     );
   }
 

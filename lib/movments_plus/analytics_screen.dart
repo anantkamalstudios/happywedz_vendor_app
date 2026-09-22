@@ -133,7 +133,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           final activity = data['activity'];
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+            // clear of the 3-button navigation bar.
+            padding: EdgeInsets.fromLTRB(16, 16, 16,
+                16 + MediaQuery.of(context).padding.bottom),
             child: Column(
               children: [
                 _storageCard(package),

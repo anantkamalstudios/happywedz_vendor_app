@@ -1572,6 +1572,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'new_screens/leads_list_stats.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import '../widgets/app_shimmer.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({Key? key}) : super(key: key);
@@ -2015,12 +2016,17 @@ class _StatsPageState extends State<StatsPage>
         ),
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          // A skeleton shaped like the real page — stat cards, range dropdown
+          // and the three charts — instead of a spinner on a blank screen.
+          ? const StatsShimmer()
           : FadeTransition(
         opacity: _fadeAnim,
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+            // clear of the 3-button navigation bar.
+            padding: EdgeInsets.fromLTRB(12, 12, 12,
+                12 + MediaQuery.of(context).padding.bottom),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

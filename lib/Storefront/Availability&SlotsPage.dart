@@ -6,6 +6,7 @@ import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
 import '../widgets/app_shimmer.dart';
+import '../utils/subcategory_selection.dart';
 
 class SlotsPage extends StatefulWidget {
   const SlotsPage({super.key});
@@ -21,6 +22,13 @@ class _SlotsPageState extends State<SlotsPage>
   late DateTime _lastDay;
 
   Set<DateTime> availableDays = {};
+
+  /// Mirrors the website's Active/Inactive switch, stored as
+  /// `attributes.availability_active`. Absent means active — the public
+  /// listing reads it the same way (`!== false`) and hides the calendar when
+  /// it is off, so the app has to send the flag or a vendor who switched it
+  /// off on the website gets switched back on here.
+  bool availabilityActive = true;
 
   bool loading = true;
   bool saving = false;
@@ -137,6 +145,11 @@ class _SlotsPageState extends State<SlotsPage>
       serviceId = data["id"];
       vendorSubcategoryId = data["vendor_subcategory_id"];
 
+      final attrs = data["attributes"];
+      // `!= false` so a missing flag reads as active, matching the website.
+      final active =
+          (attrs is Map ? attrs["availability_active"] : null) != false;
+
       final rawSlots = data["attributes"]?["available_slots"];
       // AUDIT FIX: `data["attributes"]?["available_slots"] ?? []` was assigned
       // straight into `List<dynamic>`, which throws a raw TypeError whenever
@@ -158,6 +171,7 @@ class _SlotsPageState extends State<SlotsPage>
       if (!mounted) return;
       setState(() {
         availableDays = parsed;
+        availabilityActive = active;
       });
 
       await _saveLocally();
@@ -194,10 +208,11 @@ class _SlotsPageState extends State<SlotsPage>
       "date": d.toIso8601String().split("T")[0],
     })
         .toList();
+    attributes["availability_active"] = availabilityActive;
 
     final body = {
       "vendor_id": vendorId,
-      "vendor_subcategory_id": vendorSubcategoryId,
+      "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
       "attributes": attributes,
     };
 
@@ -284,6 +299,91 @@ class _SlotsPageState extends State<SlotsPage>
     });
   }
 
+  /// The Active/Inactive switch the website shows beside the section heading.
+  Widget _activeToggle() {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(
+              availabilityActive ? Icons.event_available : Icons.event_busy,
+              color: availabilityActive
+                  ? const Color(0xFF1B5E20)
+                  : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    availabilityActive ? "Active" : "Inactive",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    availabilityActive
+                        ? "Couples can see your calendar and pick a date."
+                        : "Your calendar is hidden from your listing.",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: availabilityActive,
+              activeThumbColor: const Color(0xFF00509D),
+              onChanged: (value) =>
+                  setState(() => availabilityActive = value),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Shown in place of the calendar while the section is switched off, the
+  /// same way the website swaps the calendar for a warning.
+  Widget _inactiveNotice() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFFD8A8)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              color: Color(0xFFED6C02), size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "Availability & Slots is turned off, so couples won't see a "
+              "calendar on your listing. Switch it back on to manage dates.",
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -298,6 +398,12 @@ class _SlotsPageState extends State<SlotsPage>
                         padding: const EdgeInsets.all(16),
                         child: Column(
                 children: [
+                  _activeToggle(),
+                  const SizedBox(height: 16),
+
+                  if (!availabilityActive) _inactiveNotice(),
+
+                  if (availabilityActive) ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -461,6 +567,7 @@ class _SlotsPageState extends State<SlotsPage>
                       ),
                     ),
                   ),
+                  ],
 
                   const SizedBox(height: 230),
 
@@ -468,25 +575,30 @@ class _SlotsPageState extends State<SlotsPage>
                         ),
                       ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: saving ? null : _saveToServer,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00509D),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+              // Edge to edge (targetSdk 36): without this the button sits under
+              // the 3-button navigation bar.
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: saving ? null : _saveToServer,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00509D),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
                       ),
-                    ),
-                    child: saving
-                        ? const CircularProgressIndicator(
-                        color: Colors.white)
-                        : const Text(
-                      "Save Availability Details",
-                      style: TextStyle(fontSize: 16, color: Colors.white),
+                      child: saving
+                          ? const CircularProgressIndicator(
+                          color: Colors.white)
+                          : const Text(
+                        "Save Availability Details",
+                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      ),
                     ),
                   ),
                 ),

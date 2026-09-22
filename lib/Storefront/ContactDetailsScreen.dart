@@ -5,6 +5,7 @@ import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
 import '../widgets/app_shimmer.dart';
+import '../utils/subcategory_selection.dart';
 class ContactDetailsPage extends StatefulWidget {
   final int? vendorId;
   final int? vendorSubcategoryId;
@@ -149,7 +150,7 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
 
     final body = {
       "vendor_id": vendorId,
-      "vendor_subcategory_id": vendorSubcategoryId,
+      "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
       "attributes": currentAttributes,
     };
 
@@ -328,22 +329,27 @@ class _ContactDetailsPageState extends State<ContactDetailsPage> {
                         ),
                       ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isSaving ? null : saveContactDetails,
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: Color(0xFF00509D),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+              // Edge to edge (targetSdk 36): without this the button sits under
+              // the 3-button navigation bar.
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: isSaving ? null : saveContactDetails,
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: Color(0xFF00509D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
                       ),
+                      child: isSaving
+                          ? CircularProgressIndicator(color: Colors.white)
+                          : Text("Save Contact Details", style: TextStyle(fontSize: 16, color: Colors.white)),
                     ),
-                    child: isSaving
-                        ? CircularProgressIndicator(color: Colors.white)
-                        : Text("Save Contact Details", style: TextStyle(fontSize: 16, color: Colors.white)),
                   ),
                 ),
               ),

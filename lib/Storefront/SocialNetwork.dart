@@ -165,7 +165,10 @@ class _SocialNetworkPageState extends State<SocialNetworkPage> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+        // clear of the 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(20, 20, 20,
+            20 + MediaQuery.of(context).padding.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

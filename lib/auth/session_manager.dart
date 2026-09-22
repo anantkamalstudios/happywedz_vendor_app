@@ -66,6 +66,7 @@ class SessionManager {
   static const String kUnreadLeadsCount = 'unread_leads_count';
   static const String kReadLeads = 'read_leads';
   static const String kPendingFaqAnswers = 'pendingFaqAnswers';
+  static const String kVendorSubcategoryIds = 'vendor_subcategory_ids';
 
   // ==========================================================================
   // READ
@@ -191,6 +192,11 @@ class SessionManager {
       kUnreadLeadsCount,
       kReadLeads,
       kPendingFaqAnswers,
+      // The extra subcategory picks are per-vendor. The primary id next to
+      // them is deliberately left alone: login never writes it, and Policies
+      // and Promotions read it straight from prefs with no API fallback, so
+      // clearing it here would make those two screens save a null.
+      kVendorSubcategoryIds,
     ]) {
       await prefs.remove(key);
     }

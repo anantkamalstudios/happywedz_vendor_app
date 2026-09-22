@@ -10,6 +10,7 @@ import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
 import '../api_services/api_service_vendor.dart';
 import '../widgets/app_shimmer.dart';
+import '../utils/subcategory_selection.dart';
 
 class LocationPage extends StatefulWidget {
   const LocationPage({super.key});
@@ -152,7 +153,7 @@ class _LocationPageState extends State<LocationPage> {
       body: {
         "vendor_id": vendorId,
         if (vendorSubcategoryId != null)
-          "vendor_subcategory_id": vendorSubcategoryId,
+          "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
         "attributes": {},
       },
     );
@@ -191,7 +192,10 @@ class _LocationPageState extends State<LocationPage> {
               ),
               child: Container(
                 height: MediaQuery.of(context).size.height * 0.65,
-                padding: const EdgeInsets.all(16),
+                // The keyboard was handled above; this is the navigation bar,
+                // which was hiding the last few city results.
+                padding: EdgeInsets.fromLTRB(16, 16, 16,
+                    16 + MediaQuery.of(context).padding.bottom),
                 child: Column(
                   children: [
                     Text(
@@ -409,7 +413,7 @@ class _LocationPageState extends State<LocationPage> {
         body: {
           "vendor_id": vendorId,
           if (vendorSubcategoryId != null)
-            "vendor_subcategory_id": vendorSubcategoryId,
+            "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
           "attributes": currentAttributes,
         },
       );
@@ -614,24 +618,29 @@ class _LocationPageState extends State<LocationPage> {
                         ),
                       ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: savingLocation ? null : saveLocation,
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: Color(0xFF00509D),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15)),
+              // Edge to edge (targetSdk 36): without this the button sits under
+              // the 3-button navigation bar.
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: savingLocation ? null : saveLocation,
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: Color(0xFF00509D),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15)),
+                      ),
+                      child: savingLocation
+                          ? CircularProgressIndicator(color: Colors.white)
+                          : Text("Save Location Details",
+                          style: TextStyle(
+                              fontSize: 16,color: Colors.white
+                              )),
                     ),
-                    child: savingLocation
-                        ? CircularProgressIndicator(color: Colors.white)
-                        : Text("Save Location Details",
-                        style: TextStyle(
-                            fontSize: 16,color: Colors.white
-                            )),
                   ),
                 ),
               ),

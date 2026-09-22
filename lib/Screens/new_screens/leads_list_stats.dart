@@ -24,7 +24,10 @@ class LeadsListScreen extends StatelessWidget {
         ),
       )
           : ListView.builder(
-        padding: const EdgeInsets.all(12),
+        // Edge to edge (targetSdk 36): keeps the last item clear of the
+        // 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(12, 12, 12,
+            12 + MediaQuery.of(context).padding.bottom),
         itemCount: leads.length,
         itemBuilder: (context, index) {
           final lead = leads[index];
