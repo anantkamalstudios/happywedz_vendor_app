@@ -642,7 +642,10 @@ class _MenusPageState extends State<MenusPage> {
       body: isLoading
           ? const FormShimmer(fields: 5)
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
+        // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+        // clear of the 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(18, 18, 18,
+            18 + MediaQuery.of(context).padding.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

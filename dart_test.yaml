@@ -1,0 +1,13 @@
+# Test configuration.
+#
+# `preview` marks test/icon_preview_test.dart, which is a design tool rather
+# than a regression test: it renders candidate icons to PNGs under
+# test/goldens/ so they can be judged by eye instead of by name. It loads fonts
+# from absolute local paths (the Flutter SDK and the pub cache), so it would
+# fail on any other machine and has no business in the normal suite.
+#
+# Regenerate the sheets with:
+#   flutter test --update-goldens --run-skipped test/icon_preview_test.dart
+tags:
+  preview:
+    skip: "design tool — run explicitly with --tags preview"

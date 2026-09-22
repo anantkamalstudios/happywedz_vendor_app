@@ -3,8 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
+import '../theme/app_theme.dart';
 import '../utils/common_app_bar.dart';
+import '../widgets/app_button.dart';
 import '../widgets/app_shimmer.dart';
+import '../utils/subcategory_selection.dart';
 
 class PoliciesPage extends StatefulWidget {
   const PoliciesPage({super.key});
@@ -177,7 +182,7 @@ class _PoliciesPageState extends State<PoliciesPage> {
 
     final body = {
       "vendor_id": vendorId,
-      "vendor_subcategory_id": vendorSubcategoryId,
+      "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
       "attributes": attributes,
     };
 
@@ -222,90 +227,224 @@ class _PoliciesPageState extends State<PoliciesPage> {
     setState(() {}); // refresh
   }
 
-  Widget _field(String label, TextEditingController controller, {int maxLines = 1}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0,3))],
-          ),
-          child: TextFormField(
-            controller: controller,
-            maxLines: maxLines,
-            decoration: const InputDecoration(
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              border: InputBorder.none,
+  /// Why these fields are worth filling in. The screen opened on four unlabelled
+  /// boxes with no indication of what belongs in them.
+  Widget _intro() {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceLg),
+      decoration: BoxDecoration(
+        color: AppColors.primaryTint,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.shield_outlined,
+              size: 20, color: AppColors.primary),
+          const SizedBox(width: AppTheme.spaceMd),
+          Expanded(
+            child: Text(
+              "Couples read these on your profile before they book. "
+              "Clear policies mean fewer back-and-forth enquiries.",
+              style: AppTextStyles.bodySecondary
+                  .copyWith(color: AppColors.primaryDark),
             ),
           ),
-        ),
-        const SizedBox(height: 14),
-      ],
+        ],
+      ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // UI consistent with Basic Info screen
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: CommonAppBar(title: 'Policies & Terms'),
-      body: loading
-          ? const FormShimmer(fields: 4)
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0,4))],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  /// Tinted square icon, matching the leading icons on the Storefront list.
+  Widget _fieldIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.primaryTint,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
+      child: Icon(icon, size: 19, color: AppColors.primary),
+    );
+  }
+
+  /// One policy block — icon, what the field is for, then the input.
+  Widget _field(
+    String label,
+    TextEditingController controller, {
+    int maxLines = 1,
+    required IconData icon,
+    required String helper,
+    required String hint,
+  }) {
+    OutlineInputBorder border(Color color, [double width = 1]) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        borderSide: BorderSide(color: color, width: width),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+      padding: const EdgeInsets.all(AppTheme.spaceLg),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              const Text("Policies & Terms", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              const Text("Fill in your cancellation, refund, payment policies and terms.", style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 20),
-
-              _field("Cancellation Policy", _cancellationController, maxLines: 3),
-              _field("Refund Policy", _refundController, maxLines: 3),
-              _field("Payment Terms", _paymentController, maxLines: 1),
-              _field("Terms & Conditions (TnC)", _tncController, maxLines: 4),
-
-              const SizedBox(height: 10),
-
-              Center(
-                child: ElevatedButton(
-                  onPressed: saving ? null : _savePoliciesToServer,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF00509D),
-                    padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: saving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("Save Policies", style: TextStyle(fontSize: 16,color: Colors.white)),
+              _fieldIcon(icon),
+              const SizedBox(width: AppTheme.spaceMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: AppTextStyles.label),
+                    const SizedBox(height: 2),
+                    Text(helper, style: AppTextStyles.caption),
+                  ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spaceMd),
+          TextFormField(
+            controller: controller,
+            maxLines: maxLines,
+            style: AppTextStyles.input,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: AppTextStyles.hint,
+              filled: true,
+              fillColor: AppColors.inputFill,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+              border: border(AppColors.border),
+              enabledBorder: border(AppColors.border),
+              focusedBorder: border(AppColors.primary, 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const SizedBox(height: 12),
-
-              Center(
-                child: OutlinedButton(
+  /// Save and Reset pinned to the bottom, the way Basic Information and Upload
+  /// Gallery already place their primary action.
+  Widget _actions() {
+    return Container(
+      // targetSdk 36 means Android draws this app edge to edge, so a bar
+      // pinned to the bottom of the body sits UNDER the 3-button navigation
+      // bar. The SafeArea is inside the Container so the bar's own background
+      // still fills that strip instead of leaving a gap.
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.divider)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.spaceMd),
+          child: Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: "Reset",
+                  variant: AppButtonVariant.outline,
                   onPressed: _resetForm,
-                  child: const Text("Reset"),
+                ),
+              ),
+              const SizedBox(width: AppTheme.spaceMd),
+              Expanded(
+                flex: 2,
+                child: AppButton(
+                  label: "Save Policies",
+                  isLoading: saving,
+                  onPressed: saving ? null : _savePoliciesToServer,
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // A white card on a white page read as nothing at all. The tinted page
+      // background is what gives the cards an edge.
+      backgroundColor: AppColors.background,
+      appBar: const CommonAppBar(title: 'Policies & Terms'),
+      body: loading
+          ? const FormShimmer(fields: 4)
+          : Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AppTheme.spaceLg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _intro(),
+                        const SizedBox(height: AppTheme.spaceLg),
+
+                        _field(
+                          "Cancellation Policy",
+                          _cancellationController,
+                          maxLines: 3,
+                          icon: Icons.event_busy_outlined,
+                          helper: "How late can a booking be called off?",
+                          hint:
+                              "e.g. Free cancellation up to 30 days before the "
+                              "event date.",
+                        ),
+                        _field(
+                          "Refund Policy",
+                          _refundController,
+                          maxLines: 3,
+                          icon: Icons.replay_outlined,
+                          helper: "What comes back, and when?",
+                          hint:
+                              "e.g. 50% of the advance is refunded if cancelled "
+                              "15 days before the event.",
+                        ),
+                        _field(
+                          "Payment Terms",
+                          _paymentController,
+                          icon: Icons.payments_outlined,
+                          helper: "Advance, instalments and accepted methods.",
+                          hint:
+                              "e.g. 30% advance to confirm, balance on the "
+                              "event day.",
+                        ),
+                        _field(
+                          "Terms & Conditions",
+                          _tncController,
+                          maxLines: 5,
+                          icon: Icons.assignment_outlined,
+                          helper:
+                              "Anything else a couple agrees to on booking.",
+                          hint:
+                              "e.g. Travel and stay for outstation events are "
+                              "borne by the client. Overtime billed hourly.",
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _actions(),
+              ],
+            ),
     );
   }
 }

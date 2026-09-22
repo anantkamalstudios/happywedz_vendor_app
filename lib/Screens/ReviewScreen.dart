@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import '../theme/app_colors.dart';
+import '../widgets/app_shimmer.dart';
+import '../widgets/app_states.dart';
 import 'new_screens/review_collector.dart';
 
 class ReviewsPage extends StatefulWidget {
-  const ReviewsPage({Key? key}) : super(key: key);
+  const ReviewsPage({super.key});
 
   @override
   State<ReviewsPage> createState() => _ReviewsPageState();
@@ -194,49 +197,63 @@ class _ReviewsPageState extends State<ReviewsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: CustomScrollView(
-        slivers: [
-          _buildHeader(),
+      backgroundColor: AppColors.background,
+      body: RefreshIndicator(
+        onRefresh: fetchReviews,
+        child: CustomScrollView(
+          // Always scrollable so the pull gesture works even on the empty
+          // and loading states.
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            _buildHeader(),
 
-          // 🔹 LOADER BELOW APP BAR
-          if (_isLoading)
-             SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.only(top: 350),
-                child: Center(
-                  child: CircularProgressIndicator(color: Colors.blue.shade700),
+            // 🔹 LOADER BELOW APP BAR
+            // A skeleton the shape of the cards, rather than a spinner pushed
+            // down by 350px of hard-coded padding that guessed at the middle
+            // of one particular screen size.
+            if (_isLoading)
+              const SliverToBoxAdapter(
+                child: ListShimmer(itemCount: 4, itemHeight: 150),
+              )
+
+            // 🔹 EMPTY STATE
+            else if (_reviews.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: AppEmptyState(
+                  icon: Icons.reviews_outlined,
+                  title: 'No reviews yet',
+                  message:
+                      'Ask the couples you have worked with to leave a review. '
+                      'Reviews are the first thing people read on your listing.',
+                  actionLabel: 'Collect reviews',
+                  onAction: _openCollector,
+                ),
+              )
+
+            // 🔹 REVIEWS LIST
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                    final r = _reviews[i];
+                    return _buildReviewCard(r);
+                  },
+                  childCount: _reviews.length,
                 ),
               ),
-            )
 
-          // 🔹 EMPTY STATE
-          else if (_reviews.isEmpty)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.only(top: 360),
-                child: Center(
-                  child: Text(
-                    'No reviews available',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ),
-              ),
-            )
-
-          // 🔹 REVIEWS LIST
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                    (context, i) {
-                  final r = _reviews[i];
-                  return _buildReviewCard(r);
-                },
-                childCount: _reviews.length,
-              ),
-            ),
-        ],
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          ],
+        ),
       ),
+    );
+  }
+
+  void _openCollector() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ReviewCollectorScreen()),
     );
   }
 
@@ -283,12 +300,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
         IconButton(
           tooltip: 'Collect reviews',
           icon: const Icon(Icons.person_add_alt_outlined, color: Colors.white),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReviewCollectorScreen()),
-            );
-          },
+          onPressed: _openCollector,
         ),
       ],
       flexibleSpace: Container(
@@ -311,8 +323,13 @@ class _ReviewsPageState extends State<ReviewsPage> {
         ),
         padding: EdgeInsets.fromLTRB(20, topPad + 10, 16, 10),
         alignment: Alignment.bottomLeft,
+        // One line with an ellipsis: the bar has a fixed height, so at a large
+        // accessibility text size the title has to shrink into it rather than
+        // run off the edge.
         child: const Text(
           'My Reviews',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: Colors.white,
             fontSize: 24,
@@ -331,24 +348,17 @@ class _ReviewsPageState extends State<ReviewsPage> {
     final title = r['title'] ?? '';
     final comment = r['comment'] ?? '';
     final vendorReply = r['vendor_reply'] ?? '';
-    final mediaList = r['media'] ?? [];
     final date = r['createdAt'] ?? '';
     final rating = r['rating_quality'] ?? 0;
 
     print('🧱 Review Data -> ID: ${r['id']}, User: $user, Reply: $vendorReply');
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.pink.withOpacity(0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -357,124 +367,141 @@ class _ReviewsPageState extends State<ReviewsPage> {
           children: [
             // 🔹 USER HEADER
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  radius: 24,
-                  backgroundColor: const Color(0xFF00509D),
+                  radius: 22,
+                  backgroundColor: AppColors.primary,
                   child: Text(
-                    user[0].toUpperCase(),
+                    _initialOf(user),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                      fontSize: 17,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         user,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                          fontSize: 15,
                         ),
                       ),
-                      Text(
-                        date.split('T').first,
-                        style: TextStyle(
-                            color: Colors.grey.shade600, fontSize: 12),
-                      ),
+                      const SizedBox(height: 3),
+                      _stars(rating),
                     ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDate(date),
+                  style: const TextStyle(
+                    color: AppColors.textTertiary,
+                    fontSize: 12,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 10),
-
-            // 🔹 STARS WITH SHADOW
-            Row(
-              children: List.generate(5, (i) {
-                return Icon(
-                  i < rating ? Icons.star_rounded : Icons.star_border_rounded,
-                  color: Colors.amber,
-                  size: 22,
-                  shadows: [
-                    Shadow(
-                        color: Colors.amber.withOpacity(0.4),
-                        blurRadius: 4,
-                        offset: const Offset(1, 1))
-                  ],
-                );
-              }),
-            ),
-
-            const SizedBox(height: 8),
-
             // 🔹 TITLE & COMMENT
-            if (title.isNotEmpty)
+            if (title.isNotEmpty) ...[
+              const SizedBox(height: 14),
               Text(
                 title,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            if (comment.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  comment,
-                  style: const TextStyle(
-                      fontSize: 14, color: Colors.black87, height: 1.4),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
                 ),
               ),
+            ],
+            if (comment.isNotEmpty) ...[
+              SizedBox(height: title.isNotEmpty ? 5 : 14),
+              Text(
+                comment,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                  height: 1.45,
+                ),
+              ),
+            ],
 
-            const SizedBox(height: 12),
-
-            // 🔹 VENDOR REPLY CHAT BUBBLE
-            // 🔹 VENDOR REPLY CHAT BUBBLE
-            // 🔹 VENDOR REPLY CHAT BUBBLE
-            if (vendorReply.isNotEmpty)
+            // 🔹 VENDOR REPLY
+            // This block used to paint white text on a pale blue fill, which
+            // left every reply effectively unreadable.
+            if (vendorReply.isNotEmpty) ...[
+              const SizedBox(height: 14),
               Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade100, // faint sky blue
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.blue.shade200), // subtle border
-                ),
-                child: Text(
-                  vendorReply,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.white, // text stays white
-                    height: 1.4,
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(12),
+                  border: const Border(
+                    left: BorderSide(color: AppColors.primary, width: 3),
                   ),
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.reply,
+                            size: 14, color: AppColors.primaryDark),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Your reply',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryDark,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      vendorReply,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            ],
 
-
-
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
 
             // 🔹 ACTION BUTTON
             Align(
               alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
+              child: TextButton.icon(
                 onPressed: () =>
                     _showReplyDialog(r['id'], r['vendor_reply']?.toString()),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00509D),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
                   padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 ),
-                icon: const Icon(Icons.reply),
-                label: Text(vendorReply.isEmpty ? 'Reply' : 'Edit Reply'),
+                icon: Icon(
+                  vendorReply.isEmpty ? Icons.reply : Icons.edit_outlined,
+                  size: 17,
+                ),
+                label: Text(
+                  vendorReply.isEmpty ? 'Reply' : 'Edit reply',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -483,4 +510,51 @@ class _ReviewsPageState extends State<ReviewsPage> {
     );
   }
 
+  /// Stars plus the number, so the score reads at a glance.
+  Widget _stars(dynamic rating) {
+    final value = (rating is num) ? rating.toDouble() : 0.0;
+
+    return Row(
+      children: [
+        for (int i = 0; i < 5; i++)
+          Icon(
+            i < value ? Icons.star_rounded : Icons.star_border_rounded,
+            color: AppColors.rating,
+            size: 17,
+          ),
+        const SizedBox(width: 6),
+        Text(
+          value.toStringAsFixed(1),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// "5 Jan 2026" instead of the raw "2026-01-05T…".
+  /// Falls back to whatever was there if it will not parse.
+  String _formatDate(dynamic value) {
+    final raw = value?.toString() ?? '';
+    if (raw.isEmpty) return '';
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw.split('T').first;
+
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}';
+  }
+
+  /// The avatar letter. A review whose name is an empty string used to throw
+  /// a RangeError out of build on `user[0]`.
+  String _initialOf(String name) {
+    final trimmed = name.trim();
+    return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
+  }
 }

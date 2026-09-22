@@ -190,7 +190,10 @@ class _SubscriptionHistoryScreenState
           : RefreshIndicator(
               onRefresh: () => _load(quiet: true),
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+                // clear of the 3-button navigation bar.
+                padding: EdgeInsets.fromLTRB(16, 16, 16,
+                    16 + MediaQuery.of(context).padding.bottom),
                 children: [
                   if (_error != null) ...[
                     _ErrorBar(message: _error!, onRetry: _load),

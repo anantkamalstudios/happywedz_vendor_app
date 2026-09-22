@@ -931,35 +931,40 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                // One button, three meanings: while onboarding is outstanding,
-                // saving business fields and submitting for verification are
-                // the same action from the vendor's point of view.
-                onPressed: _isUnderReview
-                    ? null
-                    : (isSaving || _submittingVerification)
-                        ? null
-                        : (_needsVerification ? _submitVerification : saveData),
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Color(0xFF00509D),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15)),
-                ),
-                child: (isSaving || _submittingVerification)
-                    ? CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                  _isUnderReview
-                      ? "Under review"
-                      : (_needsVerification ? "Submit for verification" : "Save Business Details"),
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
+          // Edge to edge (targetSdk 36): without this the button sits under
+          // the 3-button navigation bar.
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  // One button, three meanings: while onboarding is outstanding,
+                  // saving business fields and submitting for verification are
+                  // the same action from the vendor's point of view.
+                  onPressed: _isUnderReview
+                      ? null
+                      : (isSaving || _submittingVerification)
+                          ? null
+                          : (_needsVerification ? _submitVerification : saveData),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: Color(0xFF00509D),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15)),
+                  ),
+                  child: (isSaving || _submittingVerification)
+                      ? CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                    _isUnderReview
+                        ? "Under review"
+                        : (_needsVerification ? "Submit for verification" : "Save Business Details"),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ),

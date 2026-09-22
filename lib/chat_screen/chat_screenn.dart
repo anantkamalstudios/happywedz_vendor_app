@@ -236,9 +236,15 @@ class _ChatScreenState extends State<ChatScreen> {
   // ================= INPUT =================
   Widget _buildMessageInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      // Edge to edge (targetSdk 36): the SafeArea is inside the Container so
+      // the input's white background still reaches the bottom of the screen,
+      // rather than leaving a gap above the navigation keys.
       color: Colors.white,
-      child: Row(
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
         children: [
           Expanded(
             child: TextField(
@@ -268,6 +274,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }

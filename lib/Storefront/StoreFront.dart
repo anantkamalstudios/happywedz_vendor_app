@@ -315,6 +315,8 @@ import 'PromotionsPage.dart';
 import 'Availability&SlotsPage.dart';
 import 'SocialNetwork.dart';
 import 'VideosScreen.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
+import 'View360Page.dart';
 import '../widgets/app_shimmer.dart';
 
 class Storefront extends StatefulWidget {
@@ -329,6 +331,36 @@ class _StorefrontState extends State<Storefront> {
   bool isLoading = true;
   int? vendorTypeId;
   bool get canShowMenus => vendorTypeId == 2 || vendorTypeId == 7;
+
+  /// A section icon in the same tinted tile the drawer uses, so the two menus
+  /// read as one system.
+  ///
+  /// The tint stays a single brand blue rather than one colour per row: the
+  /// drawer has six entries and can carry meaning in colour, this list has
+  /// sixteen and a rainbow would only be noise. A locked section drops to grey
+  /// so the tile fades with its row instead of staying bright.
+  Widget _sectionIcon(IconData icon, bool locked) {
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: locked ? AppColors.listBackground : AppColors.primaryTint,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        icon,
+        size: 20,
+        color: locked ? AppColors.textTertiary : AppColors.primary,
+      ),
+    );
+  }
+
+  /// The website gates 360° View behind `isVenueType`, which matches its
+  /// vendor type NAME against venue, banquet, resort, hotel, lawn, palace and
+  /// so on. In this API every one of those is a SUBCATEGORY of vendor type 2,
+  /// "Venues", so the id is the same gate with none of the string matching.
+  bool get canShow360 => vendorTypeId == 2;
 
   // AUDIT NOTE: kept as a named constant (several widgets below reference it)
   // but now sourced from the central palette instead of a re-typed hex.
@@ -396,61 +428,70 @@ class _StorefrontState extends State<Storefront> {
     final List<Map<String, dynamic>> menuItems = [
       {
         "title": "Business Details",
-        "icon": Icons.business_center_outlined,
+        "icon": Iconsax.briefcase_copy,
         "tabId": "business",
         "page": BusinessDetailsPage(),
       },
       {
         "title": "Basic Information",
-        "icon": Icons.info_outline,
+        "icon": Iconsax.info_circle_copy,
         "tabId": "vendor-basic",
         "page": BasicInfoPage(),
       },
       {
         "title": "FAQ",
-        "icon": Icons.help_center_outlined,
+        "icon": Iconsax.message_question_copy,
         "tabId": "faq",
         "page": "faq",
       },
       {
         "title": "Contact Details",
-        "icon": Icons.call_outlined,
+        "icon": Iconsax.call_copy,
         "tabId": "vendor-contact",
         "page": ContactDetailsPage(),
       },
       {
         "title": "Location & Service Areas",
-        "icon": Icons.location_on_outlined,
+        "icon": Iconsax.location_copy,
         "tabId": "vendor-location",
         "page": LocationPage(),
       },
       {
         "title": "Photos",
-        "icon": Icons.photo_library_outlined,
+        "icon": Iconsax.gallery_copy,
         "tabId": "photos",
         "page": GalleryUploadPage(),
       },
+      // Website order: Photos → 360° View → Videos, and it only offers 360°
+      // to venues.
+      if (canShow360)
+        {
+          "title": "360° View",
+          "icon": Iconsax.d_rotate_copy,
+          "tabId": "vendor-360-view",
+          "page": View360Page(),
+        },
       {
         "title": "Videos",
-        "icon": Icons.video_collection_outlined,
+        "icon": Iconsax.video_copy,
         "tabId": "videos",
         "page": VideoUploadPage(),
       },
       {
         "title": "Preferred Vendors",
-        "icon": Icons.group_outlined,
+        "icon": Iconsax.profile_2user_copy,
         "tabId": "preferred-vendors",
         "page": PreferredVendorsPage(),
       },
       {
         "title": "Social Network",
-        "icon": Icons.public_outlined,
+        "icon": Iconsax.global_copy,
         "tabId": "social",
         "page": SocialNetworkPage(),
       },
       {
         "title": "Facilities & Features",
-        "icon": Icons.widgets_outlined,
+        "icon": Iconsax.element_3_copy,
         "tabId": "vendor-facilities",
         "page": FacilitiesPage(),
       },
@@ -458,32 +499,34 @@ class _StorefrontState extends State<Storefront> {
       if (canShowMenus)
         {
           "title": "Menus",
-          "icon": Icons.restaurant_menu,
+          "icon": Iconsax.menu_board_copy,
           "tabId": "vendor-menus",
           "page": MenusPage(),
         },
 
       {
         "title": "Promotions",
-        "icon": Icons.local_offer_outlined,
+        "icon": Iconsax.discount_shape_copy,
         "tabId": "promotions",
         "page": PromotionsPage(),
       },
       {
         "title": "Policies & Terms",
-        "icon": Icons.shield_outlined,
+        "icon": Iconsax.shield_tick_copy,
         "tabId": "vendor-policies",
         "page": PoliciesPage(),
       },
       {
         "title": "Availability & Slots",
-        "icon": Icons.schedule_outlined,
+        "icon": Iconsax.calendar_copy,
         "tabId": "vendor-availability",
         "page": SlotsPage(),
       },
       {
         "title": "Pricing & Packages",
-        "icon": Icons.attach_money,
+                // Iconsax carries no rupee glyph, and this one has to be
+                // the actual symbol rather than a dollar sign.
+        "icon": Icons.currency_rupee_rounded,
         "tabId": "vendor-pricing",
         "page": PricingPage(),
       },
@@ -505,7 +548,10 @@ class _StorefrontState extends State<Storefront> {
           final access = ref.watch(vendorAccessProvider).value;
 
           return ListView.builder(
-            padding: const EdgeInsets.all(14),
+            // Edge to edge (targetSdk 36): the last storefront row was half
+            // covered by the 3-button navigation bar.
+            padding: EdgeInsets.fromLTRB(14, 14, 14,
+                14 + MediaQuery.of(context).padding.bottom),
             itemCount: menuItems.length,
             itemBuilder: (context, index) {
               final item = menuItems[index];
@@ -519,11 +565,7 @@ class _StorefrontState extends State<Storefront> {
                   border: Border.all(color: AppColors.border),
                 ),
                 child: ListTile(
-                  leading: Icon(
-                    item["icon"],
-                    color: locked ? AppColors.textTertiary : steelAzure,
-                    size: 24,
-                  ),
+                  leading: _sectionIcon(item["icon"], locked),
                   title: Text(
                     item["title"],
                     // AUDIT FIX: long section names ("Location & Service Areas",

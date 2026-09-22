@@ -1417,6 +1417,9 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      // Edge to edge (targetSdk 36): without this the confirm button sits in
+      // the 3-button navigation strip.
+      useSafeArea: true,
       builder: (context) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -1623,7 +1626,11 @@ class _PackageStoragePageState extends State<PackageStoragePage> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
             padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              // viewInsets is the keyboard; padding.bottom is the navigation
+              // bar. The flat +20 covered neither on a 3-button device.
+              bottom: MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.of(context).padding.bottom +
+                  20,
               left: 24,
               right: 24,
               top: 24,

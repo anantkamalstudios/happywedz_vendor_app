@@ -164,7 +164,10 @@ class _ReviewCollectorScreenState extends State<ReviewCollectorScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.all(16),
+              // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+              // clear of the 3-button navigation bar.
+              padding: EdgeInsets.fromLTRB(16, 16, 16,
+                  16 + MediaQuery.of(context).padding.bottom),
               children: [
                 Container(
                   padding: const EdgeInsets.all(16),

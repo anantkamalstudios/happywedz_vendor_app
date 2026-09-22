@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import '../utils/subcategory_selection.dart';
 
 class SlotsPage extends StatefulWidget {
   const SlotsPage({super.key});
@@ -123,7 +124,7 @@ class _SlotsPageState extends State<SlotsPage> {
 
     final requestBody = {
       "vendor_id": vendorId,
-      "vendor_subcategory_id": vendorSubcategoryId,
+      "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
       "attributes": {
         "available_slots": availableDays.map((d) => d.toIso8601String().split('T')[0]).toList(),
       }
@@ -186,7 +187,10 @@ class _SlotsPageState extends State<SlotsPage> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        // Edge to edge (targetSdk 36): the extra bottom keeps the last item
+        // clear of the 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(16, 16, 16,
+            16 + MediaQuery.of(context).padding.bottom),
         child: Column(
           children: [
             Row(

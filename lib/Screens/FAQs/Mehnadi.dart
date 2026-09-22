@@ -614,37 +614,43 @@ class _MehendiArtistsScreenState extends State<MehendiArtistsScreen> {
         itemCount: questions.length,
         itemBuilder: (_, i) => _faqCard(questions[i]),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () async {
-              await _saveFaqAnswers();
-              // await ProfileCompletionController
-              //     .markDone(ProfileCompletionController.keyFaq);
+      bottomNavigationBar: SafeArea(
+                             top: false,
+                             // Edge to edge (targetSdk 36): a raw Padding in
+                             // bottomNavigationBar gets no inset, so Submit sat under
+                             // the 3-button navigation bar.
+                             child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () async {
+                await _saveFaqAnswers();
+                // await ProfileCompletionController
+                //     .markDone(ProfileCompletionController.keyFaq);
 
-              if (!mounted) return;
-              Navigator.popUntil(context, (route) => route.isFirst);
-            },
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              backgroundColor: const Color(0xFF00509D),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                if (!mounted) return;
+                Navigator.popUntil(context, (route) => route.isFirst);
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                backgroundColor: const Color(0xFF00509D),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-            ),
-            child: const Text(
-              "Submit",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+              child: const Text(
+                "Submit",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
         ),
-      ),
+                           ),
     );
   }
 

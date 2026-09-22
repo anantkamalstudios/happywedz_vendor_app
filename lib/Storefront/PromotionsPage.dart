@@ -145,7 +145,7 @@
 //       token: token!,
 //       body: {
 //         "vendor_id": vendorId,
-//         "vendor_subcategory_id": vendorSubcategoryId,
+//         "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
 //         "attributes": attributes,
 //       },
 //     );
@@ -182,7 +182,7 @@
 //       token: token!,
 //       body: {
 //         "vendor_id": vendorId,
-//         "vendor_subcategory_id": vendorSubcategoryId,
+//         "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
 //         "attributes": attributes,
 //       },
 //     );
@@ -456,6 +456,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/common_app_bar.dart';
 import '../widgets/app_shimmer.dart';
+import '../utils/subcategory_selection.dart';
 
 class PromotionsPage extends StatefulWidget {
   const PromotionsPage({super.key});
@@ -637,7 +638,7 @@ class _PromotionsPageState extends State<PromotionsPage> {
         token: token!,
         body: {
           "vendor_id": vendorId,
-          "vendor_subcategory_id": vendorSubcategoryId,
+          "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
           "attributes": attributes,
         },
       );
@@ -703,7 +704,7 @@ class _PromotionsPageState extends State<PromotionsPage> {
         token: token!,
         body: {
           "vendor_id": vendorId,
-          "vendor_subcategory_id": vendorSubcategoryId,
+          "vendor_subcategory_id": await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
           "attributes": attributes,
         },
       );
@@ -1099,28 +1100,33 @@ class _PromotionsPageState extends State<PromotionsPage> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: saving ? null : _savePromotion,
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: Color(0xFF00509D),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15)),
-                  ),
-                  child: saving
-                      ? const CircularProgressIndicator(
-                      color: Colors.white)
-                      : Text(
-                    editIndex == null
-                        ? "Save Promotion"
-                        : "Update Promotion",
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16),
+            // Edge to edge (targetSdk 36): without this the button sits under
+            // the 3-button navigation bar.
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: saving ? null : _savePromotion,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Color(0xFF00509D),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15)),
+                    ),
+                    child: saving
+                        ? const CircularProgressIndicator(
+                        color: Colors.white)
+                        : Text(
+                      editIndex == null
+                          ? "Save Promotion"
+                          : "Update Promotion",
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16),
+                    ),
                   ),
                 ),
               ),

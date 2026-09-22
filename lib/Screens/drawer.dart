@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,8 +11,10 @@ import 'package:share_plus/share_plus.dart';
 import '../Storefront/StoreFront.dart';
 // import '../movments_plus/bottom_bar.dart';
 import 'Login.dart';
+import 'instagram_connect_screen.dart';
 import 'subscription_history_screen.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import '../theme/app_colors.dart';
 
 class BusinessDrawer extends StatefulWidget {
   const BusinessDrawer({Key? key}) : super(key: key);
@@ -163,85 +166,7 @@ Future<void> _loadVendorId() async {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // onTap: _showEditOptions,
-          Stack(
-            children: [
-              Container(
-                height: 180,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.pink[100],
-                  image: coverImage.isNotEmpty
-                      ? DecorationImage(
-                    image: coverImage.startsWith('http')
-                        ? NetworkImage(coverImage)
-                        : FileImage(File(coverImage))
-                    as ImageProvider,
-                    fit: BoxFit.cover,
-                  )
-                      : null,
-                ),
-
-                child: Container(
-                  color: coverImage.isEmpty
-                      ? const Color(0xFFE0F7FA)
-                      : Colors.transparent,
-                  padding: const EdgeInsets.only(
-                    left: 16,
-                    bottom: 16,
-                    top: 40,
-                    right: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            userName,
-                            softWrap: true,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Text(
-                                userEmail,
-                                style: const TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              SizedBox(width: 4),
-                              // IconButton(
-                              //   icon: const Icon(
-                              //     Icons.add_a_photo,
-                              //    // color: Color(0xFF4682B4),
-                              //     color: Colors.black,
-                              //     size: 20,
-                              //   ),
-                              //   onPressed: () {
-                              //     _showEditOptions();
-                              //   },
-                              // ),
-
-                            ],
-                          ),
-                        ],
-                      ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            ],
-          ),
+          _drawerHeader(),
 
 
           /// MENU ITEMS
@@ -254,8 +179,8 @@ Future<void> _loadVendorId() async {
                 children: [
 
                   ListTile(
-                    leading: const Icon(Icons.storefront_outlined,
-                        color: Color(0xFF4682B4)),
+                    leading: _drawerIcon(Iconsax.shop_copy,
+                        AppColors.primary, AppColors.primaryTint),
                     title: const Text("Storefront"),
                     onTap: () {
                       Navigator.pop(context);
@@ -278,8 +203,8 @@ Future<void> _loadVendorId() async {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.credit_card_outlined,
-                        color: Color(0xFF4682B4)),
+                    leading: _drawerIcon(Iconsax.card_copy,
+                        AppColors.success, AppColors.successTint),
                     title: const Text("Payments & Subscription"),
                     onTap: () {
                       Navigator.pop(context);
@@ -289,6 +214,39 @@ Future<void> _loadVendorId() async {
                           builder: (_) => const SubscriptionHistoryScreen(),
                         ),
                       );
+                    },
+                  ),
+                  ListTile(
+                    // The real Instagram mark rather than a stand-in icon, so
+                    // the row reads as the brand it links to. It goes through
+                    // the same tile as every other row so it cannot outgrow
+                    // them again.
+                    leading: _brandTile(
+                      const InstagramGlyph(size: _brandGlyph),
+                    ),
+                    title: const Text("Instagram Connect"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const InstagramConnectScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: _drawerIcon(Iconsax.shopping_bag_copy,
+                        AppColors.accentPink, AppColors.accentPinkTint),
+                    title: const Text("Store"),
+                    // The store lives on its own subdomain — the website's
+                    // header opens it in a new tab rather than routing to it,
+                    // so this hands off to the browser the same way.
+                    trailing: Icon(Icons.open_in_new,
+                        size: 16, color: Colors.grey.shade500),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openStore();
                     },
                   ),
                   // if (isPhotographer)
@@ -309,10 +267,8 @@ Future<void> _loadVendorId() async {
                   //     },
                   //   ),
                   ListTile(
-                    leading: const Icon(
-                      Icons.reviews,
-                      color: Color(0xFF4682B4),
-                    ),
+                    leading: _drawerIcon(Iconsax.message_favorite_copy,
+                        AppColors.info, AppColors.infoTint),
                     title: const Text("Get Client Review to You"),
                     trailing: loadingLink
                         ? const SizedBox(
@@ -361,10 +317,8 @@ Future<void> _loadVendorId() async {
                   //   },
                   // ),
                   ListTile(
-                    leading: const Icon(
-                      Icons.star_rate,
-                      color: Color(0xFF4682B4),
-                    ),
+                    leading: _drawerIcon(Iconsax.star_copy,
+                        AppColors.rating, AppColors.warningTint),
                     title: const Text("Rate on Playstore"),
                     onTap: _rateOnPlayStore,
                   ),
@@ -404,11 +358,18 @@ Future<void> _loadVendorId() async {
           //     },
           //   ),
           // ),
+          // Logout reads as a footer rather than one more menu row, so it gets
+          // a rule above it the way the app separates a destructive action.
+          const Divider(height: 1, thickness: 1, color: AppColors.divider),
           Container(
             color: Colors.white,
             child: ListTile(
-              leading: const Icon(Icons.logout, color: Color(0xFF4682B4)),
-              title: const Text('Logout'),
+              leading: _drawerIcon(Iconsax.logout_copy,
+                  AppColors.error, AppColors.errorTint),
+              title: const Text(
+                'Logout',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               onTap: () async {
                 final prefs = await SharedPreferences.getInstance();
 
@@ -449,6 +410,165 @@ Future<void> _loadVendorId() async {
     );
   }
 
+
+  /// The drawer header, in the same deep blue every other screen uses.
+  ///
+  /// It used to be `Colors.pink[100]` behind a `0xFFE0F7FA` cyan panel with
+  /// black text, which matched nothing else in the app — every inner page runs
+  /// `CommonAppBar` in `AppColors.primary`, and the Reviews header uses this
+  /// exact gradient. A cover image still sits on top when the vendor has one,
+  /// now under a scrim so the white text stays readable over any photo.
+  Widget _drawerHeader() {
+    final hasCover = coverImage.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      // Not a fixed height: at a large accessibility text size a locked 180px
+      // clipped the email off the bottom.
+      constraints: const BoxConstraints(minHeight: 176),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF003F88), AppColors.primary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        image: hasCover
+            ? DecorationImage(
+                image: coverImage.startsWith('http')
+                    ? NetworkImage(coverImage)
+                    : FileImage(File(coverImage)) as ImageProvider,
+                fit: BoxFit.cover,
+              )
+            : null,
+      ),
+      child: Container(
+        decoration: hasCover
+            ? BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.25),
+                    Colors.black.withValues(alpha: 0.65),
+                  ],
+                ),
+              )
+            : null,
+        padding: const EdgeInsets.fromLTRB(16, 44, 16, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                _initialOf(userName),
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              userName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 19,
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              userEmail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.85),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The avatar letter. Guards a blank business name, which would otherwise
+  /// throw a RangeError out of build.
+  String _initialOf(String name) {
+    final trimmed = name.trim();
+    return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
+  }
+
+  /// Size of the tinted square behind every drawer icon.
+  static const double _iconTile = 38;
+
+  /// Size of the glyph inside it. Matching the tiles is not enough on its own —
+  /// the Instagram logo was filling its whole 38px tile while the Material
+  /// glyphs sat at 20px inside theirs, so the brand row looked oversized next
+  /// to the rest even though every footprint was identical.
+  static const double _iconGlyph = 20;
+
+  /// The brand mark gets two extra pixels: its artwork is an inset rounded
+  /// square, so at the same number it reads smaller than a line glyph.
+  static const double _brandGlyph = 22;
+
+  /// The one tile every drawer icon goes through, so none can drift again.
+  Widget _iconTileWrap({required Color tint, required Widget child}) {
+    return Container(
+      width: _iconTile,
+      height: _iconTile,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tint,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: child,
+    );
+  }
+
+  /// A flat, tinted tile behind a drawer icon. The rows used to be bare glyphs
+  /// in one blue, mixing filled and outlined shapes; the tint now carries the
+  /// meaning — money is green, the shop is pink, ratings are amber.
+  Widget _drawerIcon(IconData icon, Color color, Color tint) {
+    return _iconTileWrap(
+      tint: tint,
+      child: Icon(icon, size: _iconGlyph, color: color),
+    );
+  }
+
+  /// A brand logo in the same tile. The tint stays neutral so the logo's own
+  /// colours are the only ones on the row.
+  Widget _brandTile(Widget logo) {
+    return _iconTileWrap(tint: AppColors.listBackground, child: logo);
+  }
+
+  /// Opens the HappyWedz Store in the browser.
+  Future<void> _openStore() async {
+    final uri = Uri.parse(ApiConfig.storeUrl);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    // The drawer has already closed by this point, so guard the context.
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Unable to open the store")),
+    );
+  }
 
   void _rateOnPlayStore() async {
     const playStoreUrl =

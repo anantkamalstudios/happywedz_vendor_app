@@ -300,9 +300,14 @@ class _AlbumsPageState extends State<AlbumsPage> {
           Container(
             width: double.infinity,
             color: const Color(0xFFE0F7FA),
-
-
-            padding: const EdgeInsets.all(14),
+            // Edge to edge (targetSdk 36): inside the Container so the tinted
+            // strip still reaches the bottom of the screen.
+            padding: EdgeInsets.fromLTRB(
+              14,
+              14,
+              14,
+              14 + MediaQuery.of(context).padding.bottom,
+            ),
             child: const Center(
               child: Text(
                 "View Album Upload Guidelines",
