@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -11,19 +12,22 @@ import 'package:share_plus/share_plus.dart';
 import '../Storefront/StoreFront.dart';
 // import '../movments_plus/bottom_bar.dart';
 import 'Login.dart';
+import 'crm/crm_clients_screen.dart';
 import 'instagram_connect_screen.dart';
 import 'subscription_history_screen.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
 import '../theme/app_colors.dart';
+import '../providers/vendor_access_provider.dart';
+import '../widgets/plan_feature_guard.dart';
 
-class BusinessDrawer extends StatefulWidget {
+class BusinessDrawer extends ConsumerStatefulWidget {
   const BusinessDrawer({Key? key}) : super(key: key);
 
   @override
-  State<BusinessDrawer> createState() => _BusinessDrawerState();
+  ConsumerState<BusinessDrawer> createState() => _BusinessDrawerState();
 }
 
-class _BusinessDrawerState extends State<BusinessDrawer> {
+class _BusinessDrawerState extends ConsumerState<BusinessDrawer> {
   String userName = "";
   String userEmail = "";
   String coverImage = "";
@@ -48,6 +52,9 @@ class _BusinessDrawerState extends State<BusinessDrawer> {
   @override
   void initState() {
     super.initState();
+    // Re-read plan access each time the drawer opens. The previous answer
+    // stays on screen while it reloads, so nothing flashes.
+    Future.microtask(() => ref.invalidate(vendorAccessProvider));
     _loadUserData();
     _loadVendorId();
   }
@@ -158,6 +165,12 @@ Future<void> _loadVendorId() async {
 
   @override
   Widget build(BuildContext context) {
+    // Plan-gated rows are left out entirely (hide, don't lock) and stay out
+    // while access is still loading.
+    final access = ref.watch(vendorAccessProvider).value;
+    final showCrm = access?.hasModule(VendorModules.crm) ?? false;
+    final showInstagram = access?.hasModule(VendorModules.instagram) ?? false;
+
 
     return Drawer(
       child: _isLoading
@@ -202,6 +215,25 @@ Future<void> _loadVendorId() async {
                       );
                     },
                   ),
+                  if (showCrm)
+                  ListTile(
+                    leading: _drawerIcon(Iconsax.chart_square_copy,
+                        AppColors.accentPink, AppColors.accentPinkTint),
+                    title: Text(
+                        access?.moduleInfo(VendorModules.crm)?.label ?? "CRM"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FeatureGuard(
+                            module: VendorModules.crm,
+                            child: CrmClientsScreen(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                   ListTile(
                     leading: _drawerIcon(Iconsax.card_copy,
                         AppColors.success, AppColors.successTint),
@@ -216,6 +248,7 @@ Future<void> _loadVendorId() async {
                       );
                     },
                   ),
+                  if (showInstagram)
                   ListTile(
                     // The real Instagram mark rather than a stand-in icon, so
                     // the row reads as the brand it links to. It goes through
@@ -224,13 +257,19 @@ Future<void> _loadVendorId() async {
                     leading: _brandTile(
                       const InstagramGlyph(size: _brandGlyph),
                     ),
-                    title: const Text("Instagram Connect"),
+                    title: Text(access
+                            ?.moduleInfo(VendorModules.instagram)
+                            ?.label ??
+                        "Instagram Connect"),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const InstagramConnectScreen(),
+                          builder: (_) => const FeatureGuard(
+                            module: VendorModules.instagram,
+                            child: InstagramConnectScreen(),
+                          ),
                         ),
                       );
                     },

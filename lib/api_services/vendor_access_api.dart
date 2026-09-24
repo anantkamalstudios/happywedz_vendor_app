@@ -2,8 +2,28 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:happy_weds_vendors/utils/api_config.dart';
 
+/// One plan-gated feature as the server describes it (`access.allModules`),
+/// so the app never hardcodes a feature's name or description.
+class VendorModule {
+  final String id;
+  final String label;
+  final String description;
+
+  const VendorModule({required this.id, required this.label, this.description = ''});
+
+  factory VendorModule.fromJson(Map<String, dynamic> json) => VendorModule(
+        id: '${json['id'] ?? ''}',
+        label: '${json['label'] ?? json['id'] ?? ''}',
+        description: '${json['description'] ?? ''}',
+      );
+}
+
 class VendorAccess {
   final String? stage;
+  /// Ids of the plan-gated features this vendor's plan includes (`crm`,
+  /// `instagram`, …). The only thing that decides whether they are shown.
+  final List<String> modules;
+  final List<VendorModule> allModules;
   final String? verificationStatus;
   final bool canEditBusinessDetails;
   final bool canSubmitVerification;
@@ -20,6 +40,8 @@ class VendorAccess {
 
   const VendorAccess({
     this.stage,
+    this.modules = const [],
+    this.allModules = const [],
     this.verificationStatus,
     this.canEditBusinessDetails = true,
     this.canSubmitVerification = false,
@@ -38,6 +60,11 @@ class VendorAccess {
   factory VendorAccess.fromJson(Map<String, dynamic> json) {
     return VendorAccess(
       stage: json['stage'] as String?,
+      modules: List<String>.from(json['modules'] ?? const []),
+      allModules: (json['allModules'] as List? ?? const [])
+          .whereType<Map>()
+          .map((m) => VendorModule.fromJson(Map<String, dynamic>.from(m)))
+          .toList(),
       verificationStatus: json['verificationStatus'] as String?,
       canEditBusinessDetails: json['canEditBusinessDetails'] ?? true,
       canSubmitVerification: json['canSubmitVerification'] ?? false,
@@ -59,6 +86,17 @@ class VendorAccess {
   bool tabNotInPlan(String tabId) =>
       (stage == 'active' || stage == 'legacy_grace') &&
       !editableTabs.contains(tabId);
+
+  /// Whether the vendor's plan includes the plan-gated feature [moduleId].
+  bool hasModule(String moduleId) => modules.contains(moduleId);
+
+  /// Server-provided label/description for [moduleId], if it sent one.
+  VendorModule? moduleInfo(String moduleId) {
+    for (final m in allModules) {
+      if (m.id == moduleId) return m;
+    }
+    return null;
+  }
 
   bool canEditTab(String tabId) {
     if (tabId == 'business') return canEditBusinessDetails;

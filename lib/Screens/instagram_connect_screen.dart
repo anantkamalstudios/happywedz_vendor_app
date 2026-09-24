@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -6,6 +7,8 @@ import '../api_services/instagram_api.dart';
 import '../utils/common_app_bar.dart';
 import '../widgets/app_network_image.dart';
 import '../widgets/app_shimmer.dart';
+import '../widgets/plan_feature_guard.dart';
+import '../utils/plan_module_lock.dart';
 
 /// Connect / disconnect the vendor's Instagram account.
 ///
@@ -14,14 +17,15 @@ import '../widgets/app_shimmer.dart';
 /// than in the dashboard. A phone has no popup to watch, so the same idea is
 /// done with the lifecycle: the login opens in the browser, and the connection
 /// is re-read when the vendor comes back to the app.
-class InstagramConnectScreen extends StatefulWidget {
+class InstagramConnectScreen extends ConsumerStatefulWidget {
   const InstagramConnectScreen({super.key});
 
   @override
-  State<InstagramConnectScreen> createState() => _InstagramConnectScreenState();
+  ConsumerState<InstagramConnectScreen> createState() =>
+      _InstagramConnectScreenState();
 }
 
-class _InstagramConnectScreenState extends State<InstagramConnectScreen>
+class _InstagramConnectScreenState extends ConsumerState<InstagramConnectScreen>
     with WidgetsBindingObserver {
   final InstagramApi _api = InstagramApi();
 
@@ -60,6 +64,13 @@ class _InstagramConnectScreenState extends State<InstagramConnectScreen>
     }
   }
 
+  /// The server says Instagram is not in the vendor's plan: an answer, not an
+  /// error — show the locked notice and let the navigation catch up.
+  void _onLocked(PlanModuleLockedException e) {
+    showPlanModuleLocked(context, ref,
+        module: e.module.isEmpty ? 'instagram' : e.module, message: e.message);
+  }
+
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('token') ?? prefs.getString('authToken');
@@ -79,7 +90,13 @@ class _InstagramConnectScreenState extends State<InstagramConnectScreen>
     if (token == null) return;
     if (mounted) setState(() => loading = true);
 
-    final result = await _api.getConnection(token: token!);
+    final Map<String, dynamic>? result;
+    try {
+      result = await _api.getConnection(token: token!);
+    } on PlanModuleLockedException catch (e) {
+      if (mounted) _onLocked(e);
+      return;
+    }
 
     if (!mounted) return;
     setState(() {
@@ -96,7 +113,13 @@ class _InstagramConnectScreenState extends State<InstagramConnectScreen>
       error = null;
     });
 
-    final url = await _api.getAuthUrl(token: token!);
+    final String? url;
+    try {
+      url = await _api.getAuthUrl(token: token!);
+    } on PlanModuleLockedException catch (e) {
+      if (mounted) _onLocked(e);
+      return;
+    }
 
     if (!mounted) return;
     if (url == null) {
@@ -151,7 +174,13 @@ class _InstagramConnectScreenState extends State<InstagramConnectScreen>
 
     if (confirmed != true || token == null) return;
 
-    final ok = await _api.disconnect(token: token!);
+    final bool ok;
+    try {
+      ok = await _api.disconnect(token: token!);
+    } on PlanModuleLockedException catch (e) {
+      if (mounted) _onLocked(e);
+      return;
+    }
 
     if (!mounted) return;
     if (ok) {

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:happy_weds_vendors/Screens/StatsScreen.dart';
 import 'package:lottie/lottie.dart';
 import 'package:share_plus/share_plus.dart';
@@ -30,19 +31,21 @@ import 'FAQs/WeddingDj.dart';
 import 'FAQs/WeddingGift.dart';
 import 'new_screens/review_collector.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import '../providers/vendor_access_provider.dart';
 
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   static _HomeScreenState? of(BuildContext context) =>
       context.findAncestorStateOfType<_HomeScreenState>();
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   int _selectedIndex = 0;
 
   int? vendorTypeId;
@@ -61,7 +64,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadVendorType();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Plan access is re-read on every return to the foreground, so a plan
+  /// bought or changed elsewhere shows up without signing out and back in.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(vendorAccessProvider);
+    }
   }
 
   Future<void> _loadVendorType() async {
@@ -83,6 +102,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Keeps plan access loaded for the whole signed-in session: fetched fresh
+    // on launch (this screen mounting), on resume, and after a purchase.
+    ref.watch(vendorAccessProvider);
+
     if (isLoadingVendor) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:happy_weds_vendors/utils/api_config.dart';
+import '../utils/plan_module_lock.dart';
 
 /// The vendor's Instagram connection, mirroring the website's `instagramApi`.
 ///
@@ -9,6 +10,9 @@ import 'package:happy_weds_vendors/utils/api_config.dart';
 ///   GET    /instagram/           → {connected, connection}
 ///   GET    /instagram/auth-url   → {url}
 ///   DELETE /instagram/           → disconnect
+///
+/// A vendor whose plan lacks Instagram gets 403 PLAN_MODULE_LOCKED on all of
+/// them; every method throws [PlanModuleLockedException] for that.
 class InstagramApi {
   final String baseUrl = ApiConfig.baseUrl;
 
@@ -27,6 +31,7 @@ class InstagramApi {
         Uri.parse("$baseUrl/instagram/"),
         headers: _headers(token),
       );
+      throwIfPlanModuleLocked(res);
 
       if (res.statusCode != 200) {
         debugPrint("GET /instagram/ → ${res.statusCode}");
@@ -41,6 +46,8 @@ class InstagramApi {
       return connection is Map
           ? Map<String, dynamic>.from(connection)
           : <String, dynamic>{};
+    } on PlanModuleLockedException {
+      rethrow;
     } catch (e) {
       debugPrint("❌ Instagram getConnection error: $e");
       return null;
@@ -53,6 +60,7 @@ class InstagramApi {
       Uri.parse("$baseUrl/instagram/auth-url"),
       headers: _headers(token),
     );
+    throwIfPlanModuleLocked(res);
 
     if (res.statusCode != 200) {
       debugPrint("GET /instagram/auth-url → ${res.statusCode} ${res.body}");
@@ -70,7 +78,10 @@ class InstagramApi {
         Uri.parse("$baseUrl/instagram/"),
         headers: _headers(token),
       );
+      throwIfPlanModuleLocked(res);
       return res.statusCode >= 200 && res.statusCode < 300;
+    } on PlanModuleLockedException {
+      rethrow;
     } catch (e) {
       debugPrint("❌ Instagram disconnect error: $e");
       return false;

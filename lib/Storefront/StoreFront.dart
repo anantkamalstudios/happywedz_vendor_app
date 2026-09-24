@@ -598,7 +598,7 @@ class _StorefrontState extends State<Storefront> {
                       // Business Details always stays editable and shows its own
                       // richer verification banner, so it skips the generic lock
                       // wrapper — same as the website.
-                      AuthGuard.push(
+                       AuthGuard.push(
                         context,
                         (_) => item["page"] as Widget,
                         debugLabel: 'Storefront/${item["title"]}',
@@ -608,7 +608,8 @@ class _StorefrontState extends State<Storefront> {
                         context,
                         (_) => LockedTabOverlay(
                           tabId: item["tabId"] as String,
-                          child: item["page"] as Widget,
+                          child: item["pa"
+                              "ge"] as Widget,
                         ),
                         debugLabel: 'Storefront/${item["title"]}',
                       );
