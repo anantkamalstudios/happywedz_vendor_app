@@ -13,22 +13,12 @@ import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 
 /// AUDIT NOTE — REMOVED IMPORTS
-/// `dart:io`, `shared_preferences`, `Screens/Login.dart` and
-/// `Screens/HomeScreen.dart` were imported here but nothing in this file
-/// referenced them any more (they were left over from the commented-out
-/// SplashScreen at the bottom of this file, which now lives in SplashScreen.dart).
-/// They were flagged by `unused_import`. Removing an unused *import* changes no
-/// behaviour and deletes no code — the classes themselves are untouched.
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // AUDIT NOTE:
-  // This listener was previously created with no subscription handle and its
-  // only action was a debugPrint. It is kept (connectivity is surfaced to the
-  // user by ConnectivityOverlay, which owns its own subscription), but the
-  // result is now guarded so a plugin error on a device without a network
-  // stack cannot crash startup before runApp is reached.
+
   Connectivity().onConnectivityChanged.listen((status) async {
     try {
       final hasNet = await InternetService.hasInternet();
@@ -60,17 +50,7 @@ class MyApp extends StatelessWidget {
       title: 'HappyWedz Business',
 
       // ======================================================================
-      // AUDIT FIX — THE APP NOW HAS A THEME.
-      //
-      // `MaterialApp` previously had NO `theme:` at all. That single omission
-      // is why the app could not satisfy "Poppins everywhere" and why
-      // framework widgets (Checkbox, ChoiceChip, CircularProgressIndicator,
-      // the date-range picker on Statistics, text selection handles) rendered
-      // in Material's stock indigo instead of the HappyWedz blue.
-      //
-      // Because Flutter resolves an explicitly-set widget property before the
-      // theme, every existing screen that already hard-codes a colour keeps
-      // rendering exactly as before. See lib/theme/app_theme.dart.
+
       // ======================================================================
       theme: AppTheme.light,
 
@@ -85,13 +65,7 @@ class MyApp extends StatelessWidget {
       ],
 
       builder: (context, child) {
-        // AUDIT FIX — RESPONSIVE TEXT CLAMP.
-        // The app uses a lot of fixed-height rows (the 64px BottomAppBar, the
-        // 40px filter-chip strip on Enquirys, the stat cards on Statistics).
-        // At the large accessibility font sizes Android allows (up to 2.0x)
-        // those overflowed with RenderFlex errors. Clamping the scale factor
-        // keeps the app readable and accessible without letting a 2x scale
-        // break every fixed-height row.
+
         final media = MediaQuery.of(context);
         final clamped = media.textScaler.clamp(
           minScaleFactor: 0.85,
@@ -114,14 +88,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// AUDIT NOTE:
-/// `NoInternetScreen` is not referenced anywhere — connectivity is surfaced by
-/// `ConnectivityOverlay` (lib/services/internet_service.dart), which is
-/// mounted globally in the `builder` above. Per the audit rules the class is
-/// KEPT, not deleted; it is only restyled to use the shared design tokens so
-/// that if it is ever wired up it matches the rest of the app.
-///
-/// Do not delete without project-owner approval.
+
 class NoInternetScreen extends StatelessWidget {
   const NoInternetScreen({super.key});
 
@@ -171,7 +138,7 @@ class NoInternetScreen extends StatelessWidget {
 //
 // Kept intentionally. Do not delete without project-owner approval.
 // ============================================================================
-//
+///
 // /// Splash screen to check login status
 // class SplashScreen extends StatefulWidget {
 //   const SplashScreen({super.key});

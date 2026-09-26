@@ -54,6 +54,7 @@ dependencies:
 
 
   http_parser: any
+  font_awesome_flutter: ^11.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -270,6 +270,17 @@ class CrmApi {
   Future<Map<String, dynamic>> removeTeamMember(dynamic id) =>
       _send('DELETE', '/team/$id');
 
+  // -------------------------------------------------------------- WhatsApp
+  /// `{whatsapp: {connected, ...}}` — whether the vendor has connected a
+  /// WhatsApp Business number. When connected, documents are sent by the
+  /// server as WhatsApp templates instead of opening a `wa.me` chat.
+  Future<Map<String, dynamic>> whatsapp() => _get('/whatsapp');
+
+  /// Sends a quotation / invoice / payment receipt to the client as a WhatsApp
+  /// template from the connected number. Returns `{message}`.
+  Future<Map<String, dynamic>> sendOnWhatsapp(CrmDocType type, dynamic id) =>
+      _send('POST', '/${type.path}/$id/whatsapp');
+
   // ------------------------------------------------------------------ PDFs
   static String quotationPdf(dynamic id) => '/quotations/$id/pdf';
   static String invoicePdf(dynamic id) => '/invoices/$id/pdf';
@@ -347,6 +358,16 @@ class CrmApi {
     }
     return '${ApiConfig.baseUrl}${p.startsWith('/') ? p : '/uploads/$p'}';
   }
+}
+
+/// A document the CRM can send to a client, with its route segment.
+enum CrmDocType {
+  quotation('quotations'),
+  invoice('invoices'),
+  receipt('payments');
+
+  final String path;
+  const CrmDocType(this.path);
 }
 
 class CrmException implements Exception {

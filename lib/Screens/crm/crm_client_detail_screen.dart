@@ -11,6 +11,7 @@ import '../../utils/common_app_bar.dart';
 import '../../utils/plan_module_lock.dart';
 import '../../widgets/app_network_image.dart';
 import '../../widgets/plan_feature_guard.dart';
+import '../../widgets/whatsapp_icon.dart';
 import 'crm_business_details_screen.dart';
 import 'crm_client_form_screen.dart';
 import 'crm_document_editor_screen.dart';
@@ -49,6 +50,11 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
   bool _uploading = false;
   bool _changed = false;
 
+  // WhatsApp: with a connected number the server sends templates; otherwise
+  // the buttons open a wa.me chat. [_waSending] is `type:id` while sending.
+  bool _waConnected = false;
+  String? _waSending;
+
   // Follow-up editor.
   bool _editingFollowUp = false;
   bool _savingFollowUp = false;
@@ -69,6 +75,17 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
         .then((r) {
           if (mounted) {
             setState(() => _owners = List.from(r['owners'] ?? const []));
+          }
+        })
+        .catchError((_) {});
+    _api
+        .whatsapp()
+        .then((r) {
+          if (mounted) {
+            setState(
+              () =>
+                  _waConnected = (r['whatsapp'] as Map?)?['connected'] == true,
+            );
           }
         })
         .catchError((_) {});
@@ -187,6 +204,32 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
       await _open(CrmShare.whatsapp(_client['phone']?.toString(), text));
     } catch (e) {
       _handleError(e, 'Could not prepare the message.');
+    }
+  }
+
+  bool _isWaSending(CrmDocType type, Map doc) =>
+      _waSending == '${type.name}:${doc['id']}';
+
+  /// Sends [doc] on WhatsApp like the web: as a template from the connected
+  /// number, or — when none is connected — by opening a chat with [text].
+  /// [before] only runs for the chat fallback.
+  Future<void> _sendOnWhatsapp(
+    CrmDocType type,
+    Map doc,
+    String text, {
+    Future<void> Function()? before,
+  }) async {
+    if (!_waConnected) return _whatsapp(text, before: before);
+    setState(() => _waSending = '${type.name}:${doc['id']}');
+    try {
+      final res = await _api.sendOnWhatsapp(type, doc['id']);
+      _changed = true;
+      _toast('${res['message'] ?? 'Sent on WhatsApp.'}');
+      await _load();
+    } catch (e) {
+      _handleError(e, 'Could not send it on WhatsApp.');
+    } finally {
+      if (mounted) setState(() => _waSending = null);
     }
   }
 
@@ -360,11 +403,7 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
                             onPressed: () => _whatsapp(
                               CrmShare.quotation(_client, _seller, q),
                             ),
-                            icon: const Icon(
-                              Icons.chat,
-                              size: 16,
-                              color: Color(0xFF1FA855),
-                            ),
+                            icon: const WhatsAppIcon(),
                             label: const Text('Share on WhatsApp'),
                           ),
                         ],
@@ -664,10 +703,10 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
         if (hasPhone)
           OutlinedButton.icon(
             onPressed: () => _open(CrmShare.whatsapp('${_client['phone']}')),
-            icon: const Icon(Icons.chat, size: 16, color: Color(0xFF1FA855)),
+            icon: const WhatsAppIcon(),
             label: const Text(
               'WhatsApp',
-              style: TextStyle(color: Color(0xFF1FA855)),
+              style: TextStyle(color: WhatsAppIcon.green),
             ),
           ),
         OutlinedButton.icon(
@@ -869,14 +908,10 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
                             _profile?['upiId']?.toString(),
                           ),
                         ),
-                        icon: const Icon(
-                          Icons.chat,
-                          size: 16,
-                          color: Color(0xFF1FA855),
-                        ),
+                        icon: const WhatsAppIcon(),
                         label: const Text(
                           'WhatsApp reminder',
-                          style: TextStyle(color: Color(0xFF1FA855)),
+                          style: TextStyle(color: WhatsAppIcon.green),
                         ),
                       ),
                     ],
@@ -1528,17 +1563,35 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
     );
   }
 
+  /// The quotation / invoice row's WhatsApp button (see [_sendOnWhatsapp]).
+  Widget _whatsappButton(
+    CrmDocType type,
+    Map doc,
+    String text, {
+    Future<void> Function()? before,
+  }) {
+    final sending = _isWaSending(type, doc);
+    return Tooltip(
+      message: _waConnected ? 'Send on WhatsApp' : 'Share on WhatsApp',
+      child: _smallButton(
+        sending ? 'Sending…' : 'WhatsApp',
+        sending ? null : () => _sendOnWhatsapp(type, doc, text, before: before),
+        icon: const WhatsAppIcon(size: 15),
+      ),
+    );
+  }
+
   Widget _smallButton(
     String label,
-    VoidCallback onPressed, {
+    VoidCallback? onPressed, {
     bool primary = false,
     bool danger = false,
-    IconData? icon,
+    Widget? icon,
   }) {
     final color = danger
         ? AppColors.error
         : label == 'WhatsApp'
-        ? const Color(0xFF1FA855)
+        ? WhatsAppIcon.green
         : null;
     final style =
         (primary
@@ -1558,7 +1611,7 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 15),
+              icon,
               const SizedBox(width: 4),
               Text(label),
             ],
@@ -1582,7 +1635,7 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
           Text(text, style: const TextStyle(color: AppColors.textSecondary)),
           if (extra != null) extra,
           const SizedBox(height: 8),
-          _smallButton(buttonLabel, onPressed, primary: true, icon: Icons.add),
+          _smallButton(buttonLabel, onPressed, primary: true, icon: const Icon(Icons.add, size: 15)),
         ],
       ),
     );
@@ -1627,20 +1680,18 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
           'PDF',
           () => _pdf('Quotation ${q['number']}', CrmApi.quotationPdf(q['id'])),
         ),
-        _smallButton(
-          'WhatsApp',
-          () => _whatsapp(
-            CrmShare.quotation(_client, _seller, q),
-            // A draft or declined quotation is marked sent first, so its link works.
-            before: q['status'] == 'draft' || q['status'] == 'rejected'
-                ? () async {
-                    await _api.sendQuotation(q['id'], {'sendEmail': false});
-                    _changed = true;
-                    _load();
-                  }
-                : null,
-          ),
-          icon: Icons.chat,
+        _whatsappButton(
+          CrmDocType.quotation,
+          q,
+          CrmShare.quotation(_client, _seller, q),
+          // A draft or declined quotation is marked sent first, so its link works.
+          before: q['status'] == 'draft' || q['status'] == 'rejected'
+              ? () async {
+                  await _api.sendQuotation(q['id'], {'sendEmail': false});
+                  _changed = true;
+                  _load();
+                }
+              : null,
         ),
         if (!accepted) _smallButton('Edit', () => _newQuotation(q)),
         if (!accepted)
@@ -1748,10 +1799,10 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
           () => _pdf('Invoice ${inv['number']}', CrmApi.invoicePdf(inv['id'])),
         ),
         if (!cancelled) ...[
-          _smallButton(
-            'WhatsApp',
-            () => _whatsapp(CrmShare.invoice(_client, _seller, inv)),
-            icon: Icons.chat,
+          _whatsappButton(
+            CrmDocType.invoice,
+            inv,
+            CrmShare.invoice(_client, _seller, inv),
           ),
           _smallButton(
             'Email',
@@ -1878,13 +1929,14 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
                 children: [
                   IconButton(
                     tooltip: 'Send receipt on WhatsApp',
-                    icon: const Icon(
-                      Icons.chat,
-                      color: Color(0xFF1FA855),
-                      size: 20,
-                    ),
-                    onPressed: () =>
-                        _whatsapp(CrmShare.receipt(_client, _seller, p)),
+                    icon: const WhatsAppIcon(size: 20),
+                    onPressed: _isWaSending(CrmDocType.receipt, p)
+                        ? null
+                        : () => _sendOnWhatsapp(
+                            CrmDocType.receipt,
+                            p,
+                            CrmShare.receipt(_client, _seller, p),
+                          ),
                   ),
                   IconButton(
                     tooltip: 'Remove payment',

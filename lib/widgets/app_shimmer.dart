@@ -4,57 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
-/// ============================================================================
-/// AppShimmer — skeleton loading that mirrors the real layout
-/// ============================================================================
-///
-/// AUDIT NOTE:
-/// `shimmer: ^3.0.0` was ALREADY a dependency in pubspec.yaml but was barely
-/// used — nearly every screen showed a bare `CircularProgressIndicator()`
-/// centred in an otherwise blank page (Home, Storefront, Reviews, Statistics,
-/// Enquirys, Drawer …). These skeletons match the shape of the content that
-/// replaces them so the page does not jump when data arrives.
-///
-/// ---------------------------------------------------------------------------
-/// LAYOUT CONTRACT — read this before moving a skeleton to a new slot.
-///
-/// A skeleton is dropped into whatever slot the real content would occupy, and
-/// that slot is not always height-bounded. The first version of this file was
-/// not defensive about it and it broke on device: `ReviewsPage` placed
-/// `ListShimmer` inside a `SliverToBoxAdapter`, which imposes NO height limit,
-/// and the inner `ListView` threw
-///
-///     Vertical viewport was given unbounded height.
-///     BoxConstraints forces an infinite height.
-///     RenderBox was not laid out: _ShimmerFilter#…
-///
-/// followed by ~30 cascading layout errors that took the Reviews tab down.
-///
-/// There are two families here, because no single widget can satisfy every
-/// slot — a scroll view cannot live in an unbounded parent, and a
-/// shrink-wrapped sliver cannot report an intrinsic height:
-///
-///   LIST / GRID skeletons — `shrinkWrap: true`, no scroll view of their own.
-///     ✅ page `body:`        ✅ `SliverToBoxAdapter`
-///     ❌ `SliverFillRemaining(hasScrollBody: false)` (needs intrinsics)
-///
-///   COLUMN skeletons (Home / Stats / Form / Profile) — page bodies, wrapped
-///   in a non-scrolling `SingleChildScrollView` so a tall skeleton on a short
-///   screen cannot paint an overflow stripe.
-///     ✅ page `body:`        ✅ `SliverFillRemaining(hasScrollBody: false)`
-///     ❌ `SliverToBoxAdapter` (unbounded)
-///
-/// NOTHING HERE USES `LayoutBuilder`. "Scroll only when bounded" looks like the
-/// general fix but throws `LayoutBuilder does not support returning intrinsic
-/// dimensions` in any intrinsic-measuring parent, which cascades into
-/// `Null check operator used on a null value`. See [_SkeletonBody].
-///
-/// Every line of this contract is pinned by test/layout_safety_test.dart,
-/// including the two ❌ cases.
-/// ----------------------------------------------------------------------------
-
-/// Lays out column-style skeleton content for use as a page body.
-/// See the slot contract above.
+/// ==
 class _SkeletonBody extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final List<Widget> children;
@@ -66,26 +16,7 @@ class _SkeletonBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // AUDIT NOTE — DELIBERATELY NOT A `LayoutBuilder`.
-    // "Scroll only when the constraints are bounded" was tried and is worse
-    // than the problem: `LayoutBuilder` throws
-    // `LayoutBuilder does not support returning intrinsic dimensions` inside
-    // any parent that measures intrinsic height (notably
-    // `SliverFillRemaining(hasScrollBody: false)`), and that assertion
-    // cascades into `Null check operator used on a null value` across the
-    // viewport's layout, paint and semantics passes.
-    //
-    // `SingleChildScrollView` forwards intrinsic queries to its child, so it
-    // is safe in both a bounded page body and an intrinsic-measuring sliver,
-    // and it prevents an overflow stripe when a tall skeleton (HomeShimmer is
-    // ~800dp) lands on a short viewport.
-    //
-    // The one slot it cannot handle is an UNBOUNDED one such as
-    // `SliverToBoxAdapter`. That is fine: the skeletons used inside slivers
-    // are `ListShimmer` and `GridShimmer`, which are built on shrink-wrapped
-    // ListView/GridView and carry no scroll view of their own. The column
-    // skeletons below are page bodies.
-    //
+
     // All of this is pinned by test/layout_safety_test.dart.
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
