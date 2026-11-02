@@ -45,4 +45,4 @@ app.*.map.json
 /android/app/release
 
 # Backend (pasted locally, not part of the Flutter app)
-/backen/
+/backend/
