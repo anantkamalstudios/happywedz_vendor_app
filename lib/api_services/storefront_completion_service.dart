@@ -47,8 +47,13 @@ class StorefrontCompletionService {
       final Map<String, dynamic> attributes =
       Map<String, dynamic>.from(data["attributes"] ?? {});
 
-      final List<dynamic> rootMedia =
-      List<dynamic>.from(data["media"] ?? []);
+      // `media` is a list, or on older records `{gallery: [...], videos: [...]}`.
+      final rawMedia = data["media"];
+      final List<dynamic> rootMedia = rawMedia is List
+          ? List<dynamic>.from(rawMedia)
+          : rawMedia is Map && rawMedia["gallery"] is List
+              ? List<dynamic>.from(rawMedia["gallery"])
+              : [];
 
       final completion =
       await StorefrontCompletionCalculator.calculate(attributes,  rootMedia: rootMedia, );

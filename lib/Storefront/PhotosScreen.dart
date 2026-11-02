@@ -1,13 +1,14 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
+import '../utils/api_config.dart';
 import '../utils/common_app_bar.dart';
+import '../utils/subcategory_selection.dart';
+import '../utils/view360_assets.dart';
 import '../widgets/app_network_image.dart';
 import '../widgets/app_shimmer.dart';
 
@@ -27,6 +28,7 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
 
   int? vendorId;
   int? serviceId;
+  int? vendorSubcategoryId;
   String? token;
 
   bool loading = true;
@@ -39,6 +41,56 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
   }
 
   // ----------------------------------------------------------
+  // READING THE GALLERY (same rules as the website's Storefront.jsx)
+  // ----------------------------------------------------------
+
+  /// The gallery URLs on a service record.
+  ///
+  /// `media` arrives in more than one shape depending on how the record was
+  /// last saved: a list of strings, a list of `{url}` / `{path}` objects, or
+  /// the legacy `{gallery: [...], videos: [...]}` object. The old
+  /// `List<String>.from(media)` threw on everything but the first, which is
+  /// why photos added on the website never showed up here.
+  static List<String> _galleryFrom(Map<String, dynamic>? service) {
+    final media = service?["media"];
+    final List items;
+    if (media is List) {
+      items = media;
+    } else if (media is Map && media["gallery"] is List) {
+      items = media["gallery"];
+    } else {
+      return [];
+    }
+
+    final seen = <String>{};
+    for (final item in items) {
+      final raw = item is Map
+          ? (item["url"] ?? item["path"] ?? item["location"])
+          : item;
+      final url = _absoluteUrl(raw);
+      if (url != null) seen.add(url);
+    }
+    return seen.toList();
+  }
+
+  /// Cleans one entry and prefixes relative `/uploads/...` paths with the API
+  /// host, as the website does with IMAGE_BASE_URL. Inline `data:`/`blob:`
+  /// values are dropped — the website never keeps them either.
+  static String? _absoluteUrl(dynamic value) {
+    if (value is! String) return null;
+    final cleaned = value.replaceAll(RegExp(r'^\s*`|`\s*$'), '').trim();
+    if (cleaned.isEmpty) return null;
+    final lower = cleaned.toLowerCase();
+    if (lower == 'null' || lower == 'undefined') return null;
+    if (lower.startsWith('data:') || lower.startsWith('blob:')) return null;
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      return cleaned;
+    }
+    final path = cleaned.startsWith('/') ? cleaned : '/$cleaned';
+    return '${ApiConfig.baseUrl.replaceAll(RegExp(r'/+$'), '')}$path';
+  }
+
+  // ----------------------------------------------------------
   // LOAD TOKEN + IDS + EXISTING GALLERY FROM SERVER
   // ----------------------------------------------------------
   Future<void> _loadCredentialsAndGallery() async {
@@ -46,27 +98,81 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
 
     vendorId = prefs.getInt('vendorId');
     serviceId = prefs.getInt('serviceId');
+    vendorSubcategoryId = prefs.getInt('vendor_subcategory_id');
     token = prefs.getString('token');
 
-    if (vendorId == null || serviceId == null || token == null) {
-      setState(() => loading = false);
+    if (vendorId == null || token == null) {
+      if (mounted) setState(() => loading = false);
       return;
     }
 
     try {
-      final latest = await _vendorApi.getByServiceId(
-        serviceId: serviceId!,
-        token: token!,
-      );
+      // A vendor whose storefront was created on the website may not have the
+      // service id cached yet — look it up the same way the website does.
+      if (serviceId == null) {
+        serviceId = await _vendorApi.getServiceIdByVendorId(
+          vendorId: vendorId!,
+          token: token!,
+        );
+        if (serviceId != null) await prefs.setInt('serviceId', serviceId!);
+      }
 
-      savedImages = List<String>.from(latest?["media"] ?? []);
-
-      await prefs.setStringList("images_$vendorId", savedImages);
+      if (serviceId != null) await _refreshFromServer();
     } catch (e) {
       debugPrint("❌ Load gallery error: $e");
     }
 
-    setState(() => loading = false);
+    if (mounted) setState(() => loading = false);
+  }
+
+  /// Fetches the record and shows exactly what the server holds.
+  Future<Map<String, dynamic>?> _refreshFromServer() async {
+    final latest = await _vendorApi.getByServiceId(
+      serviceId: serviceId!,
+      token: token!,
+    );
+    final images = _galleryFrom(latest);
+    vendorSubcategoryId ??= _toInt(latest?["vendor_subcategory_id"]);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList("images_$vendorId", images);
+
+    if (mounted) setState(() => savedImages = images);
+    return latest;
+  }
+
+  static int? _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  /// Sends the gallery the way the website does: kept URLs in `media`, new
+  /// files under `gallery`. `latest` must be a fresh read so this save keeps
+  /// whatever another screen (or the website) changed meanwhile.
+  Future<bool> _saveGallery({
+    required Map<String, dynamic>? latest,
+    required List<String> keep,
+    List<String> newPaths = const [],
+  }) async {
+    final attributes = latest?["attributes"] is Map
+        ? Map<String, dynamic>.from(latest!["attributes"])
+        : <String, dynamic>{};
+    attributes.remove("media");
+
+    return _vendorApi.updateServiceGallery(
+      serviceId: serviceId!,
+      token: token!,
+      vendorId: vendorId!,
+      vendorSubcategoryId:
+          await SubcategorySelection.payloadForPrimary(vendorSubcategoryId),
+      attributes: attributes,
+      keptImageUrls: keep,
+      newImagePaths: newPaths,
+      keptView360ImageUrls: View360Assets.images(latest),
+      keptView360VideoUrls: View360Assets.videos(latest),
+    );
   }
 
   // ----------------------------------------------------------
@@ -91,10 +197,17 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
   }
 
   // ----------------------------------------------------------
-  // UPLOAD GALLERY (ROOT LEVEL media)
+  // UPLOAD GALLERY (multipart, same contract as the website)
   // ----------------------------------------------------------
   Future<void> uploadGallery() async {
-    if (vendorId == null || serviceId == null || token == null) return;
+    if (vendorId == null || serviceId == null || token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please complete your storefront basic info first"),
+        ),
+      );
+      return;
+    }
 
     if (selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,31 +219,15 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     setState(() => uploading = true);
 
     try {
-      /// 🔥 FETCH LATEST SERVICE
       final latest = await _vendorApi.getByServiceId(
         serviceId: serviceId!,
         token: token!,
       );
 
-      /// 🔥 EXISTING MEDIA (ROOT LEVEL)
-      List<String> media =
-      List<String>.from(latest?["media"] ?? []);
-
-      /// 🔥 CONVERT NEW IMAGES
-      for (var file in selectedImages) {
-        final bytes = await file.readAsBytes();
-        final base64Str = base64Encode(bytes);
-        media.add("data:image/jpeg;base64,$base64Str");
-      }
-
-      /// 🔥 UPDATE SERVICE
-      final success = await _vendorApi.updateService(
-        serviceId: serviceId!,
-        token: token!,
-        body: {
-          "vendor_id": vendorId,
-          "media": media,
-        },
+      final success = await _saveGallery(
+        latest: latest,
+        keep: _galleryFrom(latest),
+        newPaths: selectedImages.map((f) => f.path).toList(),
       );
 
       if (success) {
@@ -138,13 +235,9 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
           serviceId: serviceId!,
         );
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList("images_$vendorId", media);
-
-        setState(() {
-          savedImages = media;
-          selectedImages.clear();
-        });
+        // Re-read so the tiles show the stored URLs the server just created.
+        selectedImages.clear();
+        await _refreshFromServer();
 
         // AUDIT FIX: context used after an await — guard added.
         if (!mounted) return;
@@ -167,7 +260,7 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
       );
     }
 
-    setState(() => uploading = false);
+    if (mounted) setState(() => uploading = false);
   }
 
   // ----------------------------------------------------------
@@ -176,31 +269,29 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
   Future<void> deleteSavedImage(int index) async {
     if (vendorId == null || serviceId == null || token == null) return;
 
+    // Removed by URL, not position: the server's list may have changed since
+    // this screen loaded, and an index would then delete the wrong photo.
+    final target = savedImages[index];
+
     try {
       final latest = await _vendorApi.getByServiceId(
         serviceId: serviceId!,
         token: token!,
       );
 
-      List<String> media =
-      List<String>.from(latest?["media"] ?? []);
+      final keep = _galleryFrom(latest)..remove(target);
 
-      media.removeAt(index);
-
-      final success = await _vendorApi.updateService(
-        serviceId: serviceId!,
-        token: token!,
-        body: {
-          "vendor_id": vendorId,
-          "media": media,
-        },
-      );
+      final success = await _saveGallery(latest: latest, keep: keep);
 
       if (success) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList("images_$vendorId", media);
-
-        setState(() => savedImages = media);
+        await StorefrontCompletionService.refreshCompletion(
+          serviceId: serviceId!,
+        );
+        await _refreshFromServer();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to delete photo")),
+        );
       }
     } catch (e) {
       debugPrint("❌ Delete error: $e");
@@ -230,56 +321,16 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     setState(() => _visibleSavedCount = _savedShown + _savedPageSize);
   }
 
-  /// Decoded base64 previews, keyed by the raw string.
-  ///
-  /// The grid is `shrinkWrap`ped inside a scroll view, so every tile is built
-  /// on every `setState` — decoding inline meant re-decoding each freshly
-  /// uploaded photo on each rebuild, which is what made the list crawl right
-  /// after a save.
-  final Map<String, Uint8List?> _decodedPreviews = {};
-
-  Uint8List? _decodeBase64(String value) {
-    return _decodedPreviews.putIfAbsent(value, () {
-      try {
-        return base64Decode(value.split(',').last);
-      } catch (e) {
-        // A malformed string used to throw from inside build and take the
-        // whole screen down with it.
-        debugPrint("❌ Could not decode preview: $e");
-        return null;
-      }
-    });
-  }
-
-  /// A saved tile is an S3 URL, or — for the moments between saving and the
-  /// next reload — the base64 we just uploaded.
+  /// A saved tile is always a stored URL — `_galleryFrom` has already made
+  /// relative `/uploads/` paths absolute.
   Widget _savedImageTile(String img) {
-    const radius = BorderRadius.all(Radius.circular(12));
-
-    if (!img.startsWith("data:")) {
-      // Shimmers per tile while the fetch is in flight, caches the result, and
-      // falls back to a placeholder on an expired or broken link.
-      return AppNetworkImage(
-        url: img,
-        fit: BoxFit.cover,
-        borderRadius: radius,
-        placeholderLabel: "Image unavailable",
-      );
-    }
-
-    final bytes = _decodeBase64(img);
-    if (bytes == null) {
-      // Reuse the same placeholder the network variant shows.
-      return const AppNetworkImage(
-        url: null,
-        borderRadius: radius,
-        placeholderLabel: "Image unavailable",
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: radius,
-      child: Image.memory(bytes, fit: BoxFit.cover),
+    // Shimmers per tile while the fetch is in flight, caches the result, and
+    // falls back to a placeholder on an expired or broken link.
+    return AppNetworkImage(
+      url: img,
+      fit: BoxFit.cover,
+      borderRadius: const BorderRadius.all(Radius.circular(12)),
+      placeholderLabel: "Image unavailable",
     );
   }
 

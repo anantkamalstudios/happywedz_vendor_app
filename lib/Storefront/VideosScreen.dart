@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
+import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
 import '../utils/common_app_bar.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
@@ -43,6 +45,19 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
     serviceId = prefs.getInt("serviceId");
     token = prefs.getString("token");
 
+    // A storefront created on the website may not have its id cached yet.
+    if (serviceId == null && vendorId != null && token != null) {
+      try {
+        serviceId = await VendorServiceApi().getServiceIdByVendorId(
+          vendorId: vendorId!,
+          token: token!,
+        );
+        if (serviceId != null) await prefs.setInt("serviceId", serviceId!);
+      } catch (e) {
+        debugPrint("Error looking up service id: $e");
+      }
+    }
+
     if (serviceId != null && token != null) {
       await fetchCurrentAttributes();
     }
@@ -59,7 +74,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
       thumbnails[url] = await getThumbnail(url);
     }
 
-    setState(() => loadingVendorData = false);
+    if (mounted) setState(() => loadingVendorData = false);
   }
 
   /// Videos arrive as plain strings or as `{url}` / `{path}` objects, under
@@ -74,8 +89,9 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
           if (v is Map) return (v['url'] ?? v['path'] ?? '').toString();
           return '';
         })
-        .map((v) => v.trim())
-        .where((v) => v.isNotEmpty)
+        // Pasted links often arrive wrapped in backticks.
+        .map((v) => v.replaceAll(RegExp(r'^\s*`|`\s*$'), '').trim())
+        .where((v) => v.isNotEmpty && v != 'null' && v != 'undefined')
         // Relative upload paths are stored without a host.
         .map((v) => v.startsWith('/uploads/') ? '${ApiConfig.baseUrl}$v' : v)
         .toList();
@@ -111,7 +127,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
     if (url.contains("youtube") || url.contains("youtu.be")) {
       final id = extractYouTubeId(url);
       if (id != null) return 'https://img.youtube.com/vi/$id/0.jpg';
-    } else if (url.endsWith(".mp4")) {
+    } else if (_isDirectFile(url)) {
       try {
         final thumb = await VideoThumbnail.thumbnailFile(
           video: url,
@@ -127,9 +143,34 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
     return null;
   }
 
+  /// A file the in-app player can stream. YouTube/Vimeo page links are not.
+  bool _isDirectFile(String url) {
+    final path = (Uri.tryParse(url)?.path ?? url).toLowerCase();
+    return RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)$').hasMatch(path);
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void addVideoURL() async {
     final url = urlController.text.trim();
     if (url.isEmpty) return;
+
+    final parsed = Uri.tryParse(url);
+    if (parsed == null ||
+        !(parsed.scheme == 'http' || parsed.scheme == 'https') ||
+        parsed.host.isEmpty) {
+      _toast("Please enter a valid video link (https://...)");
+      return;
+    }
+    // Same rule as the website's VideoGallery: no duplicates.
+    if (videoURLs.any((v) => v.toLowerCase() == url.toLowerCase())) {
+      _toast("This video is already added");
+      return;
+    }
     urlController.clear();
 
     setState(() {
@@ -138,6 +179,7 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
     });
 
     final thumb = await getThumbnail(url);
+    if (!mounted) return;
     setState(() {
       thumbnails[url] = thumb;
     });
@@ -167,14 +209,27 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
 
     setState(() => saving = true);
 
-    currentAttributes["video"] = videoURLs;
-
-    final payload = {
-      "vendor_id": vendorId,
-      "attributes": currentAttributes,
-    };
-
     try {
+      // Re-read so this save cannot roll back edits made on the website or
+      // another screen since this one opened.
+      final latest = await VendorServiceApi().getByServiceId(
+        serviceId: serviceId!,
+        token: token!,
+      );
+      if (latest?["attributes"] is Map) {
+        currentAttributes = Map<String, dynamic>.from(latest!["attributes"]);
+      }
+
+      currentAttributes["video"] = videoURLs;
+      // The load merges the legacy `vedio` key in, so leaving it behind would
+      // bring a deleted video back on the next open.
+      currentAttributes.remove("vedio");
+
+      final payload = {
+        "vendor_id": vendorId,
+        "attributes": currentAttributes,
+      };
+
       final response = await http.put(
         Uri.parse("${ApiConfig.baseUrl}/vendor-services/$serviceId"),
         headers: {
@@ -184,29 +239,37 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
         body: jsonEncode(payload),
       );
 
-      if (response.statusCode == 200) {
-
+      if (response.statusCode >= 200 && response.statusCode < 300) {
         await StorefrontCompletionService.refreshCompletion(
           serviceId: serviceId!,
         );
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList("videos_$vendorId", videoURLs);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Videos Saved Successfully")));
+        _toast("Videos Saved Successfully");
       } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Failed to Save")));
+        debugPrint("Save videos → ${response.statusCode}: ${response.body}");
+        _toast("Failed to Save");
       }
     } catch (e) {
-      print("Error saving videos: $e");
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error saving videos")));
+      debugPrint("Error saving videos: $e");
+      _toast("Error saving videos");
     }
 
-    setState(() => saving = false);
+    if (mounted) setState(() => saving = false);
   }
 
   void playVideo(String url) async {
+    // YouTube/Vimeo links are web pages, not video files — the in-app player
+    // threw on them, so tapping did nothing. Open them in their own app.
+    if (!_isDirectFile(url)) {
+      final uri = Uri.tryParse(url);
+      if (uri == null ||
+          !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        _toast("Could not open this video");
+      }
+      return;
+    }
+
     if (activeVideoUrl == url) {
       if (activeController!.value.isPlaying) {
         activeController!.pause();
@@ -220,16 +283,28 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
     activeController?.pause();
     activeController?.dispose();
 
-    activeController = VideoPlayerController.network(url);
-    await activeController!.initialize();
-    activeController!.play();
-
+    final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+    activeController = controller;
     activeVideoUrl = url;
-    setState(() {});
+    try {
+      await controller.initialize();
+      controller.play();
+    } catch (e) {
+      debugPrint("Video play error: $e");
+      controller.dispose();
+      if (activeController == controller) {
+        activeController = null;
+        activeVideoUrl = null;
+      }
+      _toast("Could not play this video");
+    }
+    if (mounted) setState(() {});
   }
 
   String? extractYouTubeId(String url) {
-    final RegExp exp = RegExp(r"(?:v=|youtu\.be/|embed/)([^&?]+)");
+    // Same patterns as the website's VideoGallery, Shorts included.
+    final RegExp exp = RegExp(
+        r"(?:youtu\.be/|youtube\.com/(?:embed/|v/|shorts/|watch\?v=|watch\?.+&v=))([\w-]{11})");
     final match = exp.firstMatch(url);
     return match != null ? match.group(1) : null;
   }
@@ -301,7 +376,9 @@ class _VideoUploadPageState extends State<VideoUploadPage> {
                     padding: EdgeInsets.all(4),
                     decoration: BoxDecoration(
                         color: Colors.white, shape: BoxShape.circle),
-                    child: Icon(Icons.close, size: 16, color: Colors.white),
+                    // Was white on the white circle, so the delete button
+                    // could not be seen.
+                    child: Icon(Icons.close, size: 16, color: Colors.black),
                   ),
                 ),
               ),

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
 
 class VendorServiceApi {
@@ -152,6 +154,70 @@ class VendorServiceApi {
       return success;
     } catch (e) {
       debugPrint("❌ 360 video upload error: $e");
+      return false;
+    }
+  }
+
+  /// UPDATE the photo gallery, mirroring the website's `buildFormData`.
+  ///
+  /// The website never sends photos inline: it sends `media` as a JSON list of
+  /// the URLs being kept and the new files under `gallery`, and the server
+  /// uploads them and appends their URLs. The 360 URL lists go along too, as
+  /// the website always sends them and the server rebuilds those fields from
+  /// whatever arrives.
+  Future<bool> updateServiceGallery({
+    required int serviceId,
+    required String token,
+    required int vendorId,
+    required Object? vendorSubcategoryId,
+    required Map<String, dynamic> attributes,
+    required List<String> keptImageUrls,
+    required List<String> newImagePaths,
+    required List<String> keptView360ImageUrls,
+    required List<String> keptView360VideoUrls,
+  }) async {
+    final request = http.MultipartRequest(
+      "PUT",
+      Uri.parse("$baseUrl/vendor-services/$serviceId"),
+    );
+
+    request.headers["Authorization"] = "Bearer $token";
+    request.headers["Accept"] = "application/json";
+
+    request.fields["vendor_id"] = "$vendorId";
+    if (vendorSubcategoryId != null) {
+      request.fields["vendor_subcategory_id"] = "$vendorSubcategoryId";
+    }
+    request.fields["attributes"] = jsonEncode(attributes);
+    request.fields["media"] = jsonEncode(keptImageUrls);
+    request.fields["view360_images_urls"] = jsonEncode(keptView360ImageUrls);
+    request.fields["view360_video_urls"] = jsonEncode(keptView360VideoUrls);
+
+    for (final path in newImagePaths) {
+      // The server filters uploads by MIME type, and fromPath on its own
+      // sends application/octet-stream.
+      final type = lookupMimeType(path) ?? "image/jpeg";
+      final parts = type.split("/");
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          "gallery",
+          path,
+          contentType: MediaType(parts.first, parts.last),
+        ),
+      );
+    }
+
+    try {
+      final streamed = await request.send();
+      final res = await http.Response.fromStream(streamed);
+      final success = res.statusCode >= 200 && res.statusCode < 300;
+      debugPrint(
+        "PUT (multipart) /vendor-services/$serviceId gallery → ${res.statusCode} | success=$success",
+      );
+      if (!success) debugPrint("Response body: ${res.body}");
+      return success;
+    } catch (e) {
+      debugPrint("❌ Gallery upload error: $e");
       return false;
     }
   }
