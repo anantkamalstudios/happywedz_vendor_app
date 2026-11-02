@@ -19,12 +19,6 @@ import 'crm_payment_form_screen.dart';
 import 'crm_pdf_screen.dart';
 import 'crm_widgets.dart';
 
-/// CRM → client details, mirroring the web (CrmPage.jsx `Aa`): header with
-/// contact, owner and actions; money summary with reminders; follow-up;
-/// Overview / Quotations / Invoices / Payments tabs. Every action calls the
-/// same `/vendor/crm/*` endpoint as the website.
-///
-/// Pops with `true` when something changed, so the client list refreshes.
 class CrmClientDetailScreen extends ConsumerStatefulWidget {
   final dynamic clientId;
 
