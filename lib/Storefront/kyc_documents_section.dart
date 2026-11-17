@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../api_services/vendor_verification_api.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
@@ -40,14 +41,52 @@ class KycDocumentsSection extends StatelessWidget {
     required this.onBusinessDocsChange,
   });
 
-  Future<File?> _pickFile(List<String> extensions) async {
+  /// Same limit as the website's DocumentUploadField.
+  static const int _maxBytes = 10 * 1024 * 1024;
+
+  static const Map<String, String> _typeFor = {
+    'pdf': 'application/pdf',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'webp': 'image/webp',
+  };
+
+  /// Picks a file and checks it the way the website does — by its real type
+  /// and size — so a wrong file is caught here with a clear message instead
+  /// of being refused by the server on submit.
+  Future<File?> _pickFile(BuildContext context, List<String> extensions) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: extensions,
       withData: false,
     );
     final path = result?.files.single.path;
-    return path != null ? File(path) : null;
+    if (path == null) return null;
+    final file = File(path);
+
+    void warn(String message) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
+
+    final allowed = extensions.map((e) => _typeFor[e]).whereType<String>().toSet();
+    final type = await kycMimeType(file);
+    if (type == null || !allowed.contains(type)) {
+      warn(extensions.length == 1 && extensions.first == 'pdf'
+          ? 'Please upload a PDF file.'
+          : 'Please upload a PDF, JPG, PNG or WEBP file.');
+      return null;
+    }
+
+    final size = await file.length();
+    if (size > _maxBytes) {
+      warn('File must be under 10 MB '
+          '(this one is ${(size / (1024 * 1024)).toStringAsFixed(1)} MB).');
+      return null;
+    }
+    return file;
   }
 
   void _addRow() {
@@ -103,7 +142,7 @@ class KycDocumentsSection extends StatelessWidget {
             existingName: existing['aadhaar']?['file_name'] as String?,
             error: errors['aadhaar'],
             onPick: () async {
-              final f = await _pickFile(['pdf']);
+              final f = await _pickFile(context, ['pdf']);
               if (f != null) onAadhaarChange(f);
             },
             onRemove: () => onAadhaarChange(null),
@@ -118,7 +157,7 @@ class KycDocumentsSection extends StatelessWidget {
             existingName: existing['pan']?['file_name'] as String?,
             error: errors['pan'],
             onPick: () async {
-              final f = await _pickFile(['pdf']);
+              final f = await _pickFile(context, ['pdf']);
               if (f != null) onPanChange(f);
             },
             onRemove: () => onPanChange(null),
@@ -180,7 +219,7 @@ class KycDocumentsSection extends StatelessWidget {
                 businessDocs[i].label = value;
               },
               onPickFile: () async {
-                final f = await _pickFile(['pdf', 'jpg', 'jpeg', 'png', 'webp']);
+                final f = await _pickFile(context, ['pdf', 'jpg', 'jpeg', 'png', 'webp']);
                 if (f != null) {
                   businessDocs[i].file = f;
                   onBusinessDocsChange(List<BusinessDocEntry>.from(businessDocs));

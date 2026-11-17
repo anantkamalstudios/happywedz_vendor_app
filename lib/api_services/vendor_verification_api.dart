@@ -1,7 +1,34 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
+
+/// The real type of a KYC file, from its name or — for files shared from
+/// another app, which can arrive without an extension — from its first bytes
+/// (a PDF starts with `%PDF`). Null when it cannot be told.
+Future<String?> kycMimeType(File file) async {
+  List<int> head = const [];
+  try {
+    final raf = await file.open();
+    head = await raf.read(16);
+    await raf.close();
+  } catch (_) {}
+  final type = lookupMimeType(file.path, headerBytes: head);
+  if (type != null) return type == 'image/jpg' ? 'image/jpeg' : type;
+  if (head.length >= 4 && String.fromCharCodes(head.take(4)) == '%PDF') {
+    return 'application/pdf';
+  }
+  return null;
+}
+
+const Map<String, String> _extensionFor = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
 
 class LabeledDocument {
   final String label;
@@ -31,18 +58,12 @@ class VendorVerificationApi {
       request.fields[key] = value;
     });
 
-    if (aadhaar != null) {
-      request.files.add(await http.MultipartFile.fromPath('aadhaar', aadhaar.path));
-    }
-    if (pan != null) {
-      request.files.add(await http.MultipartFile.fromPath('pan', pan.path));
-    }
+    if (aadhaar != null) request.files.add(await _part('aadhaar', aadhaar));
+    if (pan != null) request.files.add(await _part('pan', pan));
 
     if (businessDocs.isNotEmpty) {
       for (final doc in businessDocs) {
-        request.files.add(
-          await http.MultipartFile.fromPath('businessDocs', doc.file.path),
-        );
+        request.files.add(await _part('businessDocs', doc.file));
       }
       request.fields['businessDocLabels'] =
           jsonEncode(businessDocs.map((d) => d.label.trim()).toList());
@@ -81,6 +102,24 @@ class VendorVerificationApi {
       return data['url'] as String?;
     }
     return null;
+  }
+
+  /// One file part with its real type. Without it `fromPath` sends
+  /// `application/octet-stream`, and the server refuses it ("Aadhaar must be
+  /// a PDF … you uploaded application/octet-stream") even for a real PDF.
+  /// The browser sets the type itself, which is why the website never hit it.
+  Future<http.MultipartFile> _part(String field, File file) async {
+    final type = await kycMimeType(file) ?? 'application/octet-stream';
+    final parts = type.split('/');
+    var name = file.path.split(Platform.pathSeparator).last;
+    final ext = _extensionFor[type];
+    if (ext != null && !name.toLowerCase().contains('.')) name = '$name.$ext';
+    return http.MultipartFile.fromPath(
+      field,
+      file.path,
+      filename: name,
+      contentType: MediaType(parts.first, parts.last),
+    );
   }
 
   String _errorMessage(http.Response res, String fallback) {

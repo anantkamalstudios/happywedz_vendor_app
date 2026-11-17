@@ -14,11 +14,13 @@ import '../Storefront/StoreFront.dart';
 import 'Login.dart';
 import 'crm/crm_clients_screen.dart';
 import 'instagram_connect_screen.dart';
+import 'google_profile/google_profile_screen.dart';
 import 'subscription_history_screen.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
 import '../theme/app_colors.dart';
 import '../providers/vendor_access_provider.dart';
 import '../widgets/plan_feature_guard.dart';
+import '../widgets/google_glyph.dart';
 
 class BusinessDrawer extends ConsumerStatefulWidget {
   const BusinessDrawer({Key? key}) : super(key: key);
@@ -40,7 +42,9 @@ class _BusinessDrawerState extends ConsumerState<BusinessDrawer> {
   int? vendorTypeId;
 
   /// Moments+ is a photography-only feature (vendor_type_id == 1).
-  bool get isPhotographer => vendorTypeId == 1;
+  /// Moments+ is for photographers: vendor type 1 or 12 (Pre-wedding), as
+  /// in the website's Navbar.
+  bool get isPhotographer => vendorTypeId == 1 || vendorTypeId == 12;
 
 
 
@@ -165,11 +169,21 @@ Future<void> _loadVendorId() async {
 
   @override
   Widget build(BuildContext context) {
-    // Plan-gated rows are left out entirely (hide, don't lock) and stay out
-    // while access is still loading.
+    // Plan-gated rows are listed for everyone and marked with a padlock when
+    // the plan lacks them, as the website's Navbar does: hiding them meant a
+    // vendor never learnt the features existed. Opening a locked one shows
+    // FeatureGuard's "not part of your plan" page, and the API refuses the
+    // data either way. No padlock while access is still loading.
     final access = ref.watch(vendorAccessProvider).value;
-    final showCrm = access?.hasModule(VendorModules.crm) ?? false;
-    final showInstagram = access?.hasModule(VendorModules.instagram) ?? false;
+    final crmLocked =
+        access != null && !access.hasModule(VendorModules.crm);
+    final instagramLocked =
+        access != null && !access.hasModule(VendorModules.instagram);
+    // Google Business Profile is plan module "google_profile" (website
+    // Navbar / FeatureGuard).
+    const googleProfileModule = 'google_profile';
+    final googleProfileLocked =
+        access != null && !access.hasModule(googleProfileModule);
 
 
     return Drawer(
@@ -215,12 +229,12 @@ Future<void> _loadVendorId() async {
                       );
                     },
                   ),
-                  if (showCrm)
                   ListTile(
                     leading: _drawerIcon(Iconsax.chart_square_copy,
                         AppColors.accentPink, AppColors.accentPinkTint),
                     title: Text(
                         access?.moduleInfo(VendorModules.crm)?.label ?? "CRM"),
+                    trailing: crmLocked ? _lockBadge() : null,
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -248,8 +262,8 @@ Future<void> _loadVendorId() async {
                       );
                     },
                   ),
-                  if (showInstagram)
                   ListTile(
+                    trailing: instagramLocked ? _lockBadge() : null,
                     // The real Instagram mark rather than a stand-in icon, so
                     // the row reads as the brand it links to. It goes through
                     // the same tile as every other row so it cannot outgrow
@@ -269,6 +283,29 @@ Future<void> _loadVendorId() async {
                           builder: (_) => const FeatureGuard(
                             module: VendorModules.instagram,
                             child: InstagramConnectScreen(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    trailing: googleProfileLocked ? _lockBadge() : null,
+                    // The real Google "G", in the same tile as Instagram's mark.
+                    leading: _brandTile(
+                      const GoogleGlyph(size: _brandGlyph),
+                    ),
+                    title: Text(access
+                            ?.moduleInfo(googleProfileModule)
+                            ?.label ??
+                        "Google Business Profile"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FeatureGuard(
+                            module: googleProfileModule,
+                            child: GoogleProfileScreen(),
                           ),
                         ),
                       );
@@ -589,6 +626,22 @@ Future<void> _loadVendorId() async {
 
   /// A brand logo in the same tile. The tint stays neutral so the logo's own
   /// colours are the only ones on the row.
+  /// The padlock beside a feature the plan does not include (as on the
+  /// website's Navbar), in the app's theme colours.
+  Widget _lockBadge() {
+    return Tooltip(
+      message: "Not in your plan",
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: const BoxDecoration(
+          color: AppColors.primaryTint,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.lock_outline, size: 14, color: AppColors.primary),
+      ),
+    );
+  }
+
   Widget _brandTile(Widget logo) {
     return _iconTileWrap(tint: AppColors.listBackground, child: logo);
   }

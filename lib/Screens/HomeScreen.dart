@@ -59,7 +59,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   ];
 
   /// ✅ Photographer check
-  bool get isPhotographer => vendorTypeId == 1;
+  /// Moments+ is for photographers: vendor type 1 or 12 (Pre-wedding), as
+  /// in the website's Navbar.
+  bool get isPhotographer => vendorTypeId == 1 || vendorTypeId == 12;
 
   @override
   void initState() {

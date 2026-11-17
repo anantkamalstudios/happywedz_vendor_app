@@ -7,9 +7,10 @@ import '../theme/app_colors.dart';
 import '../utils/common_app_bar.dart';
 
 /// Shows [child] only when the vendor's plan includes [module]; otherwise the
-/// locked notice. The screen-level check behind the hidden menu entries, for
-/// when a gated screen is reached some other way (deep link, notification, a
-/// screen left open while the plan lapsed). Mirrors the web's `FeatureGuard`.
+/// locked notice. Gated menu entries are listed for everyone with a padlock,
+/// so this is the ordinary way a vendor learns what a feature does — and it
+/// also covers a gated screen reached some other way (deep link, a screen left
+/// open while the plan lapsed). Mirrors the web's `FeatureGuard`.
 class FeatureGuard extends ConsumerWidget {
   final String module;
   final Widget child;
@@ -40,10 +41,33 @@ class PlanFeatureNotice extends ConsumerWidget {
 
   const PlanFeatureNotice({super.key, required this.module, this.message});
 
+  /// The website's titles and descriptions for these notices (Main.jsx), used
+  /// when the server sends none for the module.
+  static const Map<String, (String, String)> _websiteCopy = {
+    'instagram': (
+      'Instagram Connect',
+      'Connect your Instagram account and show your posts and stories on your listing.',
+    ),
+    'crm': (
+      'CRM',
+      'Keep your clients, quotations, invoices and payments in one place.',
+    ),
+    'google_profile': (
+      'Google Profile',
+      'Show up when couples search on Google and Maps. Available on plans that include Google Profile.',
+    ),
+  };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final info = ref.watch(vendorAccessProvider).value?.moduleInfo(module);
-    final label = info?.label ?? 'This feature';
+    final copy = _websiteCopy[module];
+    final label = (info != null && info.label.isNotEmpty)
+        ? info.label
+        : copy?.$1 ?? 'This feature';
+    final description = (info != null && info.description.isNotEmpty)
+        ? info.description
+        : copy?.$2 ?? '';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -55,41 +79,37 @@ class PlanFeatureNotice extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Same wording as the website's PlanFeatureNotice, in the app's theme.
                 Container(
-                  width: 72,
-                  height: 72,
+                  width: 64,
+                  height: 64,
                   decoration: const BoxDecoration(
                     color: AppColors.primaryTint,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.workspace_premium_outlined,
-                      size: 36, color: AppColors.primary),
+                  child: const Icon(Icons.lock_outline,
+                      size: 28, color: AppColors.primary),
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  '$label is not part of your current plan',
+                  '$label is not part of your plan',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                 ),
-                if (info != null && info.description.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(info.description,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary)),
-                ],
+                const SizedBox(height: 8),
+                Text(
+                  '${description.isEmpty ? '' : '$description '}'
+                  'Your saved data is safe — upgrade and it comes straight back.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+                ),
                 if (message != null && message!.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(message!,
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: AppColors.textSecondary)),
                 ],
-                const SizedBox(height: 12),
-                const Text(
-                  'Your saved data is safe and comes back as soon as you upgrade.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
-                ),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,

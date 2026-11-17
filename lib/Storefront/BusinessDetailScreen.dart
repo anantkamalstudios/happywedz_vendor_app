@@ -372,7 +372,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mime/mime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Screens/ViewPlanScreen.dart';
 import '../api_services/vendor_access_api.dart';
@@ -415,6 +417,22 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
 
   String? profileImageUrl;
   File? profileImage;
+
+  /// The vendor record as loaded. Fields this form does not edit (vendor
+  /// type, social links) are sent back from here — the save used to send a
+  /// hard-coded `vendor_type_id: 2` and blank social links, which turned
+  /// every vendor into a Venue and wiped their Facebook/Instagram.
+  Map<String, dynamic> _vendor = {};
+
+  /// Same limits as the website's BusinessDetails.jsx.
+  static const int _maxImageBytes = 5 * 1024 * 1024;
+  static const Set<String> _imageTypes = {
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+  };
+
   bool showPasswordSection = false;
   bool isSaving = false;
   bool isLoading = true;
@@ -611,9 +629,13 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        var data = json.decode(response.body);
+        // Some answers wrap the record as { vendor: {...} }.
+        if (data is Map && data["vendor"] is Map) data = data["vendor"];
+        if (data is! Map) return;
         if (!mounted) return;
         setState(() {
+          _vendor = Map<String, dynamic>.from(data);
           businessName.text = data["businessName"] ?? "";
           email.text = data["email"] ?? "";
           phone.text = data["phone"] ?? "";
@@ -624,7 +646,7 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
           yearsInBusi.text = data["years_in_business"]?.toString() ?? "";
           firstName.text = data["firstName"] ?? "";
           lastName.text = data["lastName"] ?? "";
-          profileImageUrl = data["profileImage"];
+          profileImageUrl = _imageUrlFrom(data);
         });
       }
     } catch (e) {
@@ -634,17 +656,60 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
     }
   }
 
-  // ---------------- PICK IMAGE ----------------
-  Future<void> pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() {
-        profileImage = File(picked.path);
-      });
+  /// The profile photo URL on a vendor record, under any of the names the
+  /// website checks.
+  static String? _imageUrlFrom(Map data) {
+    for (final key in ["profileImage", "profile_image", "image"]) {
+      final v = data[key];
+      if (v is String && v.trim().isNotEmpty && v != "null") {
+        final url = v.trim();
+        if (url.startsWith("http")) return url;
+        return "${ApiConfig.baseUrl}${url.startsWith('/') ? '' : '/'}$url";
+      }
     }
+    return null;
   }
 
-  // ---------------- SAVE DATA (FIXED LOGIC) ----------------
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  // ---------------- PICK IMAGE ----------------
+  Future<void> pickImage() async {
+    // Resized and re-encoded on the device: keeps camera photos well under
+    // the server's 5 MB limit and turns iPhone HEIC into JPEG, which the
+    // server accepts.
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    final file = File(picked.path);
+    final type = lookupMimeType(file.path) ?? "image/jpeg";
+    if (!_imageTypes.contains(type)) {
+      _toast("Please upload a valid image file (JPG, PNG, WEBP).");
+      return;
+    }
+    final size = await file.length();
+    if (size > _maxImageBytes) {
+      _toast("File size must be less than 5 MB. "
+          "(Selected: ${(size / (1024 * 1024)).toStringAsFixed(2)} MB)");
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => profileImage = file);
+  }
+
+  // ---------------- SAVE DATA ----------------
+  /// Same request as the website's BusinessDetails `handleSubmitRegister`:
+  /// PUT /vendor/:id as multipart when a photo is attached, with the photo
+  /// under `profileImage`, and only fields that have a value.
   Future<void> saveData() async {
     final prefs = await SharedPreferences.getInstance();
     final vendorId = prefs.getInt("vendorId");
@@ -652,17 +717,35 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
 
     if (vendorId == null || token == null) return;
 
+    // Required, as on the website.
+    final missing = <String>[
+      if (businessName.text.trim().isEmpty) "Business name",
+      if (email.text.trim().isEmpty) "Email",
+      if (phone.text.trim().isEmpty) "Phone",
+      if (city.text.trim().isEmpty) "City",
+    ];
+    if (missing.isNotEmpty) {
+      _toast("Please fill: ${missing.join(', ')}");
+      return;
+    }
+
     setState(() => isSaving = true);
 
     final request = http.MultipartRequest(
       "PUT",
       Uri.parse("${ApiConfig.baseUrl}/vendor/$vendorId"),
     );
-
     request.headers["Authorization"] = "Bearer $token";
+    request.headers["Accept"] = "application/json";
 
-    // TEXT FIELDS
-    request.fields.addAll({
+    String? kept(String key) {
+      final v = _vendor[key];
+      if (v == null) return null;
+      final s = v.toString().trim();
+      return (s.isEmpty || s == "null") ? null : s;
+    }
+
+    final fields = <String, String?>{
       "businessName": businessName.text.trim(),
       "email": email.text.trim(),
       "phone": phone.text.trim(),
@@ -673,45 +756,67 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
       "years_in_business": yearsInBusi.text.trim(),
       "firstName": firstName.text.trim(),
       "lastName": lastName.text.trim(),
-      "vendor_type_id": "2",
-      "facebook_link": "",
-      "instagram_link": "",
+      // Not edited here — sent back unchanged so the save cannot alter them.
+      "vendor_type_id": kept("vendor_type_id"),
+      "facebook_link": kept("facebook_link"),
+      "instagram_link": kept("instagram_link"),
+      "twitter_link": kept("twitter_link"),
+      "pinterest_link": kept("pinterest_link"),
+    };
+    // The website skips null/empty optional values rather than sending "" —
+    // an empty string in a numeric column (zip, years) is what the server
+    // rejects.
+    fields.forEach((key, value) {
+      if (value != null && value.isNotEmpty) request.fields[key] = value;
     });
 
-    // IMAGE FILE (KEY MUST BE profileImage)
-    if (profileImage != null) {
+    final uploading = profileImage != null;
+    if (uploading) {
+      final type = lookupMimeType(profileImage!.path) ?? "image/jpeg";
+      final parts = type.split("/");
       request.files.add(
         await http.MultipartFile.fromPath(
           "profileImage",
           profileImage!.path,
+          // Without this the file goes as application/octet-stream and the
+          // server's image filter rejects it — the "Update Failed" on photo
+          // change.
+          contentType: MediaType(parts.first, parts.last),
         ),
       );
     }
 
-    final response = await request.send();
-    final res = await http.Response.fromStream(response);
+    try {
+      final response = await request.send().timeout(const Duration(seconds: 60));
+      final res = await http.Response.fromStream(response);
 
-    setState(() => isSaving = false);
-
-    if (response.statusCode == 200) {
-      final data = json.decode(res.body);
-      setState(() {
-        profileImageUrl = data["vendor"]["profileImage"];
-        profileImage = null;
-      });
-
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Profile Updated Successfully")),
-      );
-    } else {
-      debugPrint(res.body);
-      // AUDIT FIX: context used after an await — guard added.
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Update Failed")),
-      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        // Read the record back, as the website does, for the stored photo URL.
+        await loadData();
+        if (profileImageUrl != null) {
+          await prefs.setString("profileImage", profileImageUrl!);
+        }
+        if (!mounted) return;
+        setState(() => profileImage = null);
+        _toast(uploading
+            ? "Business details and profile image updated successfully!"
+            : "Business details saved successfully.");
+      } else {
+        debugPrint("Business details save → ${response.statusCode}: ${res.body}");
+        String message = "Update Failed";
+        try {
+          final body = json.decode(res.body);
+          if (body is Map && (body["message"] ?? body["error"]) != null) {
+            message = "Update Failed: ${body["message"] ?? body["error"]}";
+          }
+        } catch (_) {}
+        _toast(message);
+      }
+    } catch (e) {
+      debugPrint("❌ Business details save error: $e");
+      _toast("Update Failed. Please check your internet and try again.");
+    } finally {
+      if (mounted) setState(() => isSaving = false);
     }
   }
 
@@ -824,6 +929,12 @@ class _BusinessDetailsPageState extends ConsumerState<BusinessDetailsPage> {
                           CircleAvatar(
                             radius: 45,
                             backgroundImage: imageProvider,
+                            // A broken or expired photo URL used to throw
+                            // here; it now just falls back to the person icon.
+                            onBackgroundImageError: imageProvider == null
+                                ? null
+                                : (_, __) => debugPrint(
+                                    "Profile image failed to load"),
                             child: imageProvider == null
                                 ? Icon(Icons.person, size: 45)
                                 : null,

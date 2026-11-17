@@ -11,6 +11,7 @@ import '../utils/subcategory_selection.dart';
 import '../utils/view360_assets.dart';
 import '../widgets/app_network_image.dart';
 import '../widgets/app_shimmer.dart';
+import '../widgets/full_screen_image_viewer.dart';
 
 class GalleryUploadPage extends StatefulWidget {
   const GalleryUploadPage({super.key});
@@ -411,12 +412,21 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
                         ),
                         itemBuilder: (_, i) => Stack(
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
-                                selectedImages[i],
-                                fit: BoxFit.cover,
-                                width: double.infinity,
+                            Positioned.fill(
+                              child: GestureDetector(
+                                onTap: () => FullScreenImageViewer.open(
+                                  context,
+                                  sources: selectedImages,
+                                  initialIndex: i,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.file(
+                                    selectedImages[i],
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                  ),
+                                ),
                               ),
                             ),
                             Positioned(
@@ -465,7 +475,16 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
                               // its shimmer placeholder occupy the same box and
                               // the grid does not reflow as images arrive.
                               Positioned.fill(
-                                child: _savedImageTile(img),
+                                // Tap opens the full photo; swiping in the
+                                // viewer moves through the whole gallery.
+                                child: GestureDetector(
+                                  onTap: () => FullScreenImageViewer.open(
+                                    context,
+                                    sources: savedImages,
+                                    initialIndex: i,
+                                  ),
+                                  child: _savedImageTile(img),
+                                ),
                               ),
                               Positioned(
                                 top: 6,

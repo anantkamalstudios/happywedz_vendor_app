@@ -138,8 +138,16 @@ class VendorServiceApi {
     request.fields["view360_video_urls"] = jsonEncode(keptVideoUrls);
 
     for (final path in newVideoPaths) {
+      // Typed for the same reason as the gallery: without it the file goes as
+      // application/octet-stream, which an upload filter can refuse.
+      final type = lookupMimeType(path) ?? "video/mp4";
+      final parts = type.split("/");
       request.files.add(
-        await http.MultipartFile.fromPath("view360_video", path),
+        await http.MultipartFile.fromPath(
+          "view360_video",
+          path,
+          contentType: MediaType(parts.first, parts.last),
+        ),
       );
     }
 

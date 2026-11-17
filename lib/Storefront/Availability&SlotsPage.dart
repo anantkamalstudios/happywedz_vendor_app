@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_services/api_service_vendor.dart';
 import '../api_services/storefront_completion_service.dart';
+import '../theme/app_colors.dart';
 import '../utils/common_app_bar.dart';
 import '../widgets/app_shimmer.dart';
 import '../utils/subcategory_selection.dart';
@@ -299,6 +300,87 @@ class _SlotsPageState extends State<SlotsPage>
     });
   }
 
+  /// The website's "Open Weekends (Fri - Sun)": marks every future Friday,
+  /// Saturday and Sunday available — in the month on screen, or in every month
+  /// the website lists (this month through December). Already-open dates and
+  /// other days are left as they are.
+  void _openWeekends({required bool allMonths}) {
+    final start = todayDate;
+    final end = allMonths
+        ? DateTime(start.year, 12, 31)
+        : DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+    final from = allMonths
+        ? start
+        : DateTime(_focusedDay.year, _focusedDay.month, 1);
+
+    final weekends = <DateTime>{};
+    for (var d = from;
+        !d.isAfter(end);
+        d = DateTime(d.year, d.month, d.day + 1)) {
+      if (_isPastDay(d)) continue;
+      if (d.weekday == DateTime.friday ||
+          d.weekday == DateTime.saturday ||
+          d.weekday == DateTime.sunday) {
+        weekends.add(_normalize(d));
+      }
+    }
+
+    final added = weekends.difference(availableDays).length;
+    setState(() => availableDays.addAll(weekends));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(added == 0
+            ? "All weekends are already open"
+            : "Opened $added weekend ${added == 1 ? 'date' : 'dates'} — tap Save to keep them"),
+      ),
+    );
+  }
+
+  Widget _openWeekendsButton() {
+    return PopupMenuButton<bool>(
+      color: Colors.white,
+      tooltip: "Open all Friday, Saturday & Sunday dates",
+      onSelected: (allMonths) => _openWeekends(allMonths: allMonths),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: false,
+          child: Text(
+              "This month (${_monthName(_focusedDay.month)} ${_focusedDay.year})"),
+        ),
+        PopupMenuItem(
+          value: true,
+          child: Text("All months (till December ${todayDate.year})"),
+        ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primaryTint,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.primary),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.bolt, size: 18, color: AppColors.primary),
+            SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                "Open Weekends (Fri - Sun)",
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// The Active/Inactive switch the website shows beside the section heading.
   Widget _activeToggle() {
     return Card(
@@ -430,6 +512,8 @@ class _SlotsPageState extends State<SlotsPage>
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
+                              Flexible(child: _openWeekendsButton()),
+                              const SizedBox(width: 8),
                               // Text(
                               //   "${_monthName(_focusedDay.month)} ${_focusedDay.year}",
                               //   style: const TextStyle(
