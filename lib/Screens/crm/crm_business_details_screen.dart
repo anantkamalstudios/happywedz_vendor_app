@@ -9,6 +9,8 @@ import '../../utils/common_app_bar.dart';
 import '../../utils/plan_module_lock.dart';
 import '../../widgets/app_network_image.dart';
 import '../../widgets/plan_feature_guard.dart';
+import '../../widgets/whatsapp_icon.dart';
+import '../whatsapp/whatsapp_connect_screen.dart';
 
 /// CRM → Business details: what is printed on quotations, invoices and
 /// receipts. Same fields, validation and save as the web (CrmPage.jsx):
@@ -395,6 +397,26 @@ class _CrmBusinessDetailsScreenState
                         ),
                       ),
                     ],
+                  ),
+                ]),
+                // The website connects WhatsApp under Settings → Integrations;
+                // in the app it sits with the rest of the CRM's setup.
+                _card('WhatsApp', [
+                  const Text(
+                    'Send quotations, invoices and receipts to clients on WhatsApp, and read '
+                    'their replies.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const WhatsAppConnectScreen(),
+                      ),
+                    ),
+                    icon: const WhatsAppIcon(),
+                    label: const Text('WhatsApp connection'),
                   ),
                 ]),
                 if (_error != null)

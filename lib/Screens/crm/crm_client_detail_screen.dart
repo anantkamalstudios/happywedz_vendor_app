@@ -12,6 +12,7 @@ import '../../utils/plan_module_lock.dart';
 import '../../widgets/app_network_image.dart';
 import '../../widgets/plan_feature_guard.dart';
 import '../../widgets/whatsapp_icon.dart';
+import '../whatsapp/whatsapp_client_card.dart';
 import 'crm_business_details_screen.dart';
 import 'crm_client_form_screen.dart';
 import 'crm_document_editor_screen.dart';
@@ -214,9 +215,21 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
     Future<void> Function()? before,
   }) async {
     if (!_waConnected) return _whatsapp(text, before: before);
+    // A quotation or invoice can also go as the PDF itself — a session
+    // message, so only inside the 24-hour window.
+    var asPdf = false;
+    if (type != CrmDocType.receipt) {
+      final choice = await _askWhatsappForm(type);
+      if (!mounted || choice == null) return;
+      asPdf = choice;
+    }
     setState(() => _waSending = '${type.name}:${doc['id']}');
     try {
-      final res = await _api.sendOnWhatsapp(type, doc['id']);
+      final res = !asPdf
+          ? await _api.sendOnWhatsapp(type, doc['id'])
+          : type == CrmDocType.quotation
+          ? await _api.whatsappQuotationPdf(doc['id'])
+          : await _api.whatsappInvoicePdf(doc['id']);
       _changed = true;
       _toast('${res['message'] ?? 'Sent on WhatsApp.'}');
       await _load();
@@ -225,6 +238,44 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
     } finally {
       if (mounted) setState(() => _waSending = null);
     }
+  }
+
+  /// Link (template) or the PDF itself? `true` for the PDF, null if dismissed.
+  Future<bool?> _askWhatsappForm(CrmDocType type) {
+    final what = type == CrmDocType.quotation ? 'quotation' : 'invoice';
+    return showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const WhatsAppIcon(size: 22),
+              title: Text('Send the $what link'),
+              subtitle: const Text(
+                'As an approved template, so it reaches the client at any time.',
+              ),
+              onTap: () => Navigator.pop(sheetContext, false),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.picture_as_pdf_outlined,
+                color: AppColors.primary,
+              ),
+              title: Text('Send the $what PDF'),
+              subtitle: const Text(
+                'The document itself. WhatsApp only allows this within 24 hours of '
+                'the client writing to you.',
+              ),
+              onTap: () => Navigator.pop(sheetContext, true),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _push(Widget screen, {int? tab}) async {
@@ -1308,6 +1359,16 @@ class _CrmClientDetailScreenState extends ConsumerState<CrmClientDetailScreen>
             ),
         ],
       ),
+      // The website's WhatsAppReply, between the files and the notes.
+      if (_waConnected)
+        WhatsAppClientCard(
+          client: _client,
+          files: _files,
+          onClientChanged: () async {
+            _changed = true;
+            await _load();
+          },
+        ),
       _notesCard(),
       Align(
         alignment: Alignment.centerRight,

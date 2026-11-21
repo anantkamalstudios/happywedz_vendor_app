@@ -15,7 +15,18 @@ class FeatureGuard extends ConsumerWidget {
   final String module;
   final Widget child;
 
-  const FeatureGuard({super.key, required this.module, required this.child});
+  /// Optional wording for the locked page, for a screen that shares another
+  /// feature's module (WhatsApp is part of the CRM plan, as on the website).
+  final String? title;
+  final String? description;
+
+  const FeatureGuard({
+    super.key,
+    required this.module,
+    required this.child,
+    this.title,
+    this.description,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,7 +38,11 @@ class FeatureGuard extends ConsumerWidget {
       error: (_, __) => child,
       data: (a) => a.hasModule(module)
           ? child
-          : PlanFeatureNotice(module: module),
+          : PlanFeatureNotice(
+              module: module,
+              title: title,
+              description: description,
+            ),
     );
   }
 }
@@ -39,7 +54,17 @@ class PlanFeatureNotice extends ConsumerWidget {
   final String module;
   final String? message;
 
-  const PlanFeatureNotice({super.key, required this.module, this.message});
+  /// Override the module's label / description (see [FeatureGuard.title]).
+  final String? title;
+  final String? description;
+
+  const PlanFeatureNotice({
+    super.key,
+    required this.module,
+    this.message,
+    this.title,
+    this.description,
+  });
 
   /// The website's titles and descriptions for these notices (Main.jsx), used
   /// when the server sends none for the module.
@@ -62,10 +87,14 @@ class PlanFeatureNotice extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final info = ref.watch(vendorAccessProvider).value?.moduleInfo(module);
     final copy = _websiteCopy[module];
-    final label = (info != null && info.label.isNotEmpty)
+    final label = (title != null && title!.isNotEmpty)
+        ? title!
+        : (info != null && info.label.isNotEmpty)
         ? info.label
         : copy?.$1 ?? 'This feature';
-    final description = (info != null && info.description.isNotEmpty)
+    final description = this.description != null
+        ? this.description!
+        : (info != null && info.description.isNotEmpty)
         ? info.description
         : copy?.$2 ?? '';
 

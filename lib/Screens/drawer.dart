@@ -13,6 +13,7 @@ import '../Storefront/StoreFront.dart';
 // import '../movments_plus/bottom_bar.dart';
 import 'Login.dart';
 import 'crm/crm_clients_screen.dart';
+import 'whatsapp/whatsapp_workspace_screen.dart';
 import 'instagram_connect_screen.dart';
 import 'google_profile/google_profile_screen.dart';
 import 'subscription_history_screen.dart';
@@ -21,6 +22,7 @@ import '../theme/app_colors.dart';
 import '../providers/vendor_access_provider.dart';
 import '../widgets/plan_feature_guard.dart';
 import '../widgets/google_glyph.dart';
+import '../widgets/whatsapp_icon.dart';
 
 class BusinessDrawer extends ConsumerStatefulWidget {
   const BusinessDrawer({Key? key}) : super(key: key);
@@ -243,6 +245,30 @@ Future<void> _loadVendorId() async {
                           builder: (_) => const FeatureGuard(
                             module: VendorModules.crm,
                             child: CrmClientsScreen(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  // WhatsApp, right after CRM as on the website's Navbar. It is
+                  // part of the CRM plan, so it is locked with it.
+                  ListTile(
+                    leading: _brandTile(
+                      const WhatsAppIcon(size: _brandGlyph),
+                    ),
+                    title: const Text("WhatsApp"),
+                    trailing: crmLocked ? _lockBadge() : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FeatureGuard(
+                            module: VendorModules.crm,
+                            title: "WhatsApp",
+                            description:
+                                "Talk to your clients on WhatsApp from here: their replies, your templates and your broadcasts.",
+                            child: WhatsAppWorkspaceScreen(),
                           ),
                         ),
                       );

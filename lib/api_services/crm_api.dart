@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:intl/intl.dart';
+import 'package:mime/mime.dart';
 import 'package:happy_weds_vendors/utils/api_config.dart';
 import '../auth/session_manager.dart';
 import '../utils/plan_module_lock.dart';
@@ -166,7 +167,16 @@ class CrmApi {
     return _decode(await http.Response.fromStream(streamed));
   }
 
+  /// The file's real type from its name (`lookupMimeType`), so a multipart
+  /// part is never sent as application/octet-stream; the extension switch
+  /// below only covers what `mime` does not know.
   static MediaType _mediaTypeOf(String path) {
+    final looked = lookupMimeType(path);
+    if (looked != null && looked != 'application/octet-stream') {
+      try {
+        return MediaType.parse(looked);
+      } catch (_) {}
+    }
     final ext = path.toLowerCase().split('.').last;
     switch (ext) {
       case 'pdf':
@@ -280,6 +290,166 @@ class CrmApi {
   /// template from the connected number. Returns `{message}`.
   Future<Map<String, dynamic>> sendOnWhatsapp(CrmDocType type, dynamic id) =>
       _send('POST', '/${type.path}/$id/whatsapp');
+
+  /// `{baseUrl, apiKey, wabaId}` → `{whatsapp: {...}, message}`. The server
+  /// tries the key against the provider before saving it, so a wrong key
+  /// fails here. `whatsapp.missingTemplates` lists templates still to create.
+  Future<Map<String, dynamic>> connectWhatsapp(Map<String, dynamic> body) =>
+      _send('PUT', '/whatsapp', body: body);
+
+  /// The signing secret the provider shows once for the webhook →
+  /// `{whatsapp, message}`.
+  Future<Map<String, dynamic>> setWhatsappWebhookSecret(String secret) =>
+      _send('PUT', '/whatsapp/webhook', body: {'secret': secret});
+
+  /// The WhatsApp Business Account id broadcasts are sent from →
+  /// `{whatsapp, message}`.
+  Future<Map<String, dynamic>> setWhatsappWaba(String wabaId) =>
+      _send('PUT', '/whatsapp/waba', body: {'wabaId': wabaId});
+
+  /// `{whatsapp: {...}}` with `connected: false`.
+  Future<Map<String, dynamic>> disconnectWhatsapp() =>
+      _send('DELETE', '/whatsapp');
+
+  /// Same as [sendOnWhatsapp] for each document, named as on the website.
+  Future<Map<String, dynamic>> whatsappQuotation(dynamic id) =>
+      sendOnWhatsapp(CrmDocType.quotation, id);
+  Future<Map<String, dynamic>> whatsappInvoice(dynamic id) =>
+      sendOnWhatsapp(CrmDocType.invoice, id);
+  Future<Map<String, dynamic>> whatsappReceipt(dynamic id) =>
+      sendOnWhatsapp(CrmDocType.receipt, id);
+
+  /// `{templates: [{name, language, status, category, body?, header?,
+  /// footer?, variableCount?, submittedBy?}], wordingReport?}`. Meta approves
+  /// templates in its own time; this list is what reports the outcome.
+  Future<Map<String, dynamic>> whatsappTemplates() =>
+      _get('/whatsapp/templates');
+
+  /// Submits a template for Meta's approval.
+  Future<Map<String, dynamic>> createWhatsappTemplate(
+    Map<String, dynamic> body,
+  ) => _send('POST', '/whatsapp/templates', body: body);
+
+  /// The connected WhatsApp Business Account, as the provider reports it.
+  Future<Map<String, dynamic>> whatsappWaba() => _get('/whatsapp/waba');
+
+  /// `{contacts: [{name, phone, status}], pagination: {page, pages, total}}`
+  /// for `{page, limit, search}`.
+  Future<Map<String, dynamic>> whatsappContacts({
+    int page = 1,
+    int limit = pageSize,
+    String search = '',
+  }) => _get('/whatsapp/contacts', {
+    'page': '$page',
+    'limit': '$limit',
+    'search': search,
+  });
+
+  Future<Map<String, dynamic>> saveWhatsappContact(Map<String, dynamic> body) =>
+      _send('POST', '/whatsapp/contacts', body: body);
+
+  /// `{conversations: [{key, name, number, clientId, lastMessage,
+  /// lastDirection, lastAt, unread}]}`, newest first. Our own record of every
+  /// send plus what arrived by webhook.
+  Future<Map<String, dynamic>> whatsappConversations() =>
+      _get('/whatsapp/conversations');
+
+  /// `{conversation: {key, name, number, clientId, window: {open, closesAt},
+  /// messages: [{id, direction, body, mediaUrl, mediaType, template, kind,
+  /// status, error, actorName, at}]}}`.
+  Future<Map<String, dynamic>> whatsappConversation(String key) =>
+      _get('/whatsapp/conversations/${Uri.encodeComponent(key)}');
+
+  /// Free text inside the 24-hour window: `{text}`.
+  Future<Map<String, dynamic>> whatsappConversationReply(
+    String key,
+    Map<String, dynamic> body,
+  ) => _send(
+    'POST',
+    '/whatsapp/conversations/${Uri.encodeComponent(key)}/reply',
+    body: body,
+  );
+
+  /// An approved template, the only thing allowed outside the window:
+  /// `{templateName, variables: {"1": …}}`.
+  Future<Map<String, dynamic>> whatsappConversationTemplate(
+    String key,
+    Map<String, dynamic> body,
+  ) => _send(
+    'POST',
+    '/whatsapp/conversations/${Uri.encodeComponent(key)}/template',
+    body: body,
+  );
+
+  /// Stores a template's wording (copied from the provider) so its preview
+  /// can be shown: `{name, language, body, header?, footer?}`.
+  Future<Map<String, dynamic>> saveWhatsappTemplateWording(
+    Map<String, dynamic> body,
+  ) => _send('PUT', '/whatsapp/templates/wording', body: body);
+
+  /// The client asked to hear from the vendor again → `{message}`.
+  Future<Map<String, dynamic>> clearWhatsappOptOut(dynamic clientId) =>
+      _send('POST', '/clients/$clientId/whatsapp/opt-in');
+
+  /// Marks what was in the conversation when it was opened as read.
+  Future<Map<String, dynamic>> whatsappConversationSeen(String key) => _send(
+    'POST',
+    '/whatsapp/conversations/${Uri.encodeComponent(key)}/seen',
+  );
+
+  /// `{messages: [{id, at, kind, template, client, to, sentBy, status,
+  /// error}], page, totalPages, total}` for `{page, limit, status?}`.
+  Future<Map<String, dynamic>> whatsappHistory({
+    int page = 1,
+    int limit = pageSize,
+    String status = '',
+  }) => _get('/whatsapp/history', {
+    'page': '$page',
+    'limit': '$limit',
+    if (status.isNotEmpty) 'status': status,
+  });
+
+  /// The PDF itself rather than a link to it. A session message, so bound by
+  /// the 24-hour window. → `{message}`.
+  Future<Map<String, dynamic>> whatsappQuotationPdf(dynamic id) =>
+      _send('POST', '/quotations/$id/whatsapp/pdf');
+  Future<Map<String, dynamic>> whatsappInvoicePdf(dynamic id) =>
+      _send('POST', '/invoices/$id/whatsapp/pdf');
+
+  /// A photo or file WhatsApp fetches from a public link:
+  /// `{type: image|video|audio|document, mediaUrl, caption}`.
+  Future<Map<String, dynamic>> whatsappFile(
+    dynamic clientId,
+    Map<String, dynamic> body,
+  ) => _send('POST', '/clients/$clientId/whatsapp/file', body: body);
+
+  /// `{options: [{id, label}], total, reachable, max, unreachable: [{name}],
+  /// optedOut: [...], sample}` for `{audience}`.
+  Future<Map<String, dynamic>> whatsappAudience(String audience) =>
+      _get('/whatsapp/audience', {'audience': audience});
+
+  /// `{campaigns: [{id, name, status, source, sent, recipients, failed,
+  /// error, scheduledAt, sentAt, createdAt}]}`.
+  Future<Map<String, dynamic>> whatsappCampaigns() =>
+      _get('/whatsapp/campaigns');
+
+  /// `{name, templateName, audience, scheduledAt (ISO or null), variables}`
+  /// → `{message}`.
+  Future<Map<String, dynamic>> startWhatsappCampaign(
+    Map<String, dynamic> body,
+  ) => _send('POST', '/whatsapp/campaigns', body: body);
+
+  /// `{templateName, variables}` to one client → `{message}`.
+  Future<Map<String, dynamic>> whatsappSendTemplate(
+    dynamic clientId,
+    Map<String, dynamic> body,
+  ) => _send('POST', '/clients/$clientId/whatsapp/template', body: body);
+
+  /// Free text to one client: `{text}`. Refused outside the 24-hour window.
+  Future<Map<String, dynamic>> whatsappReply(
+    dynamic clientId,
+    Map<String, dynamic> body,
+  ) => _send('POST', '/clients/$clientId/whatsapp/reply', body: body);
 
   // ------------------------------------------------------------------ PDFs
   static String quotationPdf(dynamic id) => '/quotations/$id/pdf';
